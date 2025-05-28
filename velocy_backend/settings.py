@@ -93,7 +93,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'velocy_verse',  # Replace with your database name
         'USER': 'postgres',  # Your PostgreSQL username
-        'PASSWORD': 'new_password',  # Your PostgreSQL password
+        'PASSWORD': 'Velocy_DB',  # Your PostgreSQL password
         'HOST': 'localhost',
         'PORT': '5432',
     }
