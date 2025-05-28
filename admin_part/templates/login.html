@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body.login-body {
+            background-color: #f9f9f9;
+            font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.07);
+            border-radius: 12px;
+        }
+
+        .login-container h2 {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .login-form label {
+            font-weight: 400;
+            color: #444;
+        }
+
+        .login-form .form-control {
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        .login-form .btn-dark {
+            border-radius: 8px;
+            background-color: #000;
+            font-weight: 500;
+        }
+
+        .alert {
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <h2 class="text-center mb-4">Vehicle Provider Login</h2>
+        <form method="post" class="login-form">
+    {% csrf_token %}
+    {% if error %}
+        <div class="alert alert-danger text-center">{{ error }}</div>
+    {% endif %}
+   <div class="form-group mb-3">
+    <label for="phone_number">Phone Number</label>
+    <input type="text"
+           name="phone_number"
+           class="form-control"
+           required
+           id="phone_number"
+           pattern="\d{10}"
+           maxlength="10"
+           minlength="10"
+           title="Phone number must be exactly 10 digits">
+</div>
+
+    <div class="form-group mb-4">
+        <label for="password">Password</label>
+        <input type="password" name="password" class="form-control" required id="password">
+    </div>
+    <button type="submit" class="btn btn-dark d-block mx-auto" style="width: 120px;">Login</button>
+</form>
+
+    </div>
+</body>
+</html>

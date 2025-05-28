@@ -1,0 +1,65 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div>
+    <h2>Vehicle Provider Dashboard</h2>
+    <p>Manage your fleet and drivers efficiently</p>
+
+    <div class="stats">
+      <div class="card">
+        <div class="icon">🚗</div>
+        <h3>24</h3>
+        <p>Total Vehicles</p>
+      </div>
+      <div class="card">
+        <div class="icon">👨‍✈️</div>
+        <h3>18</h3>
+        <p>Active Drivers</p>
+      </div>
+      <div class="card">
+        <div class="icon">💰</div>
+        <h3>$12,450</h3>
+        <p>Monthly Earnings</p>
+      </div>
+    </div>
+
+    <!-- Vehicle Approval Table Section -->
+<div class="section section-table">
+  <h3 class="section-title">Pending Vehicle Approvals</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Vehicle</th>
+        <th>Provider</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Toyota Camry 2025</td>
+        <td>Robert Smith</td>
+        <td><span class="status status-pending">Pending</span></td>
+        <td><button class="btn btn-review">Review</button></td>
+      </tr>
+      <tr>
+        <td>Honda Civic 2025</td>
+        <td>Mary Johnson</td>
+        <td><span class="status status-pending">Pending</span></td>
+        <td><button class="btn btn-review">Review</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Recent Activities Section -->
+<div class="section section-activity">
+  <h3 class="section-title">Recent Activities</h3>
+  <div class="activities">
+    <div class="activity-item">⚫ Driver Alex assigned to Toyota Camry – 2 hours ago</div>
+    <div class="activity-item">🚗 New vehicle registration: Honda Civic – 5 hours ago</div>
+    <div class="activity-item">💰 Monthly earnings updated – 1 day ago</div>
+  </div>
+</div>
+
+</div>
+{% endblock %}

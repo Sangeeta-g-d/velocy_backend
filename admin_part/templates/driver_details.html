@@ -1,0 +1,29 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="profile-wrapper">
+  <div class="driver-info">
+    <p>User name : <strong>{{ driver.username }}</strong></p>
+    <p>Car Number : <strong>{{ vehicle_info.vehicle_number }}</strong></p>
+    <p>Car Type : <strong>{{ vehicle_info.car_model }}</strong></p>
+  </div>
+
+  <div class="photo-gallery">
+    {% if driver.profile %}
+      <img src="{{ driver.profile.url }}" alt="Profile">
+    {% endif %}
+    <!-- You can loop more vehicle images here if added -->
+    <div class="view-all">View All</div>
+  </div>
+</div>
+
+<div class="documents">
+  {% for doc in documents %}
+  <div class="doc-card">
+    <i class="fas fa-car"></i>
+    <p>{{ doc.name }}</p>
+    <a href="{{ doc.url }}" target="_blank" class="preview-btn">Preview</a>
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}
