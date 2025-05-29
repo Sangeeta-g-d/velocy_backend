@@ -172,11 +172,18 @@ class UpdateUserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request):
+        print("Headers:", request.headers)  # DEBUG: Check incoming headers
+        print("User:", request.user)        # DEBUG: Will show 'AnonymousUser' if auth failed
+
         serializer = UserProfileUpdateSerializer(instance=request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            print("Profile updated for:", request.user)  # Confirm user update
             return Response({'message': 'Profile updated successfully', 'user': serializer.data}, status=status.HTTP_200_OK)
+        
+        print("Validation errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     
 
 class BecomeDriverView(APIView):
