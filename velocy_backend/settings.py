@@ -44,6 +44,14 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
 ]
 
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+
 from dotenv import load_dotenv
 import os
 load_dotenv()
