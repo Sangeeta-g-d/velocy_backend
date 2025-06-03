@@ -82,8 +82,19 @@ class RegisterWithOTPView(APIView):
                     phone_otp.delete()
 
                 return Response({
+<<<<<<< HEAD
                     'message': 'User registered successfully',
                     'user_id': user.id
+=======
+                    'message': 'User registered and logged in successfully',
+                    'user': {
+                        'phone_number': user.phone_number,
+                        'role': user.role,'user_id':user.id
+
+                    },
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+>>>>>>> f96437bf68103093be28dae837aff124f1a7fd07
                 }, status=status.HTTP_201_CREATED)
 
             except PhoneOTP.DoesNotExist:
@@ -261,5 +272,9 @@ class DriverDocumentInfoView(APIView):
                 'message': 'Driver document information saved successfully',
                 'data': DriverDocumentInfoSerializer(doc_info).data
             }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+<<<<<<< HEAD
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+=======
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+>>>>>>> f96437bf68103093be28dae837aff124f1a7fd07
