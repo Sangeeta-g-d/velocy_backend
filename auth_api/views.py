@@ -87,7 +87,8 @@ class RegisterWithOTPView(APIView):
                     'message': 'User registered and logged in successfully',
                     'user': {
                         'phone_number': user.phone_number,
-                        'role': user.role,
+                        'role': user.role,'user_id':user.id
+
                     },
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
@@ -158,7 +159,7 @@ class LoginWithOTPView(APIView):
                 'message': 'Login successful',
                 'user': {
                     'phone_number': user.phone_number,
-                    'role': user.role,
+                    'role': user.role,'user_id':user.id
                 },
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
