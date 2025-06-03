@@ -1,0 +1,109 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+    <div class="top-controls">
+  <a href="{% url 'cab_management' %}" class="back-arrow" title="Back">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+
+</div>
+    <h2 class="section-title" style="text-align: center;">Fare Management</h2>
+    <h4 class="section-title" style="margin-top: 30px;">Choose Vehicle</h4>
+   <form id="fareForm" method="POST" action="{% url 'add_city_vehicle_price' %}">
+    {% csrf_token %}
+    <div class="vehicle-container">
+        {% for vehicle in vehicle_types %}
+            <div class="vehicle-card" data-id="{{ vehicle.id }}" onclick="selectVehicle(this)">
+                {% if vehicle.image %}
+                    <img src="{{ vehicle.image.url }}" alt="{{ vehicle.name }}" class="vehicle-image">
+                {% else %}
+                    <div class="vehicle-image" style="background-color: #ddd; display: flex; align-items: center; justify-content: center; color: #777;">No Image</div>
+                {% endif %}
+                <div class="vehicle-name">{{ vehicle.name }}</div>
+                <div class="vehicle-passengers">{{ vehicle.number_of_passengers }} Passenger{{ vehicle.number_of_passengers|pluralize }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+<!-- Hidden input to store selected vehicle -->
+<input type="hidden" id="selectedVehicleId" name="vehicle_type_id">
+<div class="form-group">
+        <label for="citySelect" style="display: block; margin-bottom: 6px; color: #333;">Select available cities</label>
+        <select name="city_id" id="citySelect" class="city-select" required>
+            <option value="" style="color: #777;">-- select city --</option>
+            {% for city in cities %}
+                <option value="{{ city.id }}">{{ city.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+<div class="form-group" style="margin-top: 20px;">
+        <label for="price" style="display: block; margin-bottom: 6px; color: #333;">Enter price per km</label>
+        <input type="number" name="price_per_km" id="price" class="city-select" placeholder="e.g., 12" min="0" step="0.01" required>
+    </div>
+  <div style="margin-top: 20px;">
+        <button class="btn btn-primary" type="submit">Done</button>
+        <button class="btn btn-secondary" type="button" onclick="resetForm()">Cancel</button>
+    </div>
+</form>
+</div>
+<script>
+  function selectVehicle(card) {
+    document.querySelectorAll(".vehicle-card").forEach(c => c.classList.remove("selected"));
+    card.classList.add("selected");
+    document.getElementById("selectedVehicleId").value = card.getAttribute("data-id");
+  }
+
+  function resetForm() {
+    document.getElementById("fareForm").reset();
+    document.querySelectorAll(".vehicle-card").forEach(c => c.classList.remove("selected"));
+  }
+
+  document.getElementById("fareForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    const vehicleTypeId = document.getElementById("selectedVehicleId").value;
+    const cityId = document.getElementById("citySelect").value;
+    const price = document.getElementById("price").value;
+
+    if (!vehicleTypeId) {
+      alert("Please select a vehicle.");
+      return;
+    }
+    if (!cityId) {
+      alert("Please select a city.");
+      return;
+    }
+    if (!price || price <= 0) {
+      alert("Please enter a valid price.");
+      return;
+    }
+
+    fetch("{% url 'add_city_vehicle_price' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: JSON.stringify({
+        vehicle_type_id: vehicleTypeId,
+        city_id: cityId,
+        price_per_km: price
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("Fare added successfully!");
+        resetForm();
+      } else {
+        showToast(data.error || "Something went wrong.");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Network error.");
+    });
+  });
+</script>
+
+{% endblock %}

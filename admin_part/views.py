@@ -1,6 +1,12 @@
 from django.shortcuts import render,redirect,get_object_or_404
 from django.contrib.auth import authenticate, login
-from auth_api.models import CustomUser
+from auth_api.models import CustomUser,DriverDocumentInfo
+from .models import *
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_http_methods
 # Create your views here.
 
 def dashboard(request):
@@ -25,7 +31,7 @@ def login_view(request):
     return render(request, 'login.html', {'error': error})
 
 def approve_drivers(request):
-    drivers = CustomUser.objects.filter(role='driver')
+    drivers = CustomUser.objects.all()
     context = {
         "current_url_name":"approve_drivers",
         'drivers': drivers
@@ -33,37 +39,203 @@ def approve_drivers(request):
     return render(request, 'approve_drivers.html', context)
 
 def driver_details(request, driver_id):
-    driver = get_object_or_404(CustomUser, id=driver_id)
+    driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
     vehicle_info = getattr(driver, 'vehicle_info', None)
     document_info = getattr(driver, 'document_info', None)
 
-    documents = []
+    return render(request, 'driver_details.html', {
+        'driver': driver,
+        'vehicle_info': vehicle_info,
+        'document_info': document_info,
+        'current_url_name':'approve_drivers'
+    })
 
-    if document_info:
-        if document_info.vehicle_registration_doc:
-            documents.append({
-                "name": "Registration Certificate (RC)",
-                "url": document_info.vehicle_registration_doc.url
-            })
-        if document_info.vehicle_insurance:
-            documents.append({
-                "name": "Insurance",
-                "url": document_info.vehicle_insurance.url
-            })
-        if document_info.driver_license:
-            documents.append({
-                "name": "Driver License",
-                "url": document_info.driver_license.url
-            })
-    if driver.aadhar_card:
-        documents.append({
-            "name": "Aadhar Document",
-            "url": driver.aadhar_card.url
-        })
+def verify_driver(request, driver_id):
+    if request.method == "POST":
+        try:
+            doc_info = DriverDocumentInfo.objects.get(user_id=driver_id)
+            doc_info.verified = True
+            doc_info.save()
+            return JsonResponse({"status": "success"})
+        except DriverDocumentInfo.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Document not found"}, status=404)
+        
+def block_driver(request, driver_id):
+    if request.method == "POST":
+        try:
+            user = CustomUser.objects.get(id=driver_id)
+            user.is_active = False  # Blocking the user
+            user.save()
+            return JsonResponse({"status": "success"})
+        except CustomUser.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "User not found"}, status=404)
 
+def add_city(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            name = data.get("name")
+            if not name:
+                return JsonResponse({'success': False, 'error': 'City name is required.'})
+
+            city, created = City.objects.get_or_create(name=name)
+            if not created:
+                return JsonResponse({'success': False, 'error': 'City already exists.'})
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+@require_http_methods(["POST"])
+@csrf_exempt  # Optional if CSRF token is passed via JS
+def add_vehicle_type(request):
+    try:
+        name = request.POST.get("name")
+        number = request.POST.get("number_of_passengers")
+        image = request.FILES.get("image")
+
+        if not name or not number:
+            return JsonResponse({'success': False, 'error': 'All required fields must be filled.'})
+
+        number = int(number)
+        if number <= 0:
+            return JsonResponse({'success': False, 'error': 'Passenger count must be at least 1.'})
+
+        if VehicleType.objects.filter(name__iexact=name).exists():
+            return JsonResponse({'success': False, 'error': 'Vehicle type already exists.'})
+
+        VehicleType.objects.create(
+            name=name,
+            number_of_passengers=number,
+            image=image
+        )
+
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+    
+def fare_management(request):
+    vehicle_types = VehicleType.objects.all()
+    cities = City.objects.all()
     context = {
-        "driver": driver,
-        "vehicle_info": vehicle_info,
-        "documents": documents,
+        'vehicle_types':vehicle_types,'cities':cities,'current_url_name':'cab'
     }
-    return render(request, 'driver_details.html', context)
+    return render(request,'fare_management.html',context)
+
+def cab_management(request):
+    cities = City.objects.all()
+    vehicle_types = VehicleType.objects.all()
+    city_vehicle_prices = CityVehiclePrice.objects.select_related('city', 'vehicle_type').all()
+
+    return render(request, 'cab_management.html', {
+        'cities': cities,
+        'vehicle_types': vehicle_types,
+        'city_vehicle_prices': city_vehicle_prices,
+        'current_url_name':"cab"
+    })
+
+
+@csrf_exempt
+def get_vehicle_type(request, pk):
+    if request.method == "GET":
+        try:
+            vehicle = VehicleType.objects.get(pk=pk)
+            data = {
+                "id": vehicle.id,
+                "name": vehicle.name,
+                "number_of_passengers": vehicle.number_of_passengers,
+                "image_url": vehicle.image.url if vehicle.image else "",
+            }
+            return JsonResponse(data)
+        except VehicleType.DoesNotExist:
+            return JsonResponse({"error": "Vehicle type not found"}, status=404)
+
+
+
+@csrf_exempt
+def update_vehicle_type(request, pk):
+    if request.method == "POST":
+        try:
+            vehicle = VehicleType.objects.get(pk=pk)
+            name = request.POST.get("name")
+            passengers = request.POST.get("number_of_passengers")
+            image = request.FILES.get("image")
+
+            vehicle.name = name
+            vehicle.number_of_passengers = passengers
+            if image:
+                vehicle.image = image
+            vehicle.save()
+
+            return JsonResponse({"success": True})
+        except VehicleType.DoesNotExist:
+            return JsonResponse({"error": "Vehicle type not found"}, status=404)
+        
+@csrf_exempt
+def delete_city(request, pk):
+    if request.method == "POST":
+        try:
+            city = City.objects.get(pk=pk)
+            city.delete()
+            return JsonResponse({"success": True})
+        except City.DoesNotExist:
+            return JsonResponse({"error": "City not found"}, status=404)
+        
+
+@csrf_exempt
+def delete_vehicle_price(request, pk):
+    if request.method == "POST":
+        try:
+            vehiclePrice = CityVehiclePrice.objects.get(pk=pk)
+            vehiclePrice.delete()
+            return JsonResponse({"success": True})
+        except vehiclePrice.DoesNotExist:
+            return JsonResponse({"error": "City not found"}, status=404)
+
+        
+@csrf_exempt
+def delete_vehicle(request, pk):
+    if request.method == "POST":
+        try:
+            vehicle = VehicleType.objects.get(pk=pk)
+            vehicle.delete()
+            return JsonResponse({"success": True})
+        except VehicleType.DoesNotExist:
+            return JsonResponse({"error": "Vehicle not found"}, status=404)
+        
+@csrf_exempt
+def add_city_vehicle_price(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            city_id = data.get("city_id")
+            vehicle_type_id = data.get("vehicle_type_id")
+            price_per_km = data.get("price_per_km")
+
+            if not all([city_id, vehicle_type_id, price_per_km]):
+                return JsonResponse({"error": "Missing required fields"}, status=400)
+
+            # Import your models
+            from .models import City, VehicleType, CityVehiclePrice
+
+            city = City.objects.get(id=city_id)
+            vehicle = VehicleType.objects.get(id=vehicle_type_id)
+
+            # Check if entry already exists
+            obj, created = CityVehiclePrice.objects.update_or_create(
+                city=city,
+                vehicle_type=vehicle,
+                defaults={"price_per_km": price_per_km}
+            )
+
+            return JsonResponse({"success": True, "created": created})
+
+        except City.DoesNotExist:
+            return JsonResponse({"error": "City not found"}, status=404)
+        except VehicleType.DoesNotExist:
+            return JsonResponse({"error": "Vehicle type not found"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)

@@ -1,0 +1,377 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+  <div class="top-controls">
+    <a href="{% url 'fare_management' %}" class="btn btn-primary">Manage Fare</a>
+    <div class="right-buttons">
+      <button class="btn btn-primary open-modal-btn" data-modal="addCityModal">Add City</button>
+      <button class="btn btn-secondary open-modal-btn" data-modal="addVehicleModal">Add Vehicle Type</button>
+    </div>
+  </div>
+<div class="container">
+    <!-- Your existing content like vehicle cards, forms, etc. -->
+
+    <h3 style="margin-top: 40px;">City Vehicle Price List</h3>
+
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>City</th>
+                <th>Vehicle Type</th>
+                <th>Price per Km (₹)</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in city_vehicle_prices %}
+            <tr>
+                <td>{{ item.city.name }}</td>
+                <td>{{ item.vehicle_type.name }}</td>
+                <td>{{ item.price_per_km }}</td>
+                <td><a href="javascript:void(0);" title="Delete" class="btn btn-danger" onclick="deleteVehiclePrice({{ item.id }})"><i class="fas fa-trash-alt"></i></a></td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3">No fare data found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+  <div class="tables-wrapper">  
+    <!-- Vehicle Table -->
+    <div class="table-container">
+      <h5 style="font-size: 17px;">Vehicle Types</h5>
+      <table class="styled-table">
+        <thead>
+          <tr>
+            <th>Id</th>
+            <th>Name</th>
+            <th>Passengers</th>
+            <th>Image</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for vehicle in vehicle_types %}
+          <tr>
+            <td>{{vehicle.id}}</td>
+            <td>{{ vehicle.name }}</td>
+            <td>{{ vehicle.number_of_passengers }}</td>
+            <td>
+              {% if vehicle.image %}
+                <img src="{{ vehicle.image.url }}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" />
+              {% else %}
+                N/A
+              {% endif %}
+            </td>
+            <td>
+             <a href="javascript:void(0);" onclick="openEditModal({{ vehicle.id }})" title="Edit" class="btn btn-secondary open-modal-btn" data-modal="editVehicle">
+  <i class="fas fa-edit"></i>
+</a>
+            <a href="javascript:void(0);" title="Delete" class="btn btn-danger" onclick="deleteVehicle({{ vehicle.id }})"><i class="fas fa-trash-alt"></i></a>
+
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Cities Table -->
+    <!-- Cities Display -->
+<div class="table-container">
+  <h5 style="font-size: 17px;">Cities</h5>
+  <div class="city-tags">
+    {% for city in cities %}
+      <div class="city-tag">
+        {{ city.name }}
+        <span class="remove-city" onclick="deleteCity({{ city.id }})">&times;</span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+  </div>
+</div>
+
+
+<!-- modal code for adding city -->
+ <div class="modal-overlay" id="addCityModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add City</h2>
+      <button class="close-btn">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="addCityForm">
+        <div class="form-group">
+          <label for="cityName" class="form-group label">City Name</label>
+          <input type="text" class="form-control" id="cityName" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-2">Add City</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- vehicle type modal -->
+<div class="modal-overlay" id="addVehicleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Vehicle Type</h2>
+      <button class="close-btn">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="addVehicleType" enctype="multipart/form-data">
+  <div class="form-group">
+    <label for="VehicleName">Vehicle Type</label>
+    <input type="text" class="form-control" id="VehicleName" name="name" required>
+  </div>
+
+  <div class="form-group">
+    <label for="PassengerCount">Number of Passengers</label>
+    <input type="number" class="form-control" id="PassengerCount" name="number_of_passengers" min="1" required>
+  </div>
+  <div class="form-group">
+    <label for="VehicleImage">Vehicle Image</label>
+    <input type="file" class="form-control" id="VehicleImage" name="image" accept="image/*" required>
+  </div>
+  <button type="submit" class="btn btn-primary w-100 mt-2">Add Vehicle Type</button>
+</form>
+    </div>
+  </div>
+</div>
+
+<!-- edit vehicle modal -->
+ <div class="modal-overlay" id="editVehicle">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Vehicle Type</h2>
+      <button class="close-btn" onclick="closeModal(document.getElementById('editVehicleModal'))">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="editVehicleForm" enctype="multipart/form-data">
+        <input type="hidden" id="editVehicleId">
+        <div class="form-group">
+          <label for="editVehicleName">Vehicle Type</label>
+          <input type="text" class="form-control" id="editVehicleName" name="name" required>
+        </div>
+        <div class="form-group">
+          <label for="editPassengerCount">Number of Passengers</label>
+          <input type="number" class="form-control" id="editPassengerCount" name="number_of_passengers" min="1" required>
+        </div>
+        <div class="form-group">
+          <label for="editVehicleImage">Vehicle Image</label>
+          <input type="file" class="form-control" id="editVehicleImage" name="image" accept="image/*">
+          <img id="editVehiclePreview" src="" width="80" style="margin-top: 10px; display: none;" />
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-2">Update Vehicle Type</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- add city script -->
+<script>
+  document.getElementById("addCityForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const cityName = document.getElementById("cityName").value.trim();
+
+    if (!cityName) {
+      showToast("City name is required", "error");
+      return;
+    }
+
+    fetch("{% url 'add_city' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: JSON.stringify({ name: cityName })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("City added successfully");
+        document.getElementById("addCityForm").reset();
+        closeModal(document.getElementById("addCityModal"));
+        setTimeout(() => {
+          location.reload(); // Reload page after 3 seconds
+        }, 3000);
+      } else {
+        showToast(data.error || "Something went wrong", "error");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      showToast("Network error", "error");
+    });
+  });
+</script>
+
+
+<!-- vehicle type -->
+<script>
+  document.getElementById("addVehicleType").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const form = document.getElementById("addVehicleType");
+    const formData = new FormData(form);
+
+    fetch("{% url 'add_vehicle_type' %}", {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("Vehicle type added successfully");
+        form.reset();
+        closeModal(document.getElementById("addVehicleModal"));
+
+        // Reload the page after a short delay (e.g., 1.5 seconds)
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
+      } else {
+        showToast(data.error || "Something went wrong", "error");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      showToast("Network error", "error");
+    });
+  });
+</script>
+
+
+<!-- script for editing vehicle details -->
+ <script>
+  function openEditModal(vehicleId) {
+    fetch(`/get-vehicle-type/${vehicleId}/`)
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("editVehicleId").value = data.id;
+        document.getElementById("editVehicleName").value = data.name;
+        document.getElementById("editPassengerCount").value = data.number_of_passengers;
+
+        if (data.image_url) {
+          document.getElementById("editVehiclePreview").src = data.image_url;
+          document.getElementById("editVehiclePreview").style.display = "block";
+        } else {
+          document.getElementById("editVehiclePreview").style.display = "none";
+        }
+
+        openModal(document.getElementById("editVehicleModal"));
+      });
+  }
+
+  document.getElementById("editVehicleForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const id = document.getElementById("editVehicleId").value;
+    const form = document.getElementById("editVehicleForm");
+    const formData = new FormData(form);
+
+    fetch(`/update-vehicle-type/${id}/`, {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("Vehicle updated successfully");
+        closeModal(document.getElementById("editVehicle"));
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        showToast(data.error || "Update failed", "error");
+      }
+    });
+  });
+</script>
+
+<!-- city delete script -->
+ <script>
+  function deleteCity(cityId) {
+    if (confirm("Are you sure you want to delete this city?")) {
+      fetch(`/delete-city/${cityId}/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast("City deleted successfully");
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showToast(data.error || "Delete failed", "error");
+        }
+      });
+    }
+  }
+</script>
+
+<!-- delete vehicle script -->
+<script>
+  function deleteVehicle(vehicleId) {
+    if (confirm("Are you sure you want to delete?")) {
+      fetch(`/delete-vehicle/${vehicleId}/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast("Deleted successfully");
+          setTimeout(() => {
+            location.reload();
+          }, 3000); // 3-second delay to show toast
+        } else {
+          showToast(data.error || "Delete failed", "error");
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showToast("Network error", "error");
+      });
+    }
+  }
+</script>
+
+
+<!-- delete vehicle price -->
+ <script>
+  function deleteVehiclePrice(itemId) {
+    if (confirm("Are you sure you want to delete this?")) {
+      fetch(`/delete-vehicle-price/${itemId}/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast("Price deleted successfully");
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showToast(data.error || "Delete failed", "error");
+        }
+      });
+    }
+  }
+</script>
+
+{% endblock %}

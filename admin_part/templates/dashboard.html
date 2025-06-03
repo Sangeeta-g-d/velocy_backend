@@ -1,65 +1,131 @@
 {% extends 'admin_base.html' %}
+
 {% block content %}
-<div>
-    <h2>Vehicle Provider Dashboard</h2>
-    <p>Manage your fleet and drivers efficiently</p>
-
-    <div class="stats">
-      <div class="card">
-        <div class="icon">🚗</div>
-        <h3>24</h3>
-        <p>Total Vehicles</p>
-      </div>
-      <div class="card">
-        <div class="icon">👨‍✈️</div>
-        <h3>18</h3>
-        <p>Active Drivers</p>
-      </div>
-      <div class="card">
-        <div class="icon">💰</div>
-        <h3>$12,450</h3>
-        <p>Monthly Earnings</p>
-      </div>
-    </div>
-
-    <!-- Vehicle Approval Table Section -->
-<div class="section section-table">
-  <h3 class="section-title">Pending Vehicle Approvals</h3>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Vehicle</th>
-        <th>Provider</th>
-        <th>Status</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Toyota Camry 2025</td>
-        <td>Robert Smith</td>
-        <td><span class="status status-pending">Pending</span></td>
-        <td><button class="btn btn-review">Review</button></td>
-      </tr>
-      <tr>
-        <td>Honda Civic 2025</td>
-        <td>Mary Johnson</td>
-        <td><span class="status status-pending">Pending</span></td>
-        <td><button class="btn btn-review">Review</button></td>
-      </tr>
-    </tbody>
-  </table>
+<div class="container">
+<div class="dashboard-header d-flex justify-content-end mb-3">
+  <div class="header-actions">
+    <button class="btn btn-primary open-modal-btn" data-modal="addCityModal">Add City</button>
+    <button class="btn btn-secondary open-modal-btn" data-modal="addVehicleModal">Add Vehicle Type</button>
+  </div>
 </div>
-
-<!-- Recent Activities Section -->
-<div class="section section-activity">
-  <h3 class="section-title">Recent Activities</h3>
-  <div class="activities">
-    <div class="activity-item">⚫ Driver Alex assigned to Toyota Camry – 2 hours ago</div>
-    <div class="activity-item">🚗 New vehicle registration: Honda Civic – 5 hours ago</div>
-    <div class="activity-item">💰 Monthly earnings updated – 1 day ago</div>
+</div>
+<!-- modal code -->
+ <div class="modal-overlay" id="addCityModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add City</h2>
+      <button class="close-btn">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="addCityForm">
+        <div class="form-group">
+          <label for="cityName" class="form-group label">City Name</label>
+          <input type="text" class="form-control" id="cityName" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-2">Add City</button>
+      </form>
+    </div>
   </div>
 </div>
 
+<!-- vehicle type modal -->
+ <div class="modal-overlay" id="addVehicleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Vehicle Type</h2>
+      <button class="close-btn">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="addVehicleType" enctype="multipart/form-data">
+  <div class="form-group">
+    <label for="VehicleName">Vehicle Type</label>
+    <input type="text" class="form-control" id="VehicleName" name="name" required>
+  </div>
+
+  <div class="form-group">
+    <label for="PassengerCount">Number of Passengers</label>
+    <input type="number" class="form-control" id="PassengerCount" name="number_of_passengers" min="1" required>
+  </div>
+
+  <div class="form-group">
+    <label for="VehicleImage">Vehicle Image</label>
+    <input type="file" class="form-control" id="VehicleImage" name="image" accept="image/*" required>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100 mt-2">Add Vehicle Type</button>
+</form>
+
+    </div>
+  </div>
 </div>
+
+<script>
+  document.getElementById("addCityForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const cityName = document.getElementById("cityName").value.trim();
+
+    if (!cityName) {
+      showToast("City name is required", "error");
+      return;
+    }
+
+    fetch("{% url 'add_city' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: JSON.stringify({ name: cityName })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("City added successfully");
+        document.getElementById("addCityForm").reset();
+        closeModal(document.getElementById("addCityModal"));
+      } else {
+        showToast(data.error || "Something went wrong", "error");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      showToast("Network error", "error");
+    });
+  });
+</script>
+
+<!-- vehicle type -->
+<script>
+  document.getElementById("addVehicleType").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const form = document.getElementById("addVehicleType");
+    const formData = new FormData(form);
+
+    fetch("{% url 'add_vehicle_type' %}", {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": getCookie("csrftoken")
+      },
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("Vehicle type added successfully");
+        form.reset();
+        closeModal(document.getElementById("addVehicleModal"));
+      } else {
+        showToast(data.error || "Something went wrong", "error");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      showToast("Network error", "error");
+    });
+  });
+</script>
+
 {% endblock %}
+
+

@@ -11,6 +11,7 @@ from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.exceptions import ObjectDoesNotExist
 
 class SendOTPView(APIView):
     def post(self, request):
@@ -73,49 +74,36 @@ class RegisterWithOTPView(APIView):
 
                 # Default role (if just created)
                 if created:
-                    user.role = 'rider'  # Set default role
+                    user.role = 'rider'
                 user.save()
 
-                # Clean up OTP (optional if master was used)
+                # Clean up OTP (optional)
                 if otp != self.MASTER_OTP:
                     phone_otp.delete()
 
-                # Generate tokens
-                refresh = RefreshToken.for_user(user)
-
                 return Response({
-                    'message': 'User registered and logged in successfully',
-                    'user': {
-                        'phone_number': user.phone_number,
-                        'role': user.role,
-                    },
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
+                    'message': 'User registered successfully',
+                    'user_id': user.id
                 }, status=status.HTTP_201_CREATED)
 
             except PhoneOTP.DoesNotExist:
                 if otp == self.MASTER_OTP:
-                    # Allow proceeding even if OTP record is missing, for master OTP
+                    # Proceed even if OTP record is missing
                     user, created = CustomUser.objects.get_or_create(phone_number=phone)
                     user.password = make_password(password)
                     if created:
                         user.role = 'rider'
                     user.save()
 
-                    refresh = RefreshToken.for_user(user)
                     return Response({
-                        'message': 'User registered with master OTP and logged in successfully',
-                        'user': {
-                            'phone_number': user.phone_number,
-                            'role': user.role,
-                        },
-                        'refresh': str(refresh),
-                        'access': str(refresh.access_token),
+                        'message': 'User registered successfully with master OTP',
+                        'user_id': user.id
                     }, status=status.HTTP_201_CREATED)
 
                 return Response({'error': 'Please request an OTP first'}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LoginWithOTPView(APIView):
     MASTER_OTP = '112233'  # your master OTP
@@ -126,13 +114,13 @@ class LoginWithOTPView(APIView):
             phone = serializer.validated_data['phone_number']
             otp = serializer.validated_data['otp']
 
-            # Check user exists
+            # Check if user exists
             try:
                 user = CustomUser.objects.get(phone_number=phone)
             except CustomUser.DoesNotExist:
                 return Response({'error': 'User does not exist. Please register.'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Check OTP record
+            # Check OTP
             try:
                 phone_otp = PhoneOTP.objects.get(phone_number=phone)
 
@@ -142,16 +130,21 @@ class LoginWithOTPView(APIView):
                     if phone_otp.is_expired():
                         return Response({'error': 'OTP expired'}, status=status.HTTP_400_BAD_REQUEST)
 
-                # Optionally delete OTP record after use (for security)
+                # Delete OTP after successful check (unless master used)
                 if otp != self.MASTER_OTP:
                     phone_otp.delete()
 
             except PhoneOTP.DoesNotExist:
-                # If no OTP record but master OTP used, allow login
                 if otp != self.MASTER_OTP:
                     return Response({'error': 'Please request an OTP first'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Generate JWT tokens
+            # 🚫 Driver Role Check Before Login
+            if user.role == 'driver':
+                doc = getattr(user, 'document_info', None)
+                if not doc or not doc.verified:
+                    return Response({'error': 'Approval pending. Please wait for admin verification.'}, status=status.HTTP_403_FORBIDDEN)
+
+            # ✅ Generate JWT tokens
             refresh = RefreshToken.for_user(user)
 
             return Response({
@@ -159,6 +152,7 @@ class LoginWithOTPView(APIView):
                 'user': {
                     'phone_number': user.phone_number,
                     'role': user.role,
+                    'user_id': user.id
                 },
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
@@ -169,67 +163,103 @@ class LoginWithOTPView(APIView):
 
 # update profile 
 class UpdateUserProfileView(APIView):
-    permission_classes = [IsAuthenticated]
-
     def put(self, request):
-        print("Headers:", request.headers)  # DEBUG: Check incoming headers
-        print("User:", request.user)        # DEBUG: Will show 'AnonymousUser' if auth failed
+        user_id = request.data.get('user_id')
 
-        serializer = UserProfileUpdateSerializer(instance=request.user, data=request.data, partial=True)
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except ObjectDoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = UserProfileUpdateSerializer(instance=user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            print("Profile updated for:", request.user)  # Confirm user update
-            return Response({'message': 'Profile updated successfully', 'user': serializer.data}, status=status.HTTP_200_OK)
-        
-        print("Validation errors:", serializer.errors)
+            return Response({
+                'message': 'Profile updated successfully',
+                'user': serializer.data
+            }, status=status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
     
-
 class BecomeDriverView(APIView):
-    permission_classes = [IsAuthenticated]
-
     def post(self, request):
-        user = request.user
+        user_id = request.data.get('user_id')
+
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except ObjectDoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
         user.role = 'driver'
         user.save()
+
         return Response({
             'message': 'Role updated to driver successfully.',
             'role': user.role
         }, status=status.HTTP_200_OK)
     
+
 # vehicle information code
 class DriverVehicleInfoView(APIView):
-    permission_classes = [IsAuthenticated]
-
     def post(self, request):
-        serializer = DriverVehicleInfoSerializer(data=request.data)
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except ObjectDoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Remove user_id from validated data to avoid serializer errors
+        data = request.data.copy()
+        data.pop('user_id', None)
+
+        serializer = DriverVehicleInfoSerializer(data=data)
         if serializer.is_valid():
-            # Create or update the vehicle info
             vehicle_info, created = DriverVehicleInfo.objects.update_or_create(
-                user=request.user,
+                user=user,
                 defaults=serializer.validated_data
             )
             return Response({
                 'message': 'Vehicle info saved successfully',
                 'data': DriverVehicleInfoSerializer(vehicle_info).data
-            }, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
+            }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
 class DriverDocumentInfoView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]  # Important for file uploads
+    parser_classes = [MultiPartParser, FormParser]  # needed for file uploads
 
     def post(self, request):
-        serializer = DriverDocumentInfoSerializer(data=request.data)
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except ObjectDoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data.copy()
+        data.pop('user_id', None)
+
+        serializer = DriverDocumentInfoSerializer(data=data)
         if serializer.is_valid():
             doc_info, created = DriverDocumentInfo.objects.update_or_create(
-                user=request.user,
+                user=user,
                 defaults=serializer.validated_data
             )
             return Response({
                 'message': 'Driver document information saved successfully',
                 'data': DriverDocumentInfoSerializer(doc_info).data
             }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

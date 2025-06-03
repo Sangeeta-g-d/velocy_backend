@@ -2,9 +2,16 @@
 
 from rest_framework import serializers
 from .models import CustomUser, PhoneOTP,DriverVehicleInfo,DriverDocumentInfo
+import re
 
 class SendOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField()
+
+    def validate_phone_number(self, value):
+        pattern = r'^\+91[6-9]\d{9}$'  # Matches +91 followed by 10 digits starting with 6-9
+        if not re.match(pattern, value):
+            raise serializers.ValidationError("Phone number must be in the format +91XXXXXXXXXX with 10 digits.")
+        return value
 
 class LoginOTPVerifySerializer(serializers.Serializer):
     phone_number = serializers.CharField()

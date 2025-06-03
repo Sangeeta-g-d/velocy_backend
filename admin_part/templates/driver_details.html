@@ -1,29 +1,143 @@
 {% extends 'admin_base.html' %}
 {% block content %}
-<div class="profile-wrapper">
-  <div class="driver-info">
-    <p>User name : <strong>{{ driver.username }}</strong></p>
-    <p>Car Number : <strong>{{ vehicle_info.vehicle_number }}</strong></p>
-    <p>Car Type : <strong>{{ vehicle_info.car_model }}</strong></p>
-  </div>
 
-  <div class="photo-gallery">
-    {% if driver.profile %}
-      <img src="{{ driver.profile.url }}" alt="Profile">
+<div class="container">
+  <!-- Top Controls -->
+<div class="top-controls">
+  <a href="{% url 'approve_drivers' %}" class="back-arrow" title="Back">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+
+  <div class="right-buttons">
+    <button class="btn block-btn" onclick="confirmBlock({{ driver.id }})">Block</button>
+    <button class="btn verify-btn" 
+        onclick="confirmVerify({{ driver.id }})" 
+        {% if document_info.verified %}disabled style="opacity: 0.6; cursor: not-allowed;"{% endif %}>
+  Verify
+</button>
+
+  </div>
+</div>
+
+  <div class="driver-card">
+    <div class="flex-row">
+      <!-- Driver Info -->
+      <div class="info-box">
+        <h4>Driver Information</h4>
+        <p><span style="font-weight: 500;">Name:</span> {{ driver.username }}</p>
+        <p><span style="font-weight: 500;">Phone:</span> {{ driver.phone_number }}</p>
+        <p><span style="font-weight: 500;">Email:</span> {{ driver.email }}</p>
+        <p><span style="font-weight: 500;">Gender:</span> {{ driver.gender }}</p>
+        <p><span style="font-weight: 500;">Address:</span> {{ driver.street }}, {{ driver.area }} ({{ driver.address_type }})</p>
+      </div>
+
+      <!-- Vehicle Info -->
+      <div class="info-box">
+        <h4>Vehicle Information</h4>
+        {% if vehicle_info %}
+          <p><span style="font-weight: 500;">Vehicle Number:</span> {{ vehicle_info.vehicle_number }}</p>
+          <p><span style="font-weight: 500;">Vehicle Type:</span> {{ vehicle_info.vehicle_type }}</p>
+          <p><span style="font-weight: 500;">Car Company:</span> {{ vehicle_info.car_company }}</p>
+          <p><span style="font-weight: 500;">Car Model:</span> {{ vehicle_info.car_model }}</p>
+          <p><span style="font-weight: 500;">Year:</span> {{ vehicle_info.year }}</p>
+        {% else %}
+          <p>No vehicle info available.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if document_info %}
+      <div class="doc-section">
+        <!-- Driver License -->
+        <div class="doc-card">
+          <div class="doc-icon">
+            <i class="fas fa-id-card"></i>
+          </div>
+          <div class="doc-title">Driver License</div>
+          <a href="{{ document_info.driver_license.url }}" target="_blank">
+            <button class="preview-btn">Preview</button>
+          </a>
+        </div>
+
+        <!-- Vehicle Registration -->
+        <div class="doc-card">
+          <div class="doc-icon">
+            <i class="fas fa-car"></i>
+          </div>
+          <div class="doc-title">Registration</div>
+          <a href="{{ document_info.vehicle_registration_doc.url }}" target="_blank">
+            <button class="preview-btn">Preview</button>
+          </a>
+        </div>
+
+        <!-- Vehicle Insurance -->
+        <div class="doc-card">
+          <div class="doc-icon">
+            <i class="fas fa-file-medical"></i>
+          </div>
+          <div class="doc-title">Insurance</div>
+          <a href="{{ document_info.vehicle_insurance.url }}" target="_blank">
+            <button class="preview-btn">Preview</button>
+          </a>
+        </div>
+
+        <!-- Verification Status -->
+        <div class="doc-card">
+          <div class="doc-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="doc-title">Verified</div>
+          <div class="verified-badge {% if not document_info.verified %}not-verified{% endif %}">
+            {{ document_info.verified|yesno:"Yes,No" }}
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <p style="margin-top: 20px;">No document information available.</p>
     {% endif %}
-    <!-- You can loop more vehicle images here if added -->
-    <div class="view-all">View All</div>
   </div>
 </div>
 
-<div class="documents">
-  {% for doc in documents %}
-  <div class="doc-card">
-    <i class="fas fa-car"></i>
-    <p>{{ doc.name }}</p>
-    <a href="{{ doc.url }}" target="_blank" class="preview-btn">Preview</a>
-  </div>
-  {% endfor %}
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script>
+function confirmVerify(driverId) {
+    if (confirm("Are you sure you want to verify this driver?")) {
+        fetch(`/verify-driver/${driverId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (response.ok) {
+                alert("Driver verified successfully.");
+                location.reload();
+            } else {
+                alert("Failed to verify driver.");
+            }
+        });
+    }
+}
 
-</div>
+function confirmBlock(driverId) {
+    if (confirm("Are you sure you want to block this driver?")) {
+        fetch(`/block-driver/${driverId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (response.ok) {
+                alert("Driver blocked successfully.");
+                location.reload();
+            } else {
+                alert("Failed to block driver.");
+            }
+        });
+    }
+}
+</script>
+
 {% endblock %}

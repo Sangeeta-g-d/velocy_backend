@@ -89,7 +89,6 @@ class DriverVehicleInfo(models.Model):
     
 class DriverDocumentInfo(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='document_info')
-
     license_plate_number = models.CharField(max_length=20)
     vehicle_registration_doc = models.FileField(upload_to='driver_docs/vehicle_registration/')
     driver_license = models.FileField(upload_to='driver_docs/license/')

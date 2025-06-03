@@ -6,8 +6,8 @@ urlpatterns = [
     path('send-otp/', SendOTPView.as_view(), name='send-otp'),
     path('register/', RegisterWithOTPView.as_view(), name='register-with-otp'),
     path('login/', LoginWithOTPView.as_view(), name='login-with-otp'),
-    path('update-profile/', UpdateUserProfileView.as_view(), name='update-profile'),
+    path('profile-setup/', UpdateUserProfileView.as_view(), name='update-profile'),
     path('become-driver/', BecomeDriverView.as_view(), name='become-driver'),
-    path('vehicle-info/', DriverVehicleInfoView.as_view(), name='driver-vehicle-info'),
-    path('document-info/', DriverDocumentInfoView.as_view(), name='driver-document-info'),
+    path('driver-registration/', DriverVehicleInfoView.as_view(), name='driver-vehicle-info'),
+    path('document-upload/', DriverDocumentInfoView.as_view(), name='driver-document-info'),
 ]
