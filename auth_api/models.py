@@ -50,10 +50,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     area = models.CharField(max_length=255, blank=True, null=True)
     aadhar_card = models.FileField(upload_to='aadhar_cards/', blank=True, null=True)
     address_type = models.CharField(max_length=10, blank=True, null=True)
-
+    cash_payments_left = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
+    is_online = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = []

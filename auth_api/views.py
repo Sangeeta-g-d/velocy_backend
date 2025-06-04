@@ -12,6 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ObjectDoesNotExist
+import traceback
 
 class SendOTPView(APIView):
     def post(self, request):
@@ -27,14 +28,20 @@ class SendOTPView(APIView):
                 return Response({'error': 'User already exists. Please login.'}, status=status.HTTP_400_BAD_REQUEST)
 
             otp = generate_otp()
+            print(f"Phone received: {phone}")
+            print(f"Mode: {mode}")
+            print(f"Generated OTP: {otp}")
+            print("Attempting to send OTP...")
 
             try:
                 send_otp(phone, otp)
             except TwilioRestException as e:
-                # Handle the case where Twilio fails (e.g., trial number)
+                print("Twilio Error:")
+                print(str(e))
+                traceback.print_exc()  # Full error trace
                 return Response({
-                    'message': 'OTP could not be sent via SMS. Use the Master OTP',
-                    
+                    'message': 'OTP could not be sent via SMS.',
+                    'twilio_error': str(e)  # This will return the actual Twilio error
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # Save OTP if sending succeeded
@@ -263,3 +270,4 @@ class DriverDocumentInfoView(APIView):
             }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+

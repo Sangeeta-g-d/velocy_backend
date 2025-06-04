@@ -56,6 +56,13 @@ def verify_driver(request, driver_id):
             doc_info = DriverDocumentInfo.objects.get(user_id=driver_id)
             doc_info.verified = True
             doc_info.save()
+
+            # Set cash payments left to 5 only if user is a driver
+            user = doc_info.user
+            if user.role == 'driver':
+                user.cash_payments_left = 5
+                user.save()
+
             return JsonResponse({"status": "success"})
         except DriverDocumentInfo.DoesNotExist:
             return JsonResponse({"status": "error", "message": "Document not found"}, status=404)

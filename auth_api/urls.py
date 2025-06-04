@@ -10,4 +10,5 @@ urlpatterns = [
     path('become-driver/', BecomeDriverView.as_view(), name='become-driver'),
     path('driver-registration/', DriverVehicleInfoView.as_view(), name='driver-vehicle-info'),
     path('document-upload/', DriverDocumentInfoView.as_view(), name='driver-document-info'),
+
 ]
