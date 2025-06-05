@@ -51,7 +51,6 @@ class AddRideStopAPIView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class EstimateRidePriceAPIView(APIView):
     def post(self, request):
         serializer = EstimatePriceInputSerializer(data=request.data)
@@ -75,14 +74,21 @@ class EstimateRidePriceAPIView(APIView):
             # Calculate estimated price
             estimated_price = price_entry.price_per_km * ride.distance_km
 
+            # Save estimated price and vehicle type in the RideRequest model
+            ride.estimated_price = round(estimated_price, 2)
+            ride.vehicle_type_id = vehicle_type_id
+            ride.save()
+
             return Response({
+                "message": "Estimated price updated in the ride.",
                 "vehicle_type_id": vehicle_type_id,
                 "price_per_km": price_entry.price_per_km,
                 "distance_km": ride.distance_km,
                 "estimated_price": round(estimated_price, 2)
-            })
+            }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     
 
 class RideRequestUpdateAPIView(APIView):
