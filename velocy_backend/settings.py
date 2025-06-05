@@ -51,6 +51,8 @@ INSTALLED_APPS = [
     'driver_part'
 ]
 
+TIME_ZONE = 'Asia/Kolkata'
+USE_TZ = True  # Required for timezone-aware datetimes
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

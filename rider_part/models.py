@@ -39,6 +39,8 @@ class RideRequest(models.Model):
     women_only = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    driver = models.ForeignKey(User,on_delete=models.SET_NULL,null=True, blank=True, related_name='accepted_rides')
 
     def __str__(self):
         return f"Ride by {self.user} - {self.from_location} → {self.to_location}"
