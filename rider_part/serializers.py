@@ -2,6 +2,9 @@ from rest_framework import serializers
 from admin_part.models import VehicleType
 from . models import *
 from admin_part.models import City
+from django.utils.timezone import localtime
+import pytz
+
 
 class VehicleTypeSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(use_url=True)

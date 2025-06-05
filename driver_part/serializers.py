@@ -33,10 +33,16 @@ class RideRequestDetailSerializer(serializers.ModelSerializer):
     city = serializers.StringRelatedField()
     vehicle_type = serializers.StringRelatedField()
     ride_stops = RideStopSerializer(many=True, read_only=True)
-
+    created_at = serializers.SerializerMethodField()
     class Meta:
         model = RideRequest
         fields = '__all__'
+        
+    def get_created_at(self, obj):
+        # Convert to Indian time
+        india_tz = pytz.timezone("Asia/Kolkata")
+        local_dt = localtime(obj.created_at, india_tz)
+        return local_dt.strftime('%d-%m-%Y %I:%M %p')
 
     
 class DeclineRideSerializer(serializers.Serializer):

@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from admin_part.models import City,VehicleType
+
 # Create your models here.
 User = get_user_model()
 
