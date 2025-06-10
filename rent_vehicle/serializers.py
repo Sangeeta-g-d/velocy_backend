@@ -21,11 +21,21 @@ class RentedVehicleCreateSerializer(serializers.ModelSerializer):
         model = RentedVehicle
         fields = [
             'vehicle_name', 'vehicle_type', 'registration_number',
-            'seating_capacity', 'fuel_type', 'transmission','security_deposite'
+            'seating_capacity', 'fuel_type', 'transmission', 'security_deposite', # Added comma here
             'rental_price_per_hour', 'available_from_date', 'available_to_date',
             'pickup_location', 'vehicle_papers_document', 'confirmation_checked',
             'vehicle_color', 'is_ac', 'is_available', 'images'
         ]
+
+    def create(self, validated_data):
+        images = validated_data.pop('images')
+        user = self.context['request'].user
+        rented_vehicle = RentedVehicle.objects.create(user=user, **validated_data)
+
+        for image in images:
+            RentedVehicleImage.objects.create(vehicle=rented_vehicle, image=image)
+
+        return rented_vehicle
 
     def create(self, validated_data):
         images = validated_data.pop('images')
