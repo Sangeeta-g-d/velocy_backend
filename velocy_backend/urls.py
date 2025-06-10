@@ -24,6 +24,7 @@ urlpatterns = [
     path('auth_api/',include('auth_api.urls')),
     path('rider/',include('rider_part.urls')),
     path('driver/',include('driver_part.urls')),
+    path('rent/',include('rent_vehicle.urls')),
     path('',include('admin_part.urls')),
 ]
 if settings.DEBUG:

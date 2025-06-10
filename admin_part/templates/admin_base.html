@@ -27,6 +27,9 @@
     <li class="{% if current_url_name == 'cab' %}active{% endif %}">
       <a href="{% url 'cab_management' %}"><i class="fas fa-car"></i>Cab Management</a>
     </li>
+    <li class="{% if current_url_name == 'rental_vehicles' %}active{% endif %}">
+      <a href="{% url 'rental_vehicles' %}"><i class="fas fa-car"></i>Rental Vehicles</a>
+    </li>
    
   </ul>
 </div>

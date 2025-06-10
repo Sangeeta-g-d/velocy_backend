@@ -48,7 +48,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework_simplejwt',
     'rider_part',
-    'driver_part'
+    'driver_part',
+    'rent_vehicle'
 ]
 
 TIME_ZONE = 'Asia/Kolkata'

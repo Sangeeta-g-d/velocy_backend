@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
+from rent_vehicle.models import RentedVehicle,RentedVehicleImage
 # Create your views here.
 
 def dashboard(request):
@@ -66,6 +67,28 @@ def verify_driver(request, driver_id):
             return JsonResponse({"status": "success"})
         except DriverDocumentInfo.DoesNotExist:
             return JsonResponse({"status": "error", "message": "Document not found"}, status=404)
+        
+
+def verify_rental_vehicle(request, vehicle_id):
+    if request.method == "POST":
+        try:
+            vehicle_info = RentedVehicle.objects.get(id=vehicle_id)
+            vehicle_info.is_approved = True
+            vehicle_info.save()
+            return JsonResponse({"status": "success"})
+        except DriverDocumentInfo.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Document not found"}, status=404)
+        
+def disapprove_rental_vehicle(request, vehicle_id):
+    if request.method == "POST":
+        try:
+            vehicle_info = RentedVehicle.objects.get(id=vehicle_id)
+            vehicle_info.is_approved = False
+            vehicle_info.save()
+            return JsonResponse({"status": "success"})
+        except DriverDocumentInfo.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Document not found"}, status=404)
+
         
 def block_driver(request, driver_id):
     if request.method == "POST":
@@ -246,3 +269,27 @@ def add_city_vehicle_price(request):
             return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+def rental_vehicles(request):
+    vehicles = RentedVehicle.objects.all().order_by('-id')
+    context = {
+        'current_url_name': "rental_vehicles",
+        'vehicles': vehicles,
+        'vehicle_count': vehicles.count()
+    }
+    return render(request, 'rental_vehicles.html', context)
+
+
+def vehicle_details(request, vehicle_id):
+    vehicle_data = RentedVehicle.objects.get(id=vehicle_id)
+    vehicle_images = RentedVehicleImage.objects.filter(vehicle_id=vehicle_id)
+    context = {
+        'current_url_name': "rental_vehicles",
+        'vehicle_data': vehicle_data,
+        'vehicle_images': vehicle_images,
+        'vehicle_id': vehicle_id
+    }
+    return render(request, 'vehicle_details.html', context)
+
+

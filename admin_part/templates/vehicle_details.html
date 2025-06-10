@@ -1,0 +1,118 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+
+  <!-- Top Controls -->
+  <div class="top-controls">
+    <a href="{% url 'rental_vehicles' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+    <div class="right-buttons">
+  {% if vehicle_data.is_approved %}
+    <button class="btn btn-danger" onclick="confirmDisapprove({{ vehicle_id }})">Disagree</button>
+  {% else %}
+    <button class="btn verify-btn" onclick="confirmApprove({{ vehicle_id }})">Approve</button>
+  {% endif %}
+</div>
+
+  </div>
+
+  <!-- Details Section -->
+  <div class="driver-card">
+    <div class="flex-row">
+      <!-- Column 1 -->
+      <div class="info-box">
+        <h4>Rental Vehicle Details</h4>
+        <p><span class="bold-font">Vehicle Name:</span> {{ vehicle_data.vehicle_name }}</p>
+        <p><span class="bold-font">Vehicle Type:</span> {{ vehicle_data.vehicle_type }}</p>
+        <p><span class="bold-font">Registration Number:</span> {{ vehicle_data.registration_number }}</p>
+        <p><span class="bold-font">Seating Capacity:</span> {{ vehicle_data.seating_capacity }}</p>
+        <p><span class="bold-font">Fuel Type:</span> {{ vehicle_data.fuel_type }}</p>
+        <p><span class="bold-font">Transmission:</span> {{ vehicle_data.transmission }}</p>
+        <p><span class="bold-font">Color:</span> {{ vehicle_data.vehicle_color }}</p>
+        <p><span class="bold-font">AC Available:</span> {{ vehicle_data.is_ac|yesno:"Yes,No" }}</p>
+      </div>
+
+      <!-- Column 2 -->
+      <div class="info-box">
+        <h4>Rental Info</h4>
+        <p><span class="bold-font">Rental Price (per day):</span> ₹{{ vehicle_data.rental_price_per_day }}</p>
+        <p><span class="bold-font">Available From:</span> {{ vehicle_data.available_from_date }}</p>
+        <p><span class="bold-font">Available To:</span> {{ vehicle_data.available_to_date }}</p>
+        <p><span class="bold-font">Pickup Location:</span> {{ vehicle_data.pickup_location }}</p>
+        <p><span class="bold-font">Available:</span> {{ vehicle_data.is_available|yesno:"Yes,No" }}</p>
+        <p><span class="bold-font">Approved:</span> {{ vehicle_data.is_approved|yesno:"Yes,No" }}</p>
+
+          {% if vehicle_data.vehicle_papers_document %}
+            <a href="{{ vehicle_data.vehicle_papers_document.url }}" target="_blank">
+              <button class="preview-btn" style="width: auto;">Preview Vehicle Document</button>
+            </a>
+          {% else %}
+            Not uploaded
+          {% endif %}
+        </p>
+
+      </div>
+    </div>
+
+    <!-- Vehicle Images -->
+    <div style="margin-top: 30px;">
+      <h4 style="margin-bottom: 15px;">Vehicle Images</h4>
+      {% if vehicle_images %}
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+          {% for img in vehicle_images %}
+            <div class="vehicle-img-container">
+              <img src="{{ img.image.url }}" alt="Vehicle Image" class="vehicle-img">
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p>No images uploaded for this vehicle.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function confirmApprove(vehicleId) {
+    if (confirm("Are you sure you want to verify this vehicle?")) {
+      fetch(`/verify-rental-vehicle/${vehicleId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (response.ok) {
+                showToast("Vehicle verified successfully.");
+                setTimeout(() => location.reload(), 4000);
+            } else {
+                showToast("Failed to verify vehicle.");
+                setTimeout(() => location.reload(), 4000);
+            }
+        });
+    }
+  }
+
+  function confirmDisapprove(vehicleId) {
+    if (confirm("Are you sure you want to disapprove this vehicle?")) {
+      fetch(`/disapprove-rental-vehicle/${vehicleId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (response.ok) {
+                showToast("Vehicle disapproved successfully.");
+                setTimeout(() => location.reload(), 4000);
+            } else {
+                showToast("Failed to disapprove vehicle.");
+                setTimeout(() => location.reload(), 4000);
+            }
+        });
+    }
+  }
+</script>
+{% endblock %}

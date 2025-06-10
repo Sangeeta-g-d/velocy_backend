@@ -24,22 +24,22 @@
       <!-- Driver Info -->
       <div class="info-box">
         <h4>Driver Information</h4>
-        <p><span style="font-weight: 500;">Name:</span> {{ driver.username }}</p>
-        <p><span style="font-weight: 500;">Phone:</span> {{ driver.phone_number }}</p>
-        <p><span style="font-weight: 500;">Email:</span> {{ driver.email }}</p>
-        <p><span style="font-weight: 500;">Gender:</span> {{ driver.gender }}</p>
-        <p><span style="font-weight: 500;">Address:</span> {{ driver.street }}, {{ driver.area }} ({{ driver.address_type }})</p>
+        <p><span class="bold-font">Name:</span> {{ driver.username }}</p>
+        <p><span class="bold-font">Phone:</span> {{ driver.phone_number }}</p>
+        <p><span class="bold-font">Email:</span> {{ driver.email }}</p>
+        <p><span class="bold-font">Gender:</span> {{ driver.gender }}</p>
+        <p><span class="bold-font">Address:</span> {{ driver.street }}, {{ driver.area }} ({{ driver.address_type }})</p>
       </div>
 
       <!-- Vehicle Info -->
       <div class="info-box">
         <h4>Vehicle Information</h4>
         {% if vehicle_info %}
-          <p><span style="font-weight: 500;">Vehicle Number:</span> {{ vehicle_info.vehicle_number }}</p>
-          <p><span style="font-weight: 500;">Vehicle Type:</span> {{ vehicle_info.vehicle_type }}</p>
-          <p><span style="font-weight: 500;">Car Company:</span> {{ vehicle_info.car_company }}</p>
-          <p><span style="font-weight: 500;">Car Model:</span> {{ vehicle_info.car_model }}</p>
-          <p><span style="font-weight: 500;">Year:</span> {{ vehicle_info.year }}</p>
+          <p><span class="bold-font">Vehicle Number:</span> {{ vehicle_info.vehicle_number }}</p>
+          <p><span class="bold-font">Vehicle Type:</span> {{ vehicle_info.vehicle_type }}</p>
+          <p><span class="bold-font">Car Company:</span> {{ vehicle_info.car_company }}</p>
+          <p><span class="bold-font">Car Model:</span> {{ vehicle_info.car_model }}</p>
+          <p><span class="bold-font">Year:</span> {{ vehicle_info.year }}</p>
         {% else %}
           <p>No vehicle info available.</p>
         {% endif %}
