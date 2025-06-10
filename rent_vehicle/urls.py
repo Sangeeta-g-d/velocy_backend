@@ -10,7 +10,7 @@ rented_vehicle_edit_view = RentedVehicleEditViewSet.as_view({
 urlpatterns = [
     path('add-your-vehicle/', RentedVehicleCreateAPIView.as_view(), name='rented-vehicle-create'),
     path('my-garage/', UserRentedVehicleListAPIView.as_view(), name='user-rented-vehicle-list'),
-    path('delete-rented-vehic/<int:vehicle_id>/', DeleteRentedVehicleAPIView.as_view(), name='delete-rented-vehicle'),
+    path('delete-rented-vehicle/<int:vehicle_id>/', DeleteRentedVehicleAPIView.as_view(), name='delete-rented-vehicle'),
 
     # user
     path('vehicles-details-edit/<int:pk>/', rented_vehicle_edit_view, name='rented-vehicle-detail'),
