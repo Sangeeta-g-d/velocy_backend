@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 import datetime
 from datetime import timedelta
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class CustomUserManager(BaseUserManager):
@@ -97,3 +98,18 @@ class DriverDocumentInfo(models.Model):
     verified = models.BooleanField(default=False)
     def __str__(self):
         return f"{self.user.phone_number} - License Plate: {self.license_plate_number}"
+
+
+class DriverRating(models.Model):
+    ride = models.OneToOneField('rider_part.RideRequest', on_delete=models.CASCADE, related_name='driver_rating')
+    driver = models.ForeignKey('auth_api.CustomUser', on_delete=models.CASCADE, related_name='received_ratings',limit_choices_to={'role': 'driver'})
+    rated_by = models.ForeignKey('auth_api.CustomUser', on_delete=models.CASCADE, related_name='given_ratings',limit_choices_to={'role': 'rider'})
+    rating = models.DecimalField(max_digits=2, decimal_places=1, validators=[MinValueValidator(1.0), MaxValueValidator(5.0)])
+    review = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('ride', 'driver')
+
+    def __str__(self):
+        return f"{self.rated_by} rated {self.driver} - {self.rating}/5"

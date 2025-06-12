@@ -5,6 +5,9 @@ from rest_framework.response import Response
 from rider_part.models import RideRequest
 from . serializers import *
 from rest_framework import status
+from django.utils import timezone
+from django.utils.timezone import localtime
+import pytz
 from . models import *
 # Create your views here.
 
@@ -153,3 +156,72 @@ class CancelRideAPIView(APIView):
         ride.save()
 
         return Response({"message": "Ride cancelled successfully."}, status=200)
+    
+
+class RideDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, ride_id):
+        try:
+            ride = RideRequest.objects.select_related('user').prefetch_related('ride_stops').get(id=ride_id)
+            serializer = RideDetailSerializer(ride)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except RideRequest.DoesNotExist:
+            return Response({'error': 'Ride not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+
+class RideDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, ride_id):
+        try:
+            ride = RideRequest.objects.get(id=ride_id)
+        except RideRequest.DoesNotExist:
+            return Response({'detail': 'Ride not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = RidePriceDetailSerializer(ride)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+
+# begin ride
+class SetRideStartTimeAPIView(APIView):
+    def post(self, request, ride_id):
+        try:
+            ride = RideRequest.objects.get(id=ride_id)
+        except RideRequest.DoesNotExist:
+            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if ride.start_time:
+            return Response({"detail": "Start time already set."}, status=status.HTTP_400_BAD_REQUEST)
+
+        ist_time = ride.start_time.astimezone(pytz.timezone("Asia/Kolkata"))
+
+        ride.start_time = timezone.now()
+        ride.save()
+        return Response({
+            "ride_id": ride.id,
+            "start_time": ride.start_time,
+            "start_time_ist": ist_time.strftime('%Y-%m-%d %I:%M %p')
+        }, status=status.HTTP_200_OK)
+    
+
+
+class SetRideEndTimeAPIView(APIView):
+    def post(self, request, ride_id):
+        try:
+            ride = RideRequest.objects.get(id=ride_id)
+        except RideRequest.DoesNotExist:
+            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if ride.end_time:
+            return Response({"detail": "End time already set."}, status=status.HTTP_400_BAD_REQUEST)
+
+        ride.end_time = timezone.now()
+        ride.save()
+
+        ist_time = ride.end_time.astimezone(pytz.timezone("Asia/Kolkata"))
+
+        return Response({
+            "ride_id": ride.id,
+            "end_time_utc": ride.end_time,
+            "end_time_ist": ist_time.strftime('%Y-%m-%d %I:%M %p')
+        }, status=status.HTTP_200_OK)

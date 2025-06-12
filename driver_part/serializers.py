@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from admin_part.models import City, VehicleType
 from rider_part.models import RideRequest, RideStop
 import pytz
+
 from django.utils.timezone import localtime
 User = get_user_model()
 
@@ -96,3 +97,35 @@ class RideAcceptedDetailSerializer(serializers.ModelSerializer):
 
     def get_scheduled_time(self, obj):
         return self.format_datetime_to_ist(obj.scheduled_time)
+    
+
+
+class RiderInformationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'profile', 'phone_number']
+
+class RideDetailSerializer(serializers.ModelSerializer):
+    ride_stops = RideStopSerializer(many=True, read_only=True)
+    user = RiderInformationSerializer()
+
+    class Meta:
+        model = RideRequest
+        fields = [
+            'from_location', 'to_location',
+            'ride_stops',  # Related name in RideStop model
+            'user'  # Rider info
+        ]
+
+class RidePriceDetailSerializer(serializers.ModelSerializer):
+    ride_stops = RideStopSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = RideRequest
+        fields = [
+            'id',
+            'from_location', 'from_latitude', 'from_longitude',
+            'to_location', 'to_latitude', 'to_longitude',
+            'distance_km', 'offered_price',
+            'ride_stops',
+        ]

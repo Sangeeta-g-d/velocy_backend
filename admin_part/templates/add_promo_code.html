@@ -1,0 +1,134 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+  <div class="top-controls">
+    <a href="{% url 'rental_vehicles' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+  </div>
+
+  <h2>Add Promo Code</h2>
+
+  <form method="POST" action="{% url 'add_promo_code' %}" class="promo-form">
+    {% csrf_token %}
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="code">Promo Code</label>
+        <input type="text" name="code" id="code" required>
+      </div>
+
+      <div class="form-group">
+        <label for="discount_type">Discount Type</label>
+        <select name="discount_type" id="discount_type" required>
+          <option value="flat">Flat</option>
+          <option value="percent">Percentage</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="discount_value">Discount Value</label>
+        <input type="number" name="discount_value" id="discount_value" step="0.01" required>
+      </div>
+
+      <div class="form-group">
+        <label for="max_discount_amount">Max Discount Amount</label>
+        <input type="number" name="max_discount_amount" id="max_discount_amount" step="0.01">
+      </div>
+
+      <div class="form-group">
+        <label for="min_ride_amount">Minimum Ride Amount</label>
+        <input type="number" name="min_ride_amount" id="min_ride_amount" step="0.01">
+      </div>
+
+      <div class="form-group">
+        <label for="usage_limit_per_user">Usage Limit per User</label>
+        <input type="number" name="usage_limit_per_user" id="usage_limit_per_user" required>
+      </div>
+
+      <div class="form-group">
+        <label for="total_usage_limit">Total Usage Limit</label>
+        <input type="number" name="total_usage_limit" id="total_usage_limit">
+      </div>
+
+      <div class="form-group">
+        <label for="valid_from">Valid From</label>
+        <input type="datetime-local" name="valid_from" id="valid_from" required>
+      </div>
+
+      <div class="form-group">
+        <label for="valid_to">Valid To</label>
+        <input type="datetime-local" name="valid_to" id="valid_to" required>
+      </div>
+
+      <div class="form-group full-width">
+        <label for="description">Description</label>
+        <textarea name="description" id="description" rows="3"></textarea>
+      </div>
+
+      <div class="form-group full-width">
+        <label>
+          <input type="checkbox" name="is_active" checked>
+          Active
+        </label>
+      </div>
+
+    </div>
+
+    <div class="form-actions">
+      <button type="submit">Create Promo</button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .container {
+    max-width: 900px;
+    margin: auto;
+    padding: 20px;
+  }
+  .promo-form .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .promo-form .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+  .promo-form .form-group label {
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+  .promo-form input,
+  .promo-form select,
+  .promo-form textarea {
+    padding: 8px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  .promo-form textarea {
+    resize: vertical;
+  }
+  .promo-form .form-group.full-width {
+    grid-column: 1 / -1;
+  }
+  .form-actions {
+    margin-top: 25px;
+    text-align: right;
+  }
+  .form-actions button {
+    background-color: #0a74da;
+    color: white;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .form-actions button:hover {
+    background-color: #085aba;
+  }
+</style>
+{% endblock %}

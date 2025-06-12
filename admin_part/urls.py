@@ -22,4 +22,7 @@ urlpatterns = [
     path('vehicle_details/<int:vehicle_id>/',views.vehicle_details,name="vehicle_details"),
     path('verify-rental-vehicle/<int:vehicle_id>/', views.verify_rental_vehicle, name='verify_rental_vehicle'),
     path('disapprove-rental-vehicle/<int:vehicle_id>/', views.disapprove_rental_vehicle, name='disapprove_rental_vehicle'),
+
+    # 12-6-25
+    path('add-promo-code/',views.add_promo_code,name="add_promo_code"),
 ]

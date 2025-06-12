@@ -293,3 +293,9 @@ def vehicle_details(request, vehicle_id):
     return render(request, 'vehicle_details.html', context)
 
 
+
+def add_promo_code(request):
+    context = {
+        'current_url_name':"promo_code"
+    }
+    return render(request,'add_promo_code.html',context)

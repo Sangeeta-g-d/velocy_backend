@@ -4,6 +4,7 @@ from . models import *
 from admin_part.models import City
 from django.utils.timezone import localtime
 import pytz
+from auth_api.models import DriverVehicleInfo, CustomUser
 
 
 class VehicleTypeSerializer(serializers.ModelSerializer):
@@ -71,3 +72,31 @@ class RideRequestUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideRequest
         fields = ['offered_price', 'women_only', 'status']
+
+
+class DriverVehicleInfoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DriverVehicleInfo
+        fields = ['vehicle_number', 'car_company', 'car_model']
+
+class DriverSerializer(serializers.ModelSerializer):
+    vehicle_info = DriverVehicleInfoSerializer(read_only=True)
+    average_rating = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'profile', 'phone_number', 'vehicle_info', 'average_rating']
+
+    def get_average_rating(self, obj):
+        ratings = obj.received_ratings.all()
+        if ratings.exists():
+            return round(sum([r.rating for r in ratings]) / ratings.count(), 1)
+        return 0.0
+
+class RideDetailSerializer(serializers.ModelSerializer):
+    driver = DriverSerializer()
+    ride_stops = RideStopSerializer(many=True)
+
+    class Meta:
+        model = RideRequest
+        fields = ['from_location', 'to_location', 'driver', 'ride_stops']

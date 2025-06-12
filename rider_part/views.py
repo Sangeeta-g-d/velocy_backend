@@ -108,3 +108,17 @@ class RideRequestUpdateAPIView(APIView):
                 "ride": serializer.data
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RideDetailsWithDriverView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, ride_id):
+        try:
+            ride = RideRequest.objects.select_related(
+                'driver', 'driver__vehicle_info'
+            ).prefetch_related('ride_stops').get(id=ride_id)
+        except RideRequest.DoesNotExist:
+            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = RideDetailSerializer(ride)
+        return Response(serializer.data, status=status.HTTP_200_OK)

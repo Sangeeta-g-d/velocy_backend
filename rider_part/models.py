@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from admin_part.models import City,VehicleType
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # Create your models here.
 User = get_user_model()
@@ -40,6 +41,9 @@ class RideRequest(models.Model):
     women_only = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    start_time = models.DateTimeField(null=True, blank=True, help_text="Ride start time (in IST)")
+    end_time = models.DateTimeField(null=True, blank=True, help_text="Ride end time (in IST)")
     
     driver = models.ForeignKey(User,on_delete=models.SET_NULL,null=True, blank=True, related_name='accepted_rides')
 
@@ -59,3 +63,4 @@ class RideStop(models.Model):
 
     def __str__(self):
         return f"Stop #{self.order} at {self.location}"
+    

@@ -140,8 +140,8 @@ DATABASES = {
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),       # 7 days
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),     # 30 days
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=30),       # 7 days
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=180),     # 30 days
 
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
