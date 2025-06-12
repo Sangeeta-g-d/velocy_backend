@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'driver_part',
     'rent_vehicle'
 ]
+INSTALLED_APPS += ['channels']
 
 TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True  # Required for timezone-aware datetimes
@@ -77,6 +78,18 @@ from corsheaders.defaults import default_headers
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',
 ]
+
+
+# tracking setup
+ASGI_APPLICATION = 'velocy_backend.asgi.application'
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
