@@ -38,13 +38,13 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         # Comment out auth check for testing
-        # self.user = self.scope["user"]
-        # if self.user.is_authenticated:
-        self.group_name = "ride_user_test"
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
-        # else:
-        #     await self.close()
+        self.user = self.scope["user"]
+        if self.user.is_authenticated:
+            self.group_name = "ride_user_test"
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+        else:
+            await self.close()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
