@@ -100,3 +100,66 @@ class RideDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideRequest
         fields = ['from_location', 'to_location', 'driver', 'ride_stops']
+
+
+class DriverInfoSerializer(serializers.Serializer):
+    name = serializers.CharField(source='driver.username')
+    profile = serializers.ImageField(source='driver.profile')
+    avg_rating = serializers.DecimalField(max_digits=3, decimal_places=2)
+    vehicle_number = serializers.CharField()
+    vehicle_name = serializers.CharField()
+
+
+class RideStopSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RideStop
+        fields = ['order', 'location', 'latitude', 'longitude']
+
+class RideRouteSerializer(serializers.ModelSerializer):
+    stops = RideStopSerializer(source='ride_stops', many=True)
+
+    class Meta:
+        model = RideRequest
+        fields = [
+            'from_location', 'from_latitude', 'from_longitude',
+            'to_location', 'to_latitude', 'to_longitude',
+            'stops'
+        ]
+
+
+class RideSummaryFormattedSerializer(serializers.ModelSerializer):
+    price = serializers.SerializerMethodField()
+    duration = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    end_time = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideRequest
+        fields = [
+            'start_time',
+            'end_time',
+            'price',
+            'distance_km',
+            'duration'
+        ]
+
+    def get_price(self, obj):
+        return obj.offered_price if obj.offered_price else obj.estimated_price
+
+    def get_start_time(self, obj):
+        if obj.start_time:
+            return obj.start_time.astimezone(pytz.timezone("Asia/Kolkata")).strftime('%Y-%m-%d %H:%M:%S')
+        return None
+
+    def get_end_time(self, obj):
+        if obj.end_time:
+            return obj.end_time.astimezone(pytz.timezone("Asia/Kolkata")).strftime('%Y-%m-%d %H:%M:%S')
+        return None
+
+    def get_duration(self, obj):
+        if obj.start_time and obj.end_time:
+            duration = obj.end_time - obj.start_time
+            total_minutes = int(duration.total_seconds() // 60)
+            hours, minutes = divmod(total_minutes, 60)
+            return f"{hours} hours {minutes} minutes"
+        return None

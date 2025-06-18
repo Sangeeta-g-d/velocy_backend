@@ -8,6 +8,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
 from rent_vehicle.models import RentedVehicle,RentedVehicleImage
+from django.utils.dateparse import parse_datetime
+from urllib.parse import quote
+from decimal import Decimal
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import make_aware
 # Create your views here.
 
 def dashboard(request):
@@ -292,10 +297,57 @@ def vehicle_details(request, vehicle_id):
     }
     return render(request, 'vehicle_details.html', context)
 
-
-
 def add_promo_code(request):
+    if request.method == 'POST':
+        try:
+            from decimal import Decimal
+            from urllib.parse import quote
+
+            ist = pytz.timezone('Asia/Kolkata')
+
+            code = request.POST.get('code')
+            description = request.POST.get('description', '')
+            discount_type = request.POST.get('discount_type')
+            discount_value = Decimal(request.POST.get('discount_value'))
+            max_discount_amount = Decimal(request.POST.get('max_discount_amount')) if request.POST.get('max_discount_amount') else None
+            min_ride_amount = Decimal(request.POST.get('min_ride_amount')) if request.POST.get('min_ride_amount') else 0
+            usage_limit_per_user = int(request.POST.get('usage_limit_per_user'))
+            total_usage_limit = int(request.POST.get('total_usage_limit')) if request.POST.get('total_usage_limit') else None
+
+            # Parse and convert to UTC
+            raw_valid_from = parse_datetime(request.POST.get('valid_from'))
+            raw_valid_to = parse_datetime(request.POST.get('valid_to'))
+
+            # Localize to IST and then convert to UTC
+            valid_from = ist.localize(raw_valid_from).astimezone(pytz.UTC)
+            valid_to = ist.localize(raw_valid_to).astimezone(pytz.UTC)
+
+            is_active = request.POST.get('is_active') == 'on'
+
+            PromoCode.objects.create(
+                code=code,
+                description=description,
+                discount_type=discount_type,
+                discount_value=discount_value,
+                max_discount_amount=max_discount_amount,
+                min_ride_amount=min_ride_amount,
+                usage_limit_per_user=usage_limit_per_user,
+                total_usage_limit=total_usage_limit,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                is_active=is_active,
+            )
+
+            return redirect('/add-promo-code/?created=1')
+        except Exception as e:
+            return redirect(f'/add-promo-code/?error={quote(str(e))}')
+
+    return render(request, 'add_promo_code.html', {'current_url_name': "promo_code"})
+
+def promo_code(request):
+    promo_codes = PromoCode.objects.order_by('-id')
     context = {
-        'current_url_name':"promo_code"
+        'current_url_name':'promo_code',
+        'promo_codes':promo_codes
     }
-    return render(request,'add_promo_code.html',context)
+    return render(request,'promo_code.html',context)

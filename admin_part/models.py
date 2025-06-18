@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 from auth_api.models import CustomUser
+from django.utils import timezone
+import pytz
 # Create your models here.
 
 class City(models.Model):
@@ -57,24 +59,39 @@ class PromoCode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_valid(self, user, ride_amount):
-        now = timezone.now()
-        if not self.is_active or not (self.valid_from <= now <= self.valid_to):
+        now = timezone.now()  # This is in UTC
+
+        print("Now (UTC):", now)
+        print("Valid From (UTC):", self.valid_from)
+        print("Valid To (UTC):", self.valid_to)
+
+        if not self.is_active:
+            print("Promo is not active.")
+            return False
+
+        if not (self.valid_from <= now <= self.valid_to):
+            print("Current UTC time is not within promo validity window.")
             return False
 
         if ride_amount < self.min_ride_amount:
+            print(f"Ride amount {ride_amount} < Min required {self.min_ride_amount}")
             return False
 
-        from .models import PromoCodeUsage  # Avoid circular import
+        from .models import PromoCodeUsage
         user_usage_count = PromoCodeUsage.objects.filter(user=user, promo_code=self).count()
-
+        print(f"User has used this code {user_usage_count} times. Limit: {self.usage_limit_per_user}")
         if user_usage_count >= self.usage_limit_per_user:
+            print("User usage limit exceeded.")
             return False
 
         if self.total_usage_limit is not None:
             total_usage = PromoCodeUsage.objects.filter(promo_code=self).count()
+            print(f"Total usage count: {total_usage}. Limit: {self.total_usage_limit}")
             if total_usage >= self.total_usage_limit:
+                print("Global usage limit exceeded.")
                 return False
 
+        print("Promo code is valid.")
         return True
 
     def __str__(self):
@@ -89,3 +106,18 @@ class PromoCodeUsage(models.Model):
 
     class Meta:
         unique_together = ('user', 'promo_code', 'ride')
+
+
+class PlatformSetting(models.Model):
+    PLATFORM_FEE_TYPE_CHOICES = (
+        ('percentage', 'Percentage'),
+        ('flat', 'Flat'),
+    )
+
+    fee_type = models.CharField(max_length=10, choices=PLATFORM_FEE_TYPE_CHOICES, default='percentage')
+    fee_value = models.DecimalField(max_digits=5, decimal_places=2, help_text="Fee percentage or flat amount")
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.fee_value} ({self.fee_type})"

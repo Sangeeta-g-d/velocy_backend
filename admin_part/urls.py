@@ -25,4 +25,7 @@ urlpatterns = [
 
     # 12-6-25
     path('add-promo-code/',views.add_promo_code,name="add_promo_code"),
+
+    # 17-6-25
+    path('promo_code/',views.promo_code,name="promo_code"),
 ]

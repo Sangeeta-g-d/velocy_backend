@@ -1,0 +1,50 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+{% load tz %}
+
+<div class="container">
+
+<div class="top-controls" style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 class="section-title">Promo Codes</h2>
+    <a href="{% url 'add_promo_code' %}" class="btn btn-black">+ Add Promo Code</a>
+  </div>
+
+  <div class="promo-card-grid">
+    {% for promo in promo_codes %}
+      <div class="promo-card">
+        <div class="promo-card-header">
+          <h3>{{ promo.code }}</h3>
+          <div class="promo-actions">
+            <a href="" title="Edit" class="btn btn-secondary open-modal-btn" data-modal="editVehicle">
+            <i class="fas fa-edit"></i>
+            </a>
+           <a href="" title="Delete" class="btn btn-danger"><i class="fas fa-trash-alt"></i></a>
+          </div>
+        </div>
+
+        <p><strong>Type:</strong> {{ promo.discount_type|title }}</p>
+        <p><strong>Value:</strong> {{ promo.discount_value }}{% if promo.discount_type == "percent" %}%{% endif %}</p>
+        {% if promo.max_discount_amount %}
+          <p><strong>Max Discount:</strong> {{ promo.max_discount_amount }}</p>
+        {% endif %}
+        <p><strong>Min Ride:</strong> {{ promo.min_ride_amount }}</p>
+        <p><strong>Usage/User:</strong> {{ promo.usage_limit_per_user }}</p>
+        {% if promo.total_usage_limit %}
+          <p><strong>Total Usage:</strong> {{ promo.total_usage_limit }}</p>
+        {% endif %}
+       <p><strong>Valid:</strong>
+      {{ promo.valid_from|timezone:"Asia/Kolkata"|date:"M d, Y H:i" }} -
+        {{ promo.valid_to|timezone:"Asia/Kolkata"|date:"M d, Y H:i" }}
+      </p>
+        <p><strong>Status:</strong> <span class="{{ promo.is_active|yesno:'active-label,inactive-label' }}">{{ promo.is_active|yesno:'Active,Inactive' }}</span></p>
+        {% if promo.description %}
+          <p class="description"><em>{{ promo.description }}</em></p>
+        {% endif %}
+      </div>
+    {% empty %}
+      <p>No promo codes found.</p>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

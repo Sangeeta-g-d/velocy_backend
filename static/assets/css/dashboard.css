@@ -260,7 +260,7 @@
     padding: 20px 30px;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    max-width: 500px;
+    max-width: 5000px;
     margin: auto;
   }
 
@@ -325,6 +325,41 @@
   }
 .section-title{
   font-weight: 500;
+}
+.form-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+ .checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: #272727; /* Modern browsers */
+  cursor: pointer;
+}
+
+.checkbox-group label {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 0; /* override default label styling */
+  cursor: pointer;
+}
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .form-grid-2col {
+    grid-template-columns: 1fr; /* Switch to single column */
+  }
 }
   /* table style */
    .styled-table {
@@ -820,3 +855,74 @@
     color: white;
     font-weight: bold;
 }
+.center-heading{
+  text-align: center;
+  margin-bottom: 15px;
+}
+ .promo-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .promo-card {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 1.2rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    position: relative;
+    transition: 0.3s;
+  }
+
+  .promo-card:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  }
+
+  .promo-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  .promo-card h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #333;
+  }
+
+  .promo-actions a {
+    margin-left: 0.5rem;
+    font-size: 1.1rem;
+    text-decoration: none;
+    cursor: pointer;
+    color: #ffffff;
+  }
+
+  .promo-actions a:hover {
+    color: #000;
+  }
+
+  .promo-card p {
+    margin: 0.4rem 0;
+    color: #444;
+    font-size: 0.95rem;
+  }
+
+  .promo-card .description {
+    font-size: 0.9rem;
+    color: #777;
+    margin-top: 0.5rem;
+  }
+
+  .active-label {
+    color: green;
+    font-weight: bold;
+  }
+
+  .inactive-label {
+    color: red;
+    font-weight: bold;
+  }

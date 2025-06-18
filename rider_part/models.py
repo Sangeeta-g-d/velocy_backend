@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from admin_part.models import City,VehicleType
 from django.core.validators import MinValueValidator, MaxValueValidator
+import random
+from django.utils import timezone
+from datetime import timedelta
 
 # Create your models here.
 User = get_user_model()
@@ -64,3 +67,63 @@ class RideStop(models.Model):
     def __str__(self):
         return f"Stop #{self.order} at {self.location}"
     
+class RideOTP(models.Model):
+    ride = models.OneToOneField(RideRequest, on_delete=models.CASCADE, related_name='otp')
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField()
+    is_verified = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(minutes=5)
+    
+
+class RidePaymentDetail(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('upi', 'UPI'),
+    ]
+
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    ride = models.OneToOneField('RideRequest', on_delete=models.CASCADE, related_name='payment_detail')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    promo_code = models.ForeignKey('admin_part.PromoCode', on_delete=models.SET_NULL, null=True, blank=True)
+    promo_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tip_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    driver_earnings = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Actual amount driver will earn from this ride (before platform fees if applicable)")
+
+    def __str__(self):
+        return f"Payment for Ride {self.ride.id} by {self.user}"
+    
+
+class DriverWalletTransaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('ride_earning', 'Ride Earning'),
+        ('adjustment', 'Manual Adjustment'),
+        ('withdrawal', 'Withdrawal'),
+        ('bonus', 'Bonus'),
+        ('penalty', 'Penalty'),
+        ('refund', 'Refund'),
+    ]
+
+    driver = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'driver'})
+    ride = models.ForeignKey(RideRequest, on_delete=models.SET_NULL, null=True, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.driver} - {self.transaction_type} - {self.amount}"

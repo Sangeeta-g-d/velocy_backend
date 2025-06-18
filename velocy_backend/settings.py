@@ -53,8 +53,6 @@ INSTALLED_APPS = [
 ]
 INSTALLED_APPS += ['channels']
 
-TIME_ZONE = 'Asia/Kolkata'
-USE_TZ = True  # Required for timezone-aware datetimes
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
