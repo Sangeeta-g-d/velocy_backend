@@ -99,11 +99,18 @@ class RideAcceptedDetailSerializer(serializers.ModelSerializer):
         return self.format_datetime_to_ist(obj.scheduled_time)
     
 
-
 class RiderInformationSerializer(serializers.ModelSerializer):
+    profile = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['username', 'profile', 'phone_number']
+
+    def get_profile(self, obj):
+        request = self.context.get('request')
+        if obj.profile and hasattr(obj.profile, 'url'):
+            return request.build_absolute_uri(obj.profile.url) if request else obj.profile.url
+        return None
 
 class RideDetailSerializer(serializers.ModelSerializer):
     ride_stops = RideStopSerializer(many=True, read_only=True)

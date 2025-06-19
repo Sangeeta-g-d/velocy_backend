@@ -82,6 +82,7 @@ class DriverVehicleInfoSerializer(serializers.ModelSerializer):
 class DriverSerializer(serializers.ModelSerializer):
     vehicle_info = DriverVehicleInfoSerializer(read_only=True)
     average_rating = serializers.SerializerMethodField()
+    profile = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
@@ -92,6 +93,13 @@ class DriverSerializer(serializers.ModelSerializer):
         if ratings.exists():
             return round(sum([r.rating for r in ratings]) / ratings.count(), 1)
         return 0.0
+
+    def get_profile(self, obj):
+        request = self.context.get('request')
+        if obj.profile and hasattr(obj.profile, 'url'):
+            return request.build_absolute_uri(obj.profile.url) if request else obj.profile.url
+        return None
+
 
 class RideDetailSerializer(serializers.ModelSerializer):
     driver = DriverSerializer()

@@ -126,7 +126,7 @@ class RideDetailsWithDriverView(APIView):
         except RideRequest.DoesNotExist:
             return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = RideDetailSerializer(ride)
+        serializer = RideDetailSerializer(ride,context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
@@ -146,7 +146,7 @@ class DriverDetailsAPIView(APIView):
             data = {
                 "driver": {
                     "username": driver.username,
-                    "profile": driver.profile.url if driver.profile else None,
+                    "profile": request.build_absolute_uri(driver.profile.url) if driver.profile else None,
                     'phone_number':driver.phone_number
                 },
                 "avg_rating": round(avg_rating, 2),
@@ -346,7 +346,8 @@ class RiderRideDetailAPIView(APIView):
                 "id": driver.id,
                 "username": driver.username,
                 "profile_image": (
-                    driver.profile.url if hasattr(driver, 'profile') and driver.profile else None
+                    request.build_absolute_uri(driver.profile.url)
+                    if hasattr(driver, 'profile') and driver.profile else None
                 ),
                 "average_rating": round(float(avg_rating), 1) if avg_rating else None,
             }

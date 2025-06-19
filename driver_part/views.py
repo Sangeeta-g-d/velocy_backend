@@ -170,7 +170,7 @@ class RideDetailAPIView(APIView):
     def get(self, request, ride_id):
         try:
             ride = RideRequest.objects.select_related('user').prefetch_related('ride_stops').get(id=ride_id)
-            serializer = RideDetailSerializer(ride)
+            serializer = RideDetailSerializer(ride,context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except RideRequest.DoesNotExist:
             return Response({'error': 'Ride not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -517,8 +517,8 @@ class DriverRideEarningDetailAPIView(APIView):
                 "username": ride.user.username,
                 "email": ride.user.email,
                 "profile_image": (
-                    ride.user.profile.url
-                    if hasattr(ride.user, 'profile') and ride.user.profile
+                    request.build_absolute_uri(ride.user.profile.url)
+                    if hasattr(ride.user, 'profile') and ride.user.profile and request
                     else None
                 ),
             },
