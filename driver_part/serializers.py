@@ -136,3 +136,17 @@ class RidePriceDetailSerializer(serializers.ModelSerializer):
             'distance_km', 'offered_price',
             'ride_stops',
         ]
+
+
+class DriverProfileSerializer(serializers.ModelSerializer):
+    profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['username', 'profile']
+
+    def get_profile(self, obj):
+        request = self.context.get('request')
+        if obj.profile and hasattr(obj.profile, 'url'):
+            return request.build_absolute_uri(obj.profile.url) if request else obj.profile.url
+        return None

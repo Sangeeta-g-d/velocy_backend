@@ -26,5 +26,8 @@ urlpatterns = [
     path('driver-payment-details/<int:ride_id>/', RideSummaryForDriverAPIView.as_view(), name='ride-summary-driver'),
     path('update-payment-status/', UpdateRidePaymentStatusAPIView.as_view(), name='update_ride_payment_status'),
     path('trip-completion/<int:ride_id>/', DriverRideEarningDetailAPIView.as_view(), name='driver-ride-earning-detail'),
+
+    # 20-6-25
+    path('driver-profile/',DriverNameAPIView.as_view(),name='driver-profile'),
     
 ]

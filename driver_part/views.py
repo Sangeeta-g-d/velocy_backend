@@ -48,23 +48,29 @@ class AvailableNowRidesAPIView(APIView):
         city_name = request.data.get('city_name')
 
         if not city_name:
-            return Response({"error": "City name is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"status": False, "message": "City name is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             city = City.objects.get(name__iexact=city_name)
         except City.DoesNotExist:
-            return Response({"error": "City not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"status": False, "message": "City not found."}, status=status.HTTP_404_NOT_FOUND)
 
         rides = RideRequest.objects.filter(
             ride_type='now',
             status='pending',
             city=city
         )
+
         if not rides.exists():
-            return Response({"message": "No rides available."}, status=status.HTTP_200_OK)
+            return Response({"status": True, "message": "No rides available.", "data": []}, status=status.HTTP_200_OK)
 
         serializer = RideNowDestinationSerializer(rides, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            "status": True,
+            "message": "success",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
     
 
 class AvailableScheduledRidesAPIView(APIView):
@@ -532,3 +538,14 @@ class DriverRideEarningDetailAPIView(APIView):
             "rider_rating": rating_data
         }, status=status.HTTP_200_OK)
     
+
+class DriverNameAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role != 'driver':
+            return Response({'error': 'Only drivers can access this endpoint.'}, status=403)
+
+        serializer = DriverProfileSerializer(user, context={'request': request})
+        return Response(serializer.data, status=200)
