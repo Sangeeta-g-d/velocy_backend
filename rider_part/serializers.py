@@ -17,12 +17,14 @@ class VehicleTypeSerializer(serializers.ModelSerializer):
 class RideRequestCreateSerializer(serializers.ModelSerializer):
     city_name = serializers.CharField(write_only=True)
     ride_type = serializers.ChoiceField(choices=RideRequest.RIDE_TYPE_CHOICES)
+    scheduled_time = serializers.DateTimeField(required=False, allow_null=True)  # ✅ added
 
     class Meta:
         model = RideRequest
         fields = [
             'id',
             'ride_type',
+            'scheduled_time',  # ✅ include here
             'city_name',
             'from_location', 'from_latitude', 'from_longitude',
             'to_location', 'to_latitude', 'to_longitude',
@@ -36,15 +38,6 @@ class RideRequestCreateSerializer(serializers.ModelSerializer):
         except City.DoesNotExist:
             raise serializers.ValidationError(f"City '{cleaned}' not found.")
 
-    def create(self, validated_data):
-        city = validated_data.pop('city_name')
-        user = self.context['request'].user
-        return RideRequest.objects.create(
-            user=user,
-            city=city,
-            status='draft',
-            **validated_data
-        )
     def validate(self, attrs):
         ride_type = attrs.get('ride_type')
         scheduled_time = attrs.get('scheduled_time')
@@ -55,7 +48,17 @@ class RideRequestCreateSerializer(serializers.ModelSerializer):
             })
 
         return attrs
-    
+
+    def create(self, validated_data):
+        city = validated_data.pop('city_name')
+        user = self.context['request'].user
+        return RideRequest.objects.create(
+            user=user,
+            city=city,
+            status='draft',
+            **validated_data
+        )
+
 
 class RideStopSerializer(serializers.ModelSerializer):
     class Meta:
