@@ -121,7 +121,8 @@ class DriverInfoSerializer(serializers.Serializer):
 class RideStopSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideStop
-        fields = ['order', 'location', 'latitude', 'longitude']
+        fields = '__all__'
+        read_only_fields = ['order']
 
 class RideRouteSerializer(serializers.ModelSerializer):
     stops = RideStopSerializer(source='ride_stops', many=True)
