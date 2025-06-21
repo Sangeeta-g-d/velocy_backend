@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rider_part.models import RideRequest
 from django.db.models import Sum
-from django.utils.timezone import make_aware
+from django.utils.timezone import make_aware,get_current_timezone
 from rest_framework.parsers import MultiPartParser, FormParser
 from . serializers import *
 from django.db.models import Sum, Avg, Q
@@ -626,7 +626,7 @@ class DriverEarningsSummaryAPIView(APIView):
 
         return Response({"success": True, "data": summary}, status=200)
     
-    
+
 class DriverProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -686,7 +686,6 @@ class DriverDocumentAPIView(APIView):
         serializer = DriverDocumentSerializer(document_info, context={'request': request})
         return Response(serializer.data, status=200)
     
-
 class DriverStatsAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -695,50 +694,32 @@ class DriverStatsAPIView(APIView):
         if user.role != 'driver':
             return Response({'error': 'Access denied. Only drivers allowed.'}, status=403)
 
-        now = timezone.now()
-        ist = timezone.get_current_timezone()
-        today = now.astimezone(ist).date()
+        ist = get_current_timezone()
+        today = datetime.now(ist).date()
         start_of_today = make_aware(datetime.combine(today, datetime.min.time()), timezone=ist)
         end_of_today = make_aware(datetime.combine(today, datetime.max.time()), timezone=ist)
 
-        # Yesterday
-        yesterday = today - timedelta(days=1)
-        start_of_yesterday = make_aware(datetime.combine(yesterday, datetime.min.time()), timezone=ist)
-        end_of_yesterday = make_aware(datetime.combine(yesterday, datetime.max.time()), timezone=ist)
+        # ✅ Total Earnings Today (via wallet transactions)
+        earnings_today = DriverWalletTransaction.objects.filter(
+            driver=user,
+            created_at__range=(start_of_today, end_of_today)
+        ).aggregate(total=Sum('amount'))['total'] or 0.0
 
-        # Week (Monday to now)
-        start_of_week = today - timedelta(days=today.weekday())
-        start_of_week = make_aware(datetime.combine(start_of_week, datetime.min.time()), timezone=ist)
-
-        # Month
-        start_of_month = make_aware(datetime.combine(today.replace(day=1), datetime.min.time()), timezone=ist)
-
-        # Filter wallet transactions
-        def get_total(start, end):
-            return DriverWalletTransaction.objects.filter(
-                driver=user,
-                created_at__range=(start, end)
-            ).aggregate(total=Sum('amount'))['total'] or 0.0
-
-        # Ride count for today
+        # ✅ Total Completed Rides Today
         ride_count_today = RideRequest.objects.filter(
             driver=user,
             status='completed',
             end_time__range=(start_of_today, end_of_today)
         ).count()
 
-        # Average rating
+        # ✅ Average Rating
         avg_rating = DriverRating.objects.filter(driver=user).aggregate(avg=Avg('rating'))['avg'] or 0.0
 
         return Response({
             "success": True,
             "data": {
-                "today_earnings": float(get_total(start_of_today, end_of_today)),
-                "yesterday_earnings": float(get_total(start_of_yesterday, end_of_yesterday)),
-                "this_week_earnings": float(get_total(start_of_week, now)),
-                "this_month_earnings": float(get_total(start_of_month, now)),
-                "remaining_cash_limit": user.cash_payments_left,
+                "today_earnings": float(earnings_today),
                 "today_ride_count": ride_count_today,
                 "average_rating": round(avg_rating, 1),
             }
-        })
+        }, status=200)
