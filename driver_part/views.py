@@ -321,13 +321,11 @@ class VerifyRideOTPView(APIView):
 
         return Response({"message": "OTP verified"})
 
-
 class RideSummaryForDriverAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
         try:
-            # Ensure driver is assigned to the ride
             ride = RideRequest.objects.get(id=ride_id, driver=request.user)
         except RideRequest.DoesNotExist:
             return Response({"error": "Ride not found or you're not the assigned driver."}, status=status.HTTP_404_NOT_FOUND)
@@ -338,6 +336,11 @@ class RideSummaryForDriverAPIView(APIView):
             return Response({"error": "Payment details not found."}, status=status.HTTP_404_NOT_FOUND)
 
         rider = ride.user
+        ist = pytz.timezone("Asia/Kolkata")
+
+        # Convert to IST if exists
+        start_time_ist = ride.start_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.start_time else None
+        end_time_ist = ride.end_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.end_time else None
 
         duration = None
         if ride.start_time and ride.end_time:
@@ -347,15 +350,15 @@ class RideSummaryForDriverAPIView(APIView):
             "rider": {
                 "id": rider.id,
                 "name": f"{rider.username}".strip(),
-                "phone": rider.phone_number if hasattr(rider, 'phone_number') else None,
+                "phone": rider.phone_number,
             },
             "locations": {
                 "from": ride.from_location,
                 "to": ride.to_location,
             },
             "timing": {
-                "start_time": ride.start_time,
-                "end_time": ride.end_time,
+                "start_time": start_time_ist,
+                "end_time": end_time_ist,
                 "duration": str(duration) if duration else None,
             },
             "payment_summary": {

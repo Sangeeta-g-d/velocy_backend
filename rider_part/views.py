@@ -325,7 +325,6 @@ class FinalizeRidePaymentAPIView(APIView):
             "message": "Payment details recorded successfully."
         }, status=status.HTTP_200_OK)
 
-
 class RiderRideDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -334,6 +333,11 @@ class RiderRideDetailAPIView(APIView):
             ride = RideRequest.objects.select_related('driver', 'payment_detail').get(id=ride_id, user=request.user)
         except RideRequest.DoesNotExist:
             return Response({"error": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Timezone conversion to IST
+        ist = pytz.timezone("Asia/Kolkata")
+        start_time_ist = ride.start_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.start_time else None
+        end_time_ist = ride.end_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.end_time else None
 
         # Get driver details
         driver = ride.driver
@@ -370,7 +374,7 @@ class RiderRideDetailAPIView(APIView):
                 "promo_code": None,
                 "promo_discount": 0.0,
                 "tip_amount": 0.0,
-                "total_paid": float(ride.offered_price or ride.estimated_price or 0)
+                "total_paid": ride_price
             }
 
         return Response({
@@ -378,8 +382,8 @@ class RiderRideDetailAPIView(APIView):
             "from_location": ride.from_location,
             "to_location": ride.to_location,
             "distance_km": float(ride.distance_km),
-            "start_time": ride.start_time,
-            "end_time": ride.end_time,
+            "start_time": start_time_ist,
+            "end_time": end_time_ist,
             "driver": driver_info,
             "payment_summary": payment_summary
         }, status=status.HTTP_200_OK)
