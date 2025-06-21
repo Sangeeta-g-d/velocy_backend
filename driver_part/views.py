@@ -477,6 +477,9 @@ class DriverRideEarningDetailAPIView(APIView):
         if ride.start_time and ride.end_time:
             duration = ride.end_time - ride.start_time
 
+        ist = pytz.timezone("Asia/Kolkata")
+        start_time_ist = ride.start_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.start_time else None
+        end_time_ist = ride.end_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.end_time else None
         # Try to get rider rating
         rating_data = None
         try:
@@ -537,8 +540,8 @@ class DriverRideEarningDetailAPIView(APIView):
             },
             "ride_info": {
                 "distance_km": float(ride.distance_km),
-                "start_time": ride.start_time,
-                "end_time": ride.end_time,
+                "start_time": start_time_ist,
+                "end_time": end_time_ist,
                 "duration": str(duration) if duration else None,
             },
             "payment_summary": payment_info,
