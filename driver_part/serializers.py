@@ -186,8 +186,11 @@ class DriverRideHistorySerializer(serializers.ModelSerializer):
         return None
 
     def get_amount_received(self, obj):
-        payment = getattr(obj, 'payment_detail', None)
-        return float(payment.driver_earnings) if payment and payment.driver_earnings else 0.0
+        if obj.driver:
+            wallet_entries = DriverWalletTransaction.objects.filter(driver=obj.driver, ride=obj)
+            total = wallet_entries.aggregate(total=models.Sum('amount'))['total'] or 0.0
+            return float(total)
+        return 0.0
 
     def get_payment_method(self, obj):
         payment = getattr(obj, 'payment_detail', None)
