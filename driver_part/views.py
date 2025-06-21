@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rider_part.models import RideRequest
 from django.db.models import Sum
+from django.utils.timezone import make_aware
 from rest_framework.parsers import MultiPartParser, FormParser
 from . serializers import *
 from django.db.models import Sum, Avg, Q
@@ -589,30 +590,42 @@ class DriverEarningsSummaryAPIView(APIView):
         if user.role != 'driver':
             return Response({"error": "Only drivers can access this data."}, status=403)
 
-        today = timezone.now().astimezone(pytz.timezone("Asia/Kolkata")).date()
-        yesterday = today - timedelta(days=1)
-        start_of_week = today - timedelta(days=today.weekday())
-        start_of_month = today.replace(day=1)
+        ist = pytz.timezone("Asia/Kolkata")
+        now = timezone.now().astimezone(ist)
+        today = now.date()
 
-        payments = RidePaymentDetail.objects.filter(
-            ride__driver=user,
-            payment_status='completed'
-        )
+        # Define time ranges in IST
+        def start_of(day):
+            return timezone.make_aware(datetime.combine(day, datetime.min.time()), timezone=ist)
 
-        def get_total_earnings(start_date, end_date=None):
-            q = payments.filter(created_at__date=start_date) if not end_date else \
-                payments.filter(created_at__date__range=(start_date, end_date))
-            return q.aggregate(total=Sum('driver_earnings'))['total'] or 0.0
+        def end_of(day):
+            return timezone.make_aware(datetime.combine(day, datetime.max.time()), timezone=ist)
+
+        start_today = start_of(today)
+        end_today = end_of(today)
+
+        start_yesterday = start_of(today - timedelta(days=1))
+        end_yesterday = end_of(today - timedelta(days=1))
+
+        start_of_week = start_of(today - timedelta(days=today.weekday()))
+        start_of_month = start_of(today.replace(day=1))
+
+        def get_earning(start, end):
+            return DriverWalletTransaction.objects.filter(
+                driver=user,
+                created_at__range=(start, end)
+            ).aggregate(total=Sum('amount'))['total'] or 0.0
 
         summary = {
-            "today_earnings": float(get_total_earnings(today)),
-            "yesterday_earnings": float(get_total_earnings(yesterday)),
-            "this_week_earnings": float(get_total_earnings(start_of_week, today)),
-            "this_month_earnings": float(get_total_earnings(start_of_month, today)),
+            "today_earnings": float(get_earning(start_today, end_today)),
+            "yesterday_earnings": float(get_earning(start_yesterday, end_yesterday)),
+            "this_week_earnings": float(get_earning(start_of_week, now)),
+            "this_month_earnings": float(get_earning(start_of_month, now)),
             "remaining_cash_limit": user.cash_payments_left
         }
 
-        return Response({"success": True, "data": summary})
+        return Response({"success": True, "data": summary}, status=200)
+    
     
 class DriverProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -682,34 +695,50 @@ class DriverStatsAPIView(APIView):
         if user.role != 'driver':
             return Response({'error': 'Access denied. Only drivers allowed.'}, status=403)
 
-        today = timezone.localdate()
-        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        now = timezone.now()
+        ist = timezone.get_current_timezone()
+        today = now.astimezone(ist).date()
+        start_of_today = make_aware(datetime.combine(today, datetime.min.time()), timezone=ist)
+        end_of_today = make_aware(datetime.combine(today, datetime.max.time()), timezone=ist)
 
-        # ✅ Total Rides Today
-        today_rides = RideRequest.objects.filter(
+        # Yesterday
+        yesterday = today - timedelta(days=1)
+        start_of_yesterday = make_aware(datetime.combine(yesterday, datetime.min.time()), timezone=ist)
+        end_of_yesterday = make_aware(datetime.combine(yesterday, datetime.max.time()), timezone=ist)
+
+        # Week (Monday to now)
+        start_of_week = today - timedelta(days=today.weekday())
+        start_of_week = make_aware(datetime.combine(start_of_week, datetime.min.time()), timezone=ist)
+
+        # Month
+        start_of_month = make_aware(datetime.combine(today.replace(day=1), datetime.min.time()), timezone=ist)
+
+        # Filter wallet transactions
+        def get_total(start, end):
+            return DriverWalletTransaction.objects.filter(
+                driver=user,
+                created_at__range=(start, end)
+            ).aggregate(total=Sum('amount'))['total'] or 0.0
+
+        # Ride count for today
+        ride_count_today = RideRequest.objects.filter(
             driver=user,
             status='completed',
-            end_time__range=(today_start, today_end)
-        )
+            end_time__range=(start_of_today, end_of_today)
+        ).count()
 
-        ride_count = today_rides.count()
-
-        # ✅ Total Earnings Today
-        earnings_today = RidePaymentDetail.objects.filter(
-            ride__in=today_rides,
-            payment_status='completed'
-        ).aggregate(total=Sum('driver_earnings'))['total'] or 0.0
-
-        # ✅ Average Rating
+        # Average rating
         avg_rating = DriverRating.objects.filter(driver=user).aggregate(avg=Avg('rating'))['avg'] or 0.0
 
         return Response({
-            "status": True,
-            "message": "Driver daily stats",
+            "success": True,
             "data": {
-                "today_earnings": float(earnings_today),
-                "today_ride_count": ride_count,
-                "average_rating": round(avg_rating, 1)
+                "today_earnings": float(get_total(start_of_today, end_of_today)),
+                "yesterday_earnings": float(get_total(start_of_yesterday, end_of_yesterday)),
+                "this_week_earnings": float(get_total(start_of_week, now)),
+                "this_month_earnings": float(get_total(start_of_month, now)),
+                "remaining_cash_limit": user.cash_payments_left,
+                "today_ride_count": ride_count_today,
+                "average_rating": round(avg_rating, 1),
             }
-        }, status=status.HTTP_200_OK)
+        })
