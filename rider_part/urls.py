@@ -25,5 +25,8 @@ urlpatterns = [
     path('finalize-payment/', FinalizeRidePaymentAPIView.as_view(), name='finalize_ride_payment'),
     path('rider-trip-completion/<int:ride_id>/',RiderRideDetailAPIView.as_view(),name='rider_trip_completion'),
     path('rate-driver/<int:ride_id>/', RateDriverAPIView.as_view(), name='rate_driver'),
+
+    # 21-6-25
+    path('rider-ride-history/',RiderRideHistoryAPIView.as_view(),name="ride-history"),
     
 ]

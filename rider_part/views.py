@@ -424,3 +424,22 @@ class RateDriverAPIView(APIView):
         )
 
         return Response({"message": "Rating submitted successfully."}, status=status.HTTP_201_CREATED)
+
+
+# ride history
+class RiderRideHistoryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        rider = request.user
+        rides = RideRequest.objects.filter(
+            user=rider,
+            status='completed'
+        ).select_related('payment_detail').order_by('-start_time')
+
+        serializer = RiderRideHistorySerializer(rides, many=True)
+        return Response({
+            "status": True,
+            "message": "Ride history fetched successfully.",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)

@@ -29,5 +29,13 @@ urlpatterns = [
 
     # 20-6-25
     path('driver-profile/',DriverNameAPIView.as_view(),name='driver-profile'),
-    
+
+    # 21-6-25
+    path('driver-ride-history/',DriverRideHistoryAPIView.as_view(),name="ride-history"),
+    path('driver-earnings/', DriverEarningsSummaryAPIView.as_view(), name='driver-earnings-summary'),
+    path('driver-setting/',DriverProfileAPIView.as_view(),name="driver-profile"),
+    path('preview-docs/',DriverDocumentAPIView.as_view(),name="preview-docs"),
+    path('today-earnings/', DriverStatsAPIView.as_view(), name='driver-daily-stats')
+
+
 ]

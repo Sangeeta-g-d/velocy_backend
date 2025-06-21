@@ -175,3 +175,43 @@ class RideSummaryFormattedSerializer(serializers.ModelSerializer):
             hours, minutes = divmod(total_minutes, 60)
             return f"{hours} hours {minutes} minutes"
         return None
+    
+
+# ride history
+class RiderRideHistorySerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    amount_paid = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideRequest
+        fields = [
+            'id', 'from_location', 'to_location',
+            'date', 'start_time', 'amount_paid'
+        ]
+
+    def get_date(self, obj):
+        if obj.start_time:
+            ist = pytz.timezone("Asia/Kolkata")
+            ist_time = obj.start_time.astimezone(ist)
+            today = timezone.now().astimezone(ist).date()
+            ride_date = ist_time.date()
+
+            if ride_date == today:
+                return "Today"
+            elif ride_date == (today - timedelta(days=1)):
+                return "Yesterday"
+            return ist_time.strftime('%Y-%m-%d')
+        return None
+
+    def get_start_time(self, obj):
+        if obj.start_time:
+            ist_time = obj.start_time.astimezone(pytz.timezone("Asia/Kolkata"))
+            return ist_time.strftime('%I:%M %p')
+        return None
+
+    def get_amount_paid(self, obj):
+        payment = getattr(obj, 'payment_detail', None)
+        if payment:
+            return float(payment.grand_total)
+        return 0.0

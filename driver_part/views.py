@@ -3,7 +3,11 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rider_part.models import RideRequest
+from django.db.models import Sum
+from rest_framework.parsers import MultiPartParser, FormParser
 from . serializers import *
+from django.db.models import Sum, Avg, Q
+from datetime import datetime
 from decimal import Decimal
 from rest_framework import status
 from auth_api.models import DriverRating
@@ -549,3 +553,157 @@ class DriverNameAPIView(APIView):
 
         serializer = DriverProfileSerializer(user, context={'request': request})
         return Response(serializer.data, status=200)
+    
+
+# ride history
+class DriverRideHistoryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        driver = request.user
+        rides = RideRequest.objects.filter(
+            driver=driver,
+            status='completed'
+        ).select_related('payment_detail').order_by('-start_time')
+
+        serializer = DriverRideHistorySerializer(rides, many=True)
+        return Response({
+            "status": True,
+            "message": "Ride history fetched successfully.",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class DriverEarningsSummaryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.role != 'driver':
+            return Response({"error": "Only drivers can access this data."}, status=403)
+
+        today = timezone.now().astimezone(pytz.timezone("Asia/Kolkata")).date()
+        yesterday = today - timedelta(days=1)
+        start_of_week = today - timedelta(days=today.weekday())
+        start_of_month = today.replace(day=1)
+
+        payments = RidePaymentDetail.objects.filter(
+            ride__driver=user,
+            payment_status='completed'
+        )
+
+        def get_total_earnings(start_date, end_date=None):
+            q = payments.filter(created_at__date=start_date) if not end_date else \
+                payments.filter(created_at__date__range=(start_date, end_date))
+            return q.aggregate(total=Sum('driver_earnings'))['total'] or 0.0
+
+        summary = {
+            "today_earnings": float(get_total_earnings(today)),
+            "yesterday_earnings": float(get_total_earnings(yesterday)),
+            "this_week_earnings": float(get_total_earnings(start_of_week, today)),
+            "this_month_earnings": float(get_total_earnings(start_of_month, today)),
+            "remaining_cash_limit": user.cash_payments_left
+        }
+
+        return Response({"success": True, "data": summary})
+    
+class DriverProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.role != 'driver':
+            return Response({"error": "Access denied. Only drivers allowed."}, status=403)
+
+        vehicle_info = getattr(user, 'vehicle_info', None)
+
+        profile_url = None
+        if user.profile and hasattr(user.profile, 'url'):
+            profile_url = request.build_absolute_uri(user.profile.url)
+
+        data = {
+            "username": user.username,
+            "email": user.email,
+            "profile_image": profile_url,
+            "vehicle_info": {
+                "id": vehicle_info.id if vehicle_info else None,
+                "vehicle_number": vehicle_info.vehicle_number if vehicle_info else None,
+                "car_name": f"{vehicle_info.car_company} {vehicle_info.car_model}" if vehicle_info else None
+            }
+        }
+
+        return Response({"success": True, "data": data})
+    
+# vehilce docs
+
+class DriverDocumentAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        try:
+            document_info = request.user.document_info
+        except DriverDocumentInfo.DoesNotExist:
+            return Response({"error": "Documents not uploaded yet."}, status=404)
+
+        serializer = DriverDocumentSerializer(document_info, context={'request': request})
+        return Response(serializer.data)
+
+    def patch(self, request):
+        try:
+            document_info = request.user.document_info
+        except DriverDocumentInfo.DoesNotExist:
+            return Response({"error": "Documents not found."}, status=404)
+
+        vehicle_insurance = request.FILES.get("vehicle_insurance")
+        if not vehicle_insurance:
+            return Response({"error": "Only vehicle_insurance can be updated."}, status=400)
+
+        document_info.vehicle_insurance = vehicle_insurance
+        document_info.save()
+
+        serializer = DriverDocumentSerializer(document_info, context={'request': request})
+        return Response(serializer.data, status=200)
+    
+
+class DriverStatsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role != 'driver':
+            return Response({'error': 'Access denied. Only drivers allowed.'}, status=403)
+
+        today = timezone.localdate()
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        today_end = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+
+        # ✅ Total Rides Today
+        today_rides = RideRequest.objects.filter(
+            driver=user,
+            status='completed',
+            end_time__range=(today_start, today_end)
+        )
+
+        ride_count = today_rides.count()
+
+        # ✅ Total Earnings Today
+        earnings_today = RidePaymentDetail.objects.filter(
+            ride__in=today_rides,
+            payment_status='completed'
+        ).aggregate(total=Sum('driver_earnings'))['total'] or 0.0
+
+        # ✅ Average Rating
+        avg_rating = DriverRating.objects.filter(driver=user).aggregate(avg=Avg('rating'))['avg'] or 0.0
+
+        return Response({
+            "status": True,
+            "message": "Driver daily stats",
+            "data": {
+                "today_earnings": float(earnings_today),
+                "today_ride_count": ride_count,
+                "average_rating": round(avg_rating, 1)
+            }
+        }, status=status.HTTP_200_OK)

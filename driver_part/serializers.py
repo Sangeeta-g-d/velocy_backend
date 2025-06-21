@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from admin_part.models import City, VehicleType
 from rider_part.models import RideRequest, RideStop
 import pytz
+from auth_api.models import DriverDocumentInfo
 
 from django.utils.timezone import localtime
 User = get_user_model()
@@ -150,3 +151,75 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         if obj.profile and hasattr(obj.profile, 'url'):
             return request.build_absolute_uri(obj.profile.url) if request else obj.profile.url
         return None
+    
+
+class DriverRideHistorySerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    amount_received = serializers.SerializerMethodField()
+    payment_method = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideRequest
+        fields = [
+            'id', 'from_location', 'to_location',
+            'date', 'start_time', 'amount_received', 'payment_method'
+        ]
+
+    def get_date(self, obj):
+        if obj.start_time:
+            ist = pytz.timezone("Asia/Kolkata")
+            ist_time = obj.start_time.astimezone(ist)
+            today = timezone.now().astimezone(ist).date()
+            ride_date = ist_time.date()
+
+            if ride_date == today:
+                return "Today"
+            elif ride_date == (today - timedelta(days=1)):
+                return "Yesterday"
+            return ist_time.strftime('%Y-%m-%d')
+        return None
+
+    def get_start_time(self, obj):
+        if obj.start_time:
+            ist_time = obj.start_time.astimezone(pytz.timezone("Asia/Kolkata"))
+            return ist_time.strftime('%I:%M %p')
+        return None
+
+    def get_amount_received(self, obj):
+        payment = getattr(obj, 'payment_detail', None)
+        return float(payment.grand_total) if payment else 0.0
+
+    def get_payment_method(self, obj):
+        payment = getattr(obj, 'payment_detail', None)
+        return payment.payment_method if payment else None
+
+
+# vehicle docs
+class DriverDocumentSerializer(serializers.ModelSerializer):
+    vehicle_registration_doc = serializers.SerializerMethodField()
+    driver_license = serializers.SerializerMethodField()
+    vehicle_insurance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DriverDocumentInfo
+        fields = [
+            'id',
+            'license_plate_number',
+            'vehicle_registration_doc',
+            'driver_license',
+            'vehicle_insurance',
+            'verified',
+        ]
+
+    def get_vehicle_registration_doc(self, obj):
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.vehicle_registration_doc.url) if obj.vehicle_registration_doc else None
+
+    def get_driver_license(self, obj):
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.driver_license.url) if obj.driver_license else None
+
+    def get_vehicle_insurance(self, obj):
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.vehicle_insurance.url) if obj.vehicle_insurance else None
