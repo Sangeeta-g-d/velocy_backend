@@ -152,7 +152,6 @@ class DriverProfileSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.profile.url) if request else obj.profile.url
         return None
     
-
 class DriverRideHistorySerializer(serializers.ModelSerializer):
     date = serializers.SerializerMethodField()
     start_time = serializers.SerializerMethodField()
@@ -188,11 +187,12 @@ class DriverRideHistorySerializer(serializers.ModelSerializer):
 
     def get_amount_received(self, obj):
         payment = getattr(obj, 'payment_detail', None)
-        return float(payment.grand_total) if payment else 0.0
+        return float(payment.driver_earnings) if payment and payment.driver_earnings else 0.0
 
     def get_payment_method(self, obj):
         payment = getattr(obj, 'payment_detail', None)
         return payment.payment_method if payment else None
+
 
 
 # vehicle docs
