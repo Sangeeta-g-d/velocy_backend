@@ -351,3 +351,19 @@ def promo_code(request):
         'promo_codes':promo_codes
     }
     return render(request,'promo_code.html',context)
+
+
+def delete_promo(request, pk):
+    if request.method == "POST":
+        try:
+            promo = PromoCode.objects.get(pk=pk)
+            promo.delete()
+            return JsonResponse({"success": True})
+        except PromoCode.DoesNotExist:
+            return JsonResponse({"error": "Promo code not found"}, status=404)
+        
+def ride_sharing_request(request):
+    context = {
+        "current_url_name":"ride_sharing"
+    }
+    return render(request,'ride_sharing_request.html',context)

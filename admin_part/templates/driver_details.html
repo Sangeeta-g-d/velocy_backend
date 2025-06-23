@@ -9,9 +9,9 @@
   </a>
 
   <div class="right-buttons">
-    <button class="btn block-btn" onclick="confirmBlock({{ driver.id }})">Block</button>
+    <button class="btn block-btn" onclick="confirmBlock('{{ driver.id }}')">Block</button>
     <button class="btn verify-btn" 
-        onclick="confirmVerify({{ driver.id }})" 
+        onclick="confirmVerify('{{ driver.id }}')" 
         {% if document_info.verified %}disabled style="opacity: 0.6; cursor: not-allowed;"{% endif %}>
   Verify
 </button>
@@ -102,6 +102,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script>
 function confirmVerify(driverId) {
+  driverId = parseInt(driverId)
     if (confirm("Are you sure you want to verify this driver?")) {
         fetch(`/verify-driver/${driverId}/`, {
             method: 'POST',
@@ -121,6 +122,7 @@ function confirmVerify(driverId) {
 }
 
 function confirmBlock(driverId) {
+  driverId = parseInt(driverId)
     if (confirm("Are you sure you want to block this driver?")) {
         fetch(`/block-driver/${driverId}/`, {
             method: 'POST',

@@ -47,7 +47,7 @@ class DriverCashLimitAPIView(StandardResponseMixin,APIView):
 
         return Response({"cash_payments_left": user.cash_payments_left})
     
-class AvailableNowRidesAPIView(StandardResponseMixin,APIView):
+class AvailableNowRidesAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):

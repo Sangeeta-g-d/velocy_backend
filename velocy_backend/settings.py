@@ -49,7 +49,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rider_part',
     'driver_part',
-    'rent_vehicle'
+    'rent_vehicle',
+    'ride_sharing',
 ]
 INSTALLED_APPS += ['channels']
 

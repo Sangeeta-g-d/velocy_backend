@@ -28,4 +28,10 @@ urlpatterns = [
 
     # 17-6-25
     path('promo_code/',views.promo_code,name="promo_code"),
+    path('delete_promo/<int:pk>/',views.delete_promo,name="delete_promo"),
+
+
+    # 23-6-25 ride sharing
+    path('ride_sharing_request/',views.ride_sharing_request,name="ride_sharing_request"),
+    
 ]

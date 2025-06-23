@@ -9,9 +9,9 @@
     </a>
     <div class="right-buttons">
   {% if vehicle_data.is_approved %}
-    <button class="btn btn-danger" onclick="confirmDisapprove({{ vehicle_id }})">Disagree</button>
+    <button class="btn btn-danger" onclick="confirmDisapprove('{{ vehicle_id }}')">Disagree</button>
   {% else %}
-    <button class="btn verify-btn" onclick="confirmApprove({{ vehicle_id }})">Approve</button>
+    <button class="btn verify-btn" onclick="confirmApprove('{{ vehicle_id }}')">Approve</button>
   {% endif %}
 </div>
 
@@ -76,6 +76,7 @@
 
 <script>
   function confirmApprove(vehicleId) {
+    vehicleId = parseInt(vehicleId);
     if (confirm("Are you sure you want to verify this vehicle?")) {
       fetch(`/verify-rental-vehicle/${vehicleId}/`, {
             method: 'POST',
@@ -96,6 +97,7 @@
   }
 
   function confirmDisapprove(vehicleId) {
+    vehicleId = parseInt(vehicleId)
     if (confirm("Are you sure you want to disapprove this vehicle?")) {
       fetch(`/disapprove-rental-vehicle/${vehicleId}/`, {
             method: 'POST',

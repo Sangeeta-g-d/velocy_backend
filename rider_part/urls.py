@@ -28,5 +28,8 @@ urlpatterns = [
 
     # 21-6-25
     path('rider-ride-history/',RiderRideHistoryAPIView.as_view(),name="ride-history"),
+
+    # 23-6-25
+    path('active-promos/', ActivePromoCodesAPIView.as_view(), name='active-promo-codes'),
     
 ]

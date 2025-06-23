@@ -446,3 +446,26 @@ class RiderRideHistoryAPIView(APIView):
             "message": "Ride history fetched successfully.",
             "data": serializer.data
         }, status=status.HTTP_200_OK)
+
+
+# promo codes
+class ActivePromoCodesAPIView(StandardResponseMixin,APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        now = timezone.now()
+        active_promos = PromoCode.objects.filter(
+            is_active=True,
+            valid_from__lte=now,
+            valid_to__gte=now
+        )
+
+        data = [
+            {
+                "code": promo.code,
+                "description": promo.description
+            }
+            for promo in active_promos
+        ]
+
+        return Response(data, status=status.HTTP_200_OK)

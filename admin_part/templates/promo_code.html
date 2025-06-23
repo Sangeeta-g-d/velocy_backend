@@ -15,10 +15,10 @@
         <div class="promo-card-header">
           <h3>{{ promo.code }}</h3>
           <div class="promo-actions">
-            <a href="" title="Edit" class="btn btn-secondary open-modal-btn" data-modal="editVehicle">
+            <button title="Edit" class="btn btn-secondary open-modal-btn" data-modal="editVehicle">
             <i class="fas fa-edit"></i>
-            </a>
-           <a href="" title="Delete" class="btn btn-danger"><i class="fas fa-trash-alt"></i></a>
+            </button>
+           <button onclick="deletePromo('{{promo.id}}')" title="Delete" class="btn btn-danger"><i class="fas fa-trash-alt"></i></button>
           </div>
         </div>
 
@@ -47,4 +47,29 @@
   </div>
 
 </div>
+
+
+<!-- promo code delete script -->
+ <script>
+  function deletePromo(promoId) {
+    promoId = parseInt(promoId);
+    if (confirm("Are you sure you want to delete this?")) {
+      fetch(`/delete_promo/${promoId}/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast("Promo code deleted successfully");
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showToast(data.error || "Delete failed", "error");
+        }
+      });
+    }
+  }
+</script>
 {% endblock %}
