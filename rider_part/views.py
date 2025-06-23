@@ -9,11 +9,12 @@ from decimal import Decimal
 from auth_api.models import DriverRating
 from . models import *
 from rest_framework.permissions import IsAuthenticated
+from .mixins import StandardResponseMixin
 from admin_part.models import PromoCode, PromoCodeUsage
 from django.db import IntegrityError
 from django.core.exceptions import ValidationError
 
-class VehicleTypeListView(APIView):
+class VehicleTypeListView(StandardResponseMixin,APIView):
     def get(self, request):
         vehicle_types = VehicleType.objects.all()
         serializer = VehicleTypeSerializer(vehicle_types, many=True, context={'request': request})
@@ -29,7 +30,7 @@ class RideRequestCreateView(generics.CreateAPIView):
         serializer.save()
 
 
-class AddRideStopAPIView(APIView):
+class AddRideStopAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -42,7 +43,7 @@ class AddRideStopAPIView(APIView):
             # Check for duplicate stop in the same ride
             if RideStop.objects.filter(ride=ride, latitude=latitude, longitude=longitude).exists():
                 return Response(
-                    {"error": "This stop already exists for the selected ride."},
+                    {"detail": "This stop already exists for the selected ride."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -57,7 +58,7 @@ class AddRideStopAPIView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class EstimateRidePriceAPIView(APIView):
+class EstimateRidePriceAPIView(StandardResponseMixin,APIView):
     def post(self, request):
         serializer = EstimatePriceInputSerializer(data=request.data)
         if serializer.is_valid():
@@ -67,15 +68,15 @@ class EstimateRidePriceAPIView(APIView):
             try:
                 ride = RideRequest.objects.get(id=ride_id)
             except RideRequest.DoesNotExist:
-                return Response({"error": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"detail": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
 
             if not ride.city:
-                return Response({"error": "City not selected for this ride."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": "City not selected for this ride."}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
                 price_entry = CityVehiclePrice.objects.get(city=ride.city, vehicle_type_id=vehicle_type_id)
             except CityVehiclePrice.DoesNotExist:
-                return Response({"error": "Pricing not found for this city and vehicle type."}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"detail": "Pricing not found for this city and vehicle type."}, status=status.HTTP_404_NOT_FOUND)
 
             # Calculate estimated price
             estimated_price = price_entry.price_per_km * ride.distance_km
@@ -97,14 +98,14 @@ class EstimateRidePriceAPIView(APIView):
 
     
 
-class RideRequestUpdateAPIView(APIView):
+class RideRequestUpdateAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id, user=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found or access denied"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found or access denied"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = RideRequestUpdateSerializer(ride, data=request.data, partial=True)
         if serializer.is_valid():
@@ -116,7 +117,7 @@ class RideRequestUpdateAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class RideDetailsWithDriverView(APIView):
+class RideDetailsWithDriverView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, ride_id):
         try:
@@ -130,7 +131,7 @@ class RideDetailsWithDriverView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
-class DriverDetailsAPIView(APIView):
+class DriverDetailsAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
@@ -138,12 +139,13 @@ class DriverDetailsAPIView(APIView):
             ride = RideRequest.objects.get(id=ride_id)
             driver = ride.driver
             if not driver:
-                return Response({"error": "Driver not assigned to this ride."}, status=400)
+                return Response({"detail": "Driver not assigned to this ride."}, status=400)
 
             vehicle_info = driver.vehicle_info  # From OneToOne relation
             avg_rating = DriverRating.objects.filter(driver=driver).aggregate(avg=Avg('rating'))['avg'] or 0.0
 
-            data = {
+            return Response(
+                {
                 "driver": {
                     "username": driver.username,
                     "profile": request.build_absolute_uri(driver.profile.url) if driver.profile else None,
@@ -151,16 +153,15 @@ class DriverDetailsAPIView(APIView):
                 },
                 "avg_rating": round(avg_rating, 2),
                 "vehicle_number": vehicle_info.vehicle_number,
-                "vehicle_name": f"{vehicle_info.car_company} {vehicle_info.car_model}",
-            }
-            return Response(data)
+                "vehicle_name": f"{vehicle_info.car_company} {vehicle_info.car_model}"}
+            )
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found."}, status=404)
+            return Response({"detail": "Ride not found."}, status=404)
         except DriverVehicleInfo.DoesNotExist:
-            return Response({"error": "Driver vehicle info not found."}, status=404)
+            return Response({"detail": "Driver vehicle info not found."}, status=404)
         
 
-class RideRouteAPIView(APIView):
+class RideRouteAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
@@ -169,10 +170,10 @@ class RideRouteAPIView(APIView):
             serializer = RideRouteSerializer(ride)
             return Response(serializer.data)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found."}, status=404)
+            return Response({"detail": "Ride not found."}, status=404)
         
 
-class RideSummaryAPIView(APIView):
+class RideSummaryAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
@@ -181,9 +182,9 @@ class RideSummaryAPIView(APIView):
             serializer = RideSummaryFormattedSerializer(ride)
             return Response(serializer.data)
         except RideRequest.DoesNotExist:
-            return Response({'error': 'Ride not found'}, status=404)
+            return Response({'detial': 'Ride not found'}, status=404)
         
-class ValidateAndApplyPromoCodeAPIView(APIView):
+class ValidateAndApplyPromoCodeAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -191,25 +192,25 @@ class ValidateAndApplyPromoCodeAPIView(APIView):
         ride_id = request.data.get('ride_id')
 
         if not promo_code_str or not ride_id:
-            return Response({"error": "Promo code and ride ID are required."},
+            return Response({"detail": "Promo code and ride ID are required."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         try:
             ride = RideRequest.objects.get(id=ride_id, user=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
 
         ride_price = ride.offered_price or ride.estimated_price
         if ride_price is None:
-            return Response({"error": "Price not available for this ride."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Price not available for this ride."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             promo = PromoCode.objects.get(code=promo_code_str)
         except PromoCode.DoesNotExist:
-            return Response({"error": "Invalid promo code."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid promo code."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not promo.is_valid(request.user, ride_price):
-            return Response({"error": "Promo code is not valid or has expired."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Promo code is not valid or has expired."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Remove existing promo usage for this ride if any
         PromoCodeUsage.objects.filter(user=request.user, ride=ride).delete()
@@ -231,11 +232,10 @@ class ValidateAndApplyPromoCodeAPIView(APIView):
                 ride=ride
             )
         except IntegrityError:
-            return Response({"error": "Promo code already used for this ride."},
+            return Response({"detail": "Promo code already used for this ride."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
-            "success": True,
             "promo_code": promo.code,
             "original_price": float(ride_price),
             "discount": float(discount),
@@ -243,7 +243,7 @@ class ValidateAndApplyPromoCodeAPIView(APIView):
             "message": "Promo code applied successfully."
         }, status=status.HTTP_200_OK)
     
-class FinalizeRidePaymentAPIView(APIView):
+class FinalizeRidePaymentAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -253,35 +253,35 @@ class FinalizeRidePaymentAPIView(APIView):
 
         # Validate required fields
         if not ride_id or not payment_method:
-            return Response({"error": "Ride ID and payment method are required."},
+            return Response({"detail": "Ride ID and payment method are required."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         # ✅ Validate payment method
         valid_payment_methods = dict(RidePaymentDetail.PAYMENT_METHOD_CHOICES).keys()
         if payment_method not in valid_payment_methods:
-            return Response({"error": f"Invalid payment method. Must be one of {list(valid_payment_methods)}."},
+            return Response({"detail": f"Invalid payment method. Must be one of {list(valid_payment_methods)}."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         # Fetch the ride
         try:
             ride = RideRequest.objects.get(id=ride_id, user=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # Prevent duplicate payments
         if RidePaymentDetail.objects.filter(ride=ride).exclude(payment_status='pending').exists():
-            return Response({"error": "Payment details already submitted for this ride."},
+            return Response({"detail": "Payment details already submitted for this ride."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         # Safe tip conversion
         try:
             tip_amount = Decimal(tip_amount)
         except:
-            return Response({"error": "Invalid tip amount."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid tip amount."}, status=status.HTTP_400_BAD_REQUEST)
 
         ride_price = ride.offered_price or ride.estimated_price
         if ride_price is None:
-            return Response({"error": "Price not available for this ride."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Price not available for this ride."}, status=status.HTTP_400_BAD_REQUEST)
 
         # ✅ Promo code logic
         try:
@@ -315,7 +315,6 @@ class FinalizeRidePaymentAPIView(APIView):
         )
 
         return Response({
-            "success": True,
             "ride_id": ride.id,
             "promo_code": promo.code if promo else None,
             "promo_discount": float(discount),
@@ -325,14 +324,14 @@ class FinalizeRidePaymentAPIView(APIView):
             "message": "Payment details recorded successfully."
         }, status=status.HTTP_200_OK)
 
-class RiderRideDetailAPIView(APIView):
+class RiderRideDetailAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
         try:
             ride = RideRequest.objects.select_related('driver', 'payment_detail').get(id=ride_id, user=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # Timezone conversion to IST
         ist = pytz.timezone("Asia/Kolkata")
@@ -390,7 +389,7 @@ class RiderRideDetailAPIView(APIView):
     
 
 
-class RateDriverAPIView(APIView):
+class RateDriverAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -399,24 +398,24 @@ class RateDriverAPIView(APIView):
 
         # ✅ Validate rating presence
         if not rating:
-            return Response({"error": "Rating is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Rating is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # ✅ Validate ride
         try:
             ride = RideRequest.objects.get(id=ride_id, user=request.user, status='completed')
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found or not completed."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found or not completed."}, status=status.HTTP_404_NOT_FOUND)
 
         # ✅ Check if already rated
         if hasattr(ride, 'driver_rating'):
-            return Response({"error": "You have already rated this ride."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "You have already rated this ride."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             rating_value = Decimal(rating)
             if rating_value < 1 or rating_value > 5:
                 raise ValidationError("Rating must be between 1 and 5.")
         except:
-            return Response({"error": "Invalid rating value."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid rating value."}, status=status.HTTP_400_BAD_REQUEST)
 
         # ✅ Create rating
         DriverRating.objects.create(

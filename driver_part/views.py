@@ -2,6 +2,7 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from .mixins import StandardResponseMixin
 from rider_part.models import RideRequest
 from django.db.models import Sum
 from django.utils.timezone import make_aware,get_current_timezone
@@ -24,7 +25,7 @@ from asgiref.sync import async_to_sync
 # Create your views here.
 
 
-class ToggleOnlineStatusAPIView(APIView):
+class ToggleOnlineStatusAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -36,7 +37,7 @@ class ToggleOnlineStatusAPIView(APIView):
         user.save()
         return Response({'status': 'success', 'is_online': user.is_online})
     
-class DriverCashLimitAPIView(APIView):
+class DriverCashLimitAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -46,7 +47,7 @@ class DriverCashLimitAPIView(APIView):
 
         return Response({"cash_payments_left": user.cash_payments_left})
     
-class AvailableNowRidesAPIView(APIView):
+class AvailableNowRidesAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -78,7 +79,7 @@ class AvailableNowRidesAPIView(APIView):
 
     
 
-class AvailableScheduledRidesAPIView(APIView):
+class AvailableScheduledRidesAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -106,7 +107,7 @@ class AvailableScheduledRidesAPIView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
-class RideRequestDetailAPIView(APIView):
+class RideRequestDetailAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
@@ -119,7 +120,7 @@ class RideRequestDetailAPIView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class DeclineRideAPIView(APIView):
+class DeclineRideAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -135,14 +136,14 @@ class DeclineRideAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class AcceptRideAPIView(APIView):
+class AcceptRideAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id, status='pending')
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found or already accepted"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found or already accepted"}, status=status.HTTP_404_NOT_FOUND)
 
         ride.driver = request.user
         ride.status = 'accepted'
@@ -155,20 +156,20 @@ class AcceptRideAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class CancelRideAPIView(APIView):
+class CancelRideAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
 
         if ride.driver != request.user:
-            return Response({"error": "You are not allowed to cancel this ride."}, status=403)
+            return Response({"detail": "You are not allowed to cancel this ride."}, status=403)
 
         if ride.status in ['completed', 'cancelled']:
-            return Response({"error": "Cannot cancel a completed or already cancelled ride."}, status=400)
+            return Response({"detail": "Cannot cancel a completed or already cancelled ride."}, status=400)
 
         ride.status = 'cancelled'
         ride.save()
@@ -176,7 +177,7 @@ class CancelRideAPIView(APIView):
         return Response({"message": "Ride cancelled successfully."}, status=200)
     
 
-class RideDetailAPIView(APIView):
+class RideDetailAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, ride_id):
         try:
@@ -184,10 +185,10 @@ class RideDetailAPIView(APIView):
             serializer = RideDetailSerializer(ride,context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except RideRequest.DoesNotExist:
-            return Response({'error': 'Ride not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'Ride not found'}, status=status.HTTP_404_NOT_FOUND)
         
 
-class RideDetailView(APIView):
+class RideDetailView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, ride_id):
         try:
@@ -201,7 +202,7 @@ class RideDetailView(APIView):
 
 
 # begin ride
-class SetRideStartTimeAPIView(APIView):
+class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
     def post(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id)
@@ -236,7 +237,7 @@ class SetRideStartTimeAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class SetRideEndTimeAPIView(APIView):
+class SetRideEndTimeAPIView(StandardResponseMixin,APIView):
     def post(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id)
@@ -259,7 +260,7 @@ class SetRideEndTimeAPIView(APIView):
     
 
 # Generate OTP and sending to the rider
-class GenerateRideOTPView(APIView):
+class GenerateRideOTPView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -268,7 +269,7 @@ class GenerateRideOTPView(APIView):
         try:
             ride = RideRequest.objects.get(id=ride_id, driver=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found"}, status=404)
+            return Response({"detail": "Ride not found"}, status=404)
 
         # Save or update the OTP with fresh created_at timestamp
         RideOTP.objects.update_or_create(
@@ -294,7 +295,7 @@ class GenerateRideOTPView(APIView):
 
     
 
-class VerifyRideOTPView(APIView):
+class VerifyRideOTPView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -303,16 +304,16 @@ class VerifyRideOTPView(APIView):
             ride = RideRequest.objects.get(id=ride_id, driver=request.user)
             otp_obj = ride.otp
         except (RideRequest.DoesNotExist, RideOTP.DoesNotExist):
-            return Response({"error": "Ride or OTP not found"}, status=404)
+            return Response({"detail": "Ride or OTP not found"}, status=404)
 
         if otp_obj.is_verified:
             return Response({"message": "OTP already verified"}, status=400)
 
         if otp_obj.is_expired():
-            return Response({"error": "OTP has expired"}, status=400)
+            return Response({"detail": "OTP has expired"}, status=400)
 
         if otp_obj.code != otp_entered:
-            return Response({"error": "Invalid OTP"}, status=400)
+            return Response({"detail": "Invalid OTP"}, status=400)
 
         # OTP is valid
         otp_obj.is_verified = True
@@ -322,19 +323,19 @@ class VerifyRideOTPView(APIView):
 
         return Response({"message": "OTP verified"})
 
-class RideSummaryForDriverAPIView(APIView):
+class RideSummaryForDriverAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id, driver=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found or you're not the assigned driver."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found or you're not the assigned driver."}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             payment = RidePaymentDetail.objects.get(ride=ride)
         except RidePaymentDetail.DoesNotExist:
-            return Response({"error": "Payment details not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Payment details not found."}, status=status.HTTP_404_NOT_FOUND)
 
         rider = ride.user
         ist = pytz.timezone("Asia/Kolkata")
@@ -374,7 +375,7 @@ class RideSummaryForDriverAPIView(APIView):
 
 
 # update payment status
-class UpdateRidePaymentStatusAPIView(APIView):
+class UpdateRidePaymentStatusAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -382,27 +383,27 @@ class UpdateRidePaymentStatusAPIView(APIView):
         payment_status = request.data.get('payment_status')
 
         if not ride_id or not payment_status:
-            return Response({"error": "Ride ID and payment status are required."},
+            return Response({"detail": "Ride ID and payment status are required."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         if payment_status not in ['pending', 'completed', 'failed', 'cancelled']:
-            return Response({"error": "Invalid payment status."},
+            return Response({"detail": "Invalid payment status."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         try:
             ride = RideRequest.objects.get(id=ride_id, driver=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found or you are not the assigned driver."},
+            return Response({"detail": "Ride not found or you are not the assigned driver."},
                             status=status.HTTP_404_NOT_FOUND)
 
         try:
             payment_detail = RidePaymentDetail.objects.get(ride=ride)
         except RidePaymentDetail.DoesNotExist:
-            return Response({"error": "Payment details not found for this ride."},
+            return Response({"detail": "Payment details not found for this ride."},
                             status=status.HTTP_404_NOT_FOUND)
 
         if payment_detail.payment_status in ['completed', 'cancelled']:
-            return Response({"error": "Cannot update payment status once completed or cancelled."},
+            return Response({"detail": "Cannot update payment status once completed or cancelled."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         # ✅ If cash method and status is 'completed', decrement counter
@@ -412,7 +413,7 @@ class UpdateRidePaymentStatusAPIView(APIView):
                 driver.cash_payments_left -= 1
                 driver.save()
             else:
-                return Response({"error": "You have no cash payments left."},
+                return Response({"detail": "You have no cash payments left."},
                                 status=status.HTTP_400_BAD_REQUEST)
 
         # ✅ Update payment status
@@ -457,7 +458,7 @@ class UpdateRidePaymentStatusAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class DriverRideEarningDetailAPIView(APIView):
+class DriverRideEarningDetailAPIView(UpdateRidePaymentStatusAPIView,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
@@ -466,12 +467,12 @@ class DriverRideEarningDetailAPIView(APIView):
                 id=ride_id, driver=request.user, status='completed'
             )
         except RideRequest.DoesNotExist:
-            return Response({"error": "Ride not found or not completed."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found or not completed."}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             payment = RidePaymentDetail.objects.get(ride=ride)
         except RidePaymentDetail.DoesNotExist:
-            return Response({"error": "Payment details not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Payment details not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # Duration calculation
         duration = None
@@ -550,13 +551,13 @@ class DriverRideEarningDetailAPIView(APIView):
         }, status=status.HTTP_200_OK)
     
 
-class DriverNameAPIView(APIView):
+class DriverNameAPIView(UpdateRidePaymentStatusAPIView,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
         if user.role != 'driver':
-            return Response({'error': 'Only drivers can access this endpoint.'}, status=403)
+            return Response({'detail': 'Only drivers can access this endpoint.'}, status=403)
 
         serializer = DriverProfileSerializer(user, context={'request': request})
         return Response(serializer.data, status=200)
@@ -588,7 +589,7 @@ class DriverEarningsSummaryAPIView(APIView):
         user = request.user
 
         if user.role != 'driver':
-            return Response({"error": "Only drivers can access this data."}, status=403)
+            return Response({"detail": "Only drivers can access this data."}, status=403)
 
         ist = pytz.timezone("Asia/Kolkata")
         now = timezone.now().astimezone(ist)
@@ -624,17 +625,17 @@ class DriverEarningsSummaryAPIView(APIView):
             "remaining_cash_limit": user.cash_payments_left
         }
 
-        return Response({"success": True, "data": summary}, status=200)
+        return Response({"success": True,"message":"success", "data": summary}, status=200)
     
 
-class DriverProfileAPIView(APIView):
+class DriverProfileAPIView(UpdateRidePaymentStatusAPIView,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
 
         if user.role != 'driver':
-            return Response({"error": "Access denied. Only drivers allowed."}, status=403)
+            return Response({"detail": "Access denied. Only drivers allowed."}, status=403)
 
         vehicle_info = getattr(user, 'vehicle_info', None)
 
@@ -642,22 +643,18 @@ class DriverProfileAPIView(APIView):
         if user.profile and hasattr(user.profile, 'url'):
             profile_url = request.build_absolute_uri(user.profile.url)
 
-        data = {
-            "username": user.username,
+        return Response({
+                         "username": user.username,
             "email": user.email,
             "profile_image": profile_url,
             "vehicle_info": {
                 "id": vehicle_info.id if vehicle_info else None,
                 "vehicle_number": vehicle_info.vehicle_number if vehicle_info else None,
-                "car_name": f"{vehicle_info.car_company} {vehicle_info.car_model}" if vehicle_info else None
-            }
-        }
-
-        return Response({"success": True, "data": data})
+                "car_name": f"{vehicle_info.car_company} {vehicle_info.car_model}" if vehicle_info else None}})
     
 # vehilce docs
 
-class DriverDocumentAPIView(APIView):
+class DriverDocumentAPIView(UpdateRidePaymentStatusAPIView,APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -665,7 +662,7 @@ class DriverDocumentAPIView(APIView):
         try:
             document_info = request.user.document_info
         except DriverDocumentInfo.DoesNotExist:
-            return Response({"error": "Documents not uploaded yet."}, status=404)
+            return Response({"detail": "Documents not uploaded yet."}, status=404)
 
         serializer = DriverDocumentSerializer(document_info, context={'request': request})
         return Response(serializer.data)
@@ -686,13 +683,13 @@ class DriverDocumentAPIView(APIView):
         serializer = DriverDocumentSerializer(document_info, context={'request': request})
         return Response(serializer.data, status=200)
     
-class DriverStatsAPIView(APIView):
+class DriverStatsAPIView(UpdateRidePaymentStatusAPIView,APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
         if user.role != 'driver':
-            return Response({'error': 'Access denied. Only drivers allowed.'}, status=403)
+            return Response({'detail': 'Access denied. Only drivers allowed.'}, status=403)
 
         ist = get_current_timezone()
         today = datetime.now(ist).date()
@@ -716,10 +713,8 @@ class DriverStatsAPIView(APIView):
         avg_rating = DriverRating.objects.filter(driver=user).aggregate(avg=Avg('rating'))['avg'] or 0.0
 
         return Response({
-            "success": True,
-            "data": {
                 "today_earnings": float(earnings_today),
                 "today_ride_count": ride_count_today,
                 "average_rating": round(avg_rating, 1),
-            }
+
         }, status=200)

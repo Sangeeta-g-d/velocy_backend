@@ -127,3 +127,10 @@ class DriverWalletTransaction(models.Model):
 
     def __str__(self):
         return f"{self.driver} - {self.transaction_type} - {self.amount}"
+
+
+class RideMessage(models.Model):
+    ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
