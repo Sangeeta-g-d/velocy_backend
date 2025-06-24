@@ -1,0 +1,141 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+
+  <!-- Top Controls -->
+  <div class="top-controls">
+    <a href="{% url 'ride_sharing_request' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+    <div class="right-buttons">
+      {% if vehicle_data.approved %}
+        <button class="btn btn-danger" onclick="confirmDisapprove('{{ vehicle_data.id }}')">Disagree</button>
+      {% else %}
+        <button class="btn verify-btn" onclick="confirmApprove('{{ vehicle_data.id }}')">Approve</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Details Section -->
+  <div class="driver-card">
+    <div class="flex-row">
+      <!-- Column 1 -->
+      <div class="info-box">
+        <h4>Ride Sharing Vehicle Details</h4>
+        <p><span class="bold-font">Vehicle Model:</span> {{ vehicle_data.model_name }}</p>
+        <p><span class="bold-font">Vehicle Number:</span> {{ vehicle_data.vehicle_number }}</p>
+      </div>
+
+      <!-- Column 2 -->
+      <div class="info-box">
+        <h4>Rental Info</h4>
+        <p><span class="bold-font">Owner:</span> {{ vehicle_data.owner.username }}</p>
+        <p><span class="bold-font">Seat Capacity:</span> {{ vehicle_data.seat_capacity }}</p>
+      </div>
+    </div>
+
+    <!-- Document Cards -->
+    <div class="doc-section">
+
+      <!-- Driving License -->
+      <div class="doc-card">
+        <div class="doc-icon">
+          <i class="fas fa-id-card"></i>
+        </div>
+        <div class="doc-title">Driving License</div>
+        {% if vehicle_data.driving_license %}
+        <a href="{{ vehicle_data.driving_license.url }}" target="_blank">
+          <button class="preview-btn">Preview</button>
+        </a>
+        {% else %}
+        <p class="text-muted">Not uploaded</p>
+        {% endif %}
+      </div>
+
+      <!-- Vehicle Registration -->
+      <div class="doc-card">
+        <div class="doc-icon">
+          <i class="fas fa-car"></i>
+        </div>
+        <div class="doc-title">Registration</div>
+        {% if vehicle_data.registration_doc %}
+        <a href="{{ vehicle_data.registration_doc.url }}" target="_blank">
+          <button class="preview-btn">Preview</button>
+        </a>
+        {% else %}
+        <p class="text-muted">Not uploaded</p>
+        {% endif %}
+      </div>
+
+      <!-- Aadhar Card -->
+      <div class="doc-card">
+        <div class="doc-icon">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        <div class="doc-title">Aadhar Card</div>
+        {% if vehicle_data.aadhar_card %}
+        <a href="{{ vehicle_data.aadhar_card.url }}" target="_blank">
+          <button class="preview-btn">Preview</button>
+        </a>
+        {% else %}
+        <p class="text-muted">Not uploaded</p>
+        {% endif %}
+      </div>
+
+      <!-- Verification Status -->
+      <div class="doc-card">
+        <div class="doc-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="doc-title">Verified</div>
+        <div class="verified-badge {% if not document_info.verified %}not-verified{% endif %}">
+          {% if vehicle_data.approved %} Yes {% else %} No {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  function confirmApprove(vehicleId) {
+    vehicleId = parseInt(vehicleId);
+    if (confirm("Are you sure you want to verify this vehicle?")) {
+      fetch(`/verify_sharing_vehicle/${vehicleId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (response.ok) {
+                showToast("Vehicle verified successfully.");
+                setTimeout(() => location.reload(), 4000);
+            } else {
+                showToast("Failed to verify vehicle.");
+                setTimeout(() => location.reload(), 4000);
+            }
+        });
+    }
+  }
+
+  function confirmDisapprove(vehicleId) {
+    vehicleId = parseInt(vehicleId)
+    if (confirm("Are you sure you want to disapprove this vehicle?")) {
+      fetch(`/disapprove_sharing_vehicle/${vehicleId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (response.ok) {
+                showToast("Vehicle disapproved successfully.");
+                setTimeout(() => location.reload(), 4000);
+            } else {
+                showToast("Failed to disapprove vehicle.");
+                setTimeout(() => location.reload(), 4000);
+            }
+        });
+    }
+  }
+</script>
+{% endblock %}

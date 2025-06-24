@@ -33,5 +33,8 @@ urlpatterns = [
 
     # 23-6-25 ride sharing
     path('ride_sharing_request/',views.ride_sharing_request,name="ride_sharing_request"),
+    path('sharing_vehicle_details/<int:id>/',views.sharing_vehicle_details,name="sharing_vehicle_details"),
+    path('disapprove_sharing_vehicle/<int:vehicle_id>/',views.disapprove_sharing_vehicle,name="disapprove_sharing_vehicle"),
+    path('verify_sharing_vehicle/<int:vehicle_id>/',views.verify_sharing_vehicle,name="verify_sharing_vehicle"),
     
 ]

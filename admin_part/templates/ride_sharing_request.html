@@ -1,4 +1,56 @@
 {% extends 'admin_base.html' %}
 {% block content %}
+<div class="container">
+    <h2 style="margin-bottom: 15px;">Ride Sharing Vehicle Details</h2>
 
+    <input type="text" id="searchInput" class="form-group-input" placeholder="Search by Vehicle Name or Provider" style="margin-bottom: 15px; width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px;">
+
+    <div style="overflow-x:auto;" class="table-container">
+        <table class="styled-table" id="vehicleTable" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>Vehicle Name</th>
+                    <th>Vehicle Number</th>
+                    <th>Provider Name</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vehicle in vehicles %}
+                <tr>
+                    <td>{{ vehicle.model_name }}</td>
+                    <td>{{ vehicle.vehicle_number }}</td>
+                    <td>{{ vehicle.owner.username }}</td>
+                    <td>
+                        {% if vehicle.approved %}
+                            <span class="status-badge approved">Approved</span>
+                        {% else %}
+                            <span class="status-badge pending">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/sharing_vehicle_details/{{ vehicle.id }}/" class="btn btn-primary">Review</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pagination-container">
+        <ul id="pagination" class="pagination"></ul>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initializeTablePagination({
+            tableId: "vehicleTable",
+            searchInputId: "searchInput",
+            paginationId: "pagination",
+            rowsPerPage: 10  // Change per page basis
+        });
+    });
+</script>
 {% endblock %}

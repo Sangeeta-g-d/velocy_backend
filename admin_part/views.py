@@ -10,6 +10,7 @@ from django.views.decorators.http import require_http_methods
 from rent_vehicle.models import RentedVehicle,RentedVehicleImage
 from django.utils.dateparse import parse_datetime
 from urllib.parse import quote
+from ride_sharing.models import RideShareVehicle
 from decimal import Decimal
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import make_aware
@@ -361,9 +362,42 @@ def delete_promo(request, pk):
             return JsonResponse({"success": True})
         except PromoCode.DoesNotExist:
             return JsonResponse({"error": "Promo code not found"}, status=404)
-        
+
+# ride sharing code 
 def ride_sharing_request(request):
+    vehicles = RideShareVehicle.objects.select_related('owner').all().order_by('-created_at')
+
     context = {
-        "current_url_name":"ride_sharing"
+        "current_url_name": "ride_sharing",
+        "vehicles": vehicles
     }
-    return render(request,'ride_sharing_request.html',context)
+    return render(request, 'ride_sharing_request.html', context)
+
+
+def sharing_vehicle_details(request,id):
+    vehicle_data = RideShareVehicle.objects.get(id=id)
+    context = {
+        'vehicle_data':vehicle_data,
+        "current_url_name": "ride_sharing"
+    }
+    return render(request,'sharing_vehicle_details.html',context)
+
+def verify_sharing_vehicle(request, vehicle_id):
+    if request.method == "POST":
+        try:
+            vehicle_info = RideShareVehicle.objects.get(id=vehicle_id)
+            vehicle_info.approved = True
+            vehicle_info.save()
+            return JsonResponse({"status": "success"})
+        except DriverDocumentInfo.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Vehicle not found"}, status=404)
+        
+def disapprove_sharing_vehicle(request, vehicle_id):
+    if request.method == "POST":
+        try:
+            vehicle_info = RideShareVehicle.objects.get(id=vehicle_id)
+            vehicle_info.approved = False
+            vehicle_info.save()
+            return JsonResponse({"status": "success"})
+        except DriverDocumentInfo.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Document not found"}, status=404)

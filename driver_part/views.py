@@ -37,7 +37,7 @@ class ToggleOnlineStatusAPIView(StandardResponseMixin,APIView):
         user.save()
         return Response({'status': 'success', 'is_online': user.is_online})
     
-class DriverCashLimitAPIView(StandardResponseMixin,APIView):
+class DriverCashLimitAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -45,7 +45,11 @@ class DriverCashLimitAPIView(StandardResponseMixin,APIView):
         if user.role != 'driver':
             return Response({"error": "Only drivers have cash limit."}, status=403)
 
-        return Response({"cash_payments_left": user.cash_payments_left})
+        return Response({
+            "cash_payments_left": user.cash_payments_left,
+            "is_online": user.is_online
+        })
+
     
 class AvailableNowRidesAPIView(APIView):
     permission_classes = [IsAuthenticated]
