@@ -1,0 +1,193 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+
+  <div class="top-controls">
+  <a href="{% url 'approve_drivers' %}" class="back-arrow" title="Back">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+
+</div>
+
+  <h2 class="section-title">Driver Profile: {{ driver.username }}</h2>
+<div class="driver-card">
+    <div class="flex-row">
+      <div class="info-box">
+      <h4>Driver Information</h4>
+      <p><span class="bold-font">Name:</span> {{ driver.username }}</p>
+      <p><span class="bold-font">Phone:</span> {{ driver.phone_number }}</p>
+      <p><span class="bold-font">Status:</span> <span class="{{ driver.is_online|yesno:'badge-green,badge-red' }}">{{ driver.is_online|yesno:'Online,Offline' }}</span></p>
+      <p><span class="bold-font">Cash Limit Left:</span> {{ driver.cash_payments_left }}</p>
+      </div>
+      <div class="info-box">
+         {% if driver.vehicle_info %}
+    
+      <h4>Vehicle Info</h4>
+      <p><span class="bold-font">Vehicle Number:</span> {{ driver.vehicle_info.vehicle_number }}</p>
+      <p><span class="bold-font">Type:</span> {{ driver.vehicle_info.vehicle_type }}</p>
+      <p><span class="bold-font">Company:</span> {{ driver.vehicle_info.car_company }}</p>
+      <p><span class="bold-font">Model:</span> {{ driver.vehicle_info.car_model }} ({{ driver.vehicle_info.year }})</p>
+    </div>
+    {% endif %}
+      </div>
+</div>
+  <div class="grid">
+    <!-- Driver Info -->
+    <div class="card">
+      <h3>Basic Info</h3>
+      <p><strong>Name:</strong> {{ driver.username }}</p>
+      <p><strong>Phone:</strong> {{ driver.phone_number }}</p>
+      <p><strong>Status:</strong> <span class="{{ driver.is_online|yesno:'badge-green,badge-red' }}">{{ driver.is_online|yesno:'Online,Offline' }}</span></p>
+      <p><strong>Cash Limit Left:</strong> ₹{{ driver.cash_payments_left }}</p>
+    </div>
+
+    <!-- Vehicle Info -->
+    {% if driver.vehicle_info %}
+    <div class="card">
+      <h3>Vehicle Info</h3>
+      <p><strong>Vehicle Number:</strong> {{ driver.vehicle_info.vehicle_number }}</p>
+      <p><strong>Type:</strong> {{ driver.vehicle_info.vehicle_type }}</p>
+      <p><strong>Company:</strong> {{ driver.vehicle_info.car_company }}</p>
+      <p><strong>Model:</strong> {{ driver.vehicle_info.car_model }} ({{ driver.vehicle_info.year }})</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Recent Rides -->
+  <div class="card full-width">
+    <h3>Recent Rides</h3>
+    {% if recent_rides %}
+    <table>
+      <thead>
+        <tr>
+          <th>From</th>
+          <th>To</th>
+          <th>Distance (km)</th>
+          <th>Date</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ride in recent_rides %}
+        <tr>
+          <td>{{ ride.from_location }}</td>
+          <td>{{ ride.to_location }}</td>
+          <td>{{ ride.distance_km }}</td>
+          <td>{{ ride.created_at|date:"M d, Y H:i" }}</td>
+          <td>{{ ride.status|capfirst }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>No rides found.</p>
+    {% endif %}
+  </div>
+
+  <!-- Reviews -->
+  <div class="card full-width">
+    <h3>Ratings & Reviews</h3>
+    {% if reviews %}
+    <ul class="review-list">
+      {% for r in reviews %}
+      <li>
+        <strong>{{ r.rated_by.username }}</strong> rated <strong>{{ r.rating }}/5</strong>
+        <p><em>{{ r.review }}</em></p>
+        <span class="timestamp">{{ r.created_at|date:"M d, Y H:i" }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No reviews yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Wallet History -->
+  <div class="card full-width">
+    <h3>Wallet Transactions</h3>
+    {% if recent_transactions %}
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Description</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in recent_transactions %}
+        <tr>
+          <td>{{ tx.transaction_type|capfirst }}</td>
+          <td>₹{{ tx.amount }}</td>
+          <td>{{ tx.description|default:"-" }}</td>
+          <td>{{ tx.created_at|date:"M d, Y H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>No transaction history.</p>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 20px;
+  color: #333;
+  text-decoration: none;
+  font-size: 16px;
+}
+.back-link:hover {
+  text-decoration: underline;
+}
+.grid {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.card {
+  background: #f9f9f9;
+  padding: 15px 20px;
+  border-radius: 10px;
+  flex: 1;
+  min-width: 300px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.full-width {
+  width: 100%;
+  margin-top: 20px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+table th, table td {
+  border: 1px solid #e2e2e2;
+  padding: 10px;
+  text-align: left;
+}
+table th {
+  background: #f0f0f0;
+}
+.review-list {
+  list-style: none;
+  padding: 0;
+}
+.review-list li {
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+.timestamp {
+  font-size: 12px;
+  color: #777;
+}
+
+</style>
+{% endblock %}

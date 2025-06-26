@@ -51,8 +51,13 @@ INSTALLED_APPS = [
     'driver_part',
     'rent_vehicle',
     'ride_sharing',
+    'notifications',
+    'car_pooling'
 ]
 INSTALLED_APPS += ['channels']
+
+# firebase file path
+# FIREBASE_CREDENTIALS_PATH = BASE_DIR / 'firebase_credentials.json' 
 
 
 REST_FRAMEWORK = {

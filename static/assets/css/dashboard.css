@@ -325,6 +325,7 @@
   }
 .section-title{
   font-weight: 500;
+  margin-bottom: 20px;
 }
 .form-grid-2col {
   display: grid;
@@ -875,7 +876,18 @@
     position: relative;
     transition: 0.3s;
   }
-
+.badge-green {
+  background: #4caf50;
+  color: white;
+  padding: 0px 4px;
+  border-radius: 4px;
+}
+.badge-red {
+  background: #f44336;
+  color: white;
+  padding: 0px 4px;
+  border-radius: 4px;
+}
   .promo-card:hover {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   }

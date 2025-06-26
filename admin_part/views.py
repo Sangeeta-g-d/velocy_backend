@@ -2,7 +2,11 @@ from django.shortcuts import render,redirect,get_object_or_404
 from django.contrib.auth import authenticate, login
 from auth_api.models import CustomUser,DriverDocumentInfo
 from .models import *
+from driver_part.models import CashOutRequest
 import json
+from django.utils.timezone import localtime
+from auth_api.models import DriverRating
+from rider_part.models import RideRequest, DriverWalletTransaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -401,3 +405,29 @@ def disapprove_sharing_vehicle(request, vehicle_id):
             return JsonResponse({"status": "success"})
         except DriverDocumentInfo.DoesNotExist:
             return JsonResponse({"status": "error", "message": "Document not found"}, status=404)
+        
+def cash_out_requests(request):
+    requests = CashOutRequest.objects.select_related('driver').order_by('-requested_at')
+
+    context = {
+        'current_url_name': "cash_out",
+        'requests': requests
+    }
+    return render(request, 'cash_out_requests.html', context)
+
+
+def user_profile(request, user_id):
+    driver = get_object_or_404(CustomUser, id=user_id, role='driver')
+    
+    recent_rides = RideRequest.objects.filter(driver=driver).order_by('-created_at')[:5]
+    reviews = DriverRating.objects.filter(driver=driver).order_by('-created_at')[:5]
+    recent_transactions = DriverWalletTransaction.objects.filter(driver=driver).order_by('-created_at')[:5]
+
+    context = {
+        'driver': driver,
+        'recent_rides': recent_rides,
+        'reviews': reviews,
+        'recent_transactions': recent_transactions,
+        'current_url_name': 'cash_out',
+    }
+    return render(request, 'user_profile.html', context)

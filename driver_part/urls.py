@@ -35,7 +35,8 @@ urlpatterns = [
     path('driver-earnings/', DriverEarningsSummaryAPIView.as_view(), name='driver-earnings-summary'),
     path('driver-setting/',DriverProfileAPIView.as_view(),name="driver-profile"),
     path('preview-docs/',DriverDocumentAPIView.as_view(),name="preview-docs"),
-    path('today-earnings/', DriverStatsAPIView.as_view(), name='driver-daily-stats')
+    path('today-earnings/', DriverStatsAPIView.as_view(), name='driver-daily-stats'),
+    path('cash-out/',DriverCashOutRequestAPIView.as_view(),name="cash-out"),
 
 
 ]

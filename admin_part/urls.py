@@ -36,5 +36,9 @@ urlpatterns = [
     path('sharing_vehicle_details/<int:id>/',views.sharing_vehicle_details,name="sharing_vehicle_details"),
     path('disapprove_sharing_vehicle/<int:vehicle_id>/',views.disapprove_sharing_vehicle,name="disapprove_sharing_vehicle"),
     path('verify_sharing_vehicle/<int:vehicle_id>/',views.verify_sharing_vehicle,name="verify_sharing_vehicle"),
+
+    # 25-6-25
+    path('cash_out_requests/',views.cash_out_requests,name="cash_out_requests"),
+    path('user_profile/<int:user_id>/',views.user_profile,name="user_profile"),
     
 ]

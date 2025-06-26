@@ -585,7 +585,6 @@ class DriverRideHistoryAPIView(APIView):
             "data": serializer.data
         }, status=status.HTTP_200_OK)
 
-
 class DriverEarningsSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -621,15 +620,25 @@ class DriverEarningsSummaryAPIView(APIView):
                 created_at__range=(start, end)
             ).aggregate(total=Sum('amount'))['total'] or 0.0
 
+        # ✅ Total earnings from all wallet transactions
+        total_earnings = DriverWalletTransaction.objects.filter(
+            driver=user
+        ).aggregate(total=Sum('amount'))['total'] or 0.0
+
         summary = {
             "today_earnings": float(get_earning(start_today, end_today)),
             "yesterday_earnings": float(get_earning(start_yesterday, end_yesterday)),
             "this_week_earnings": float(get_earning(start_of_week, now)),
             "this_month_earnings": float(get_earning(start_of_month, now)),
+            "total_earnings": float(total_earnings),
             "remaining_cash_limit": user.cash_payments_left
         }
 
-        return Response({"success": True,"message":"success", "data": summary}, status=200)
+        return Response({
+            "success": True,
+            "message": "success",
+            "data": summary
+        }, status=200)
     
 
 class DriverProfileAPIView(UpdateRidePaymentStatusAPIView,APIView):
@@ -722,3 +731,32 @@ class DriverStatsAPIView(UpdateRidePaymentStatusAPIView,APIView):
                 "average_rating": round(avg_rating, 1),
 
         }, status=200)
+    
+
+class DriverCashOutRequestAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        if user.role != 'driver':
+            return Response({"error": "Only drivers can request withdrawal."}, status=403)
+
+        amount = request.data.get('amount')
+        if not amount:
+            return Response({"error": "Amount is required."}, status=400)
+
+        try:
+            amount = float(amount)
+            if amount <= 0:
+                raise ValueError
+        except:
+            return Response({"error": "Invalid amount."}, status=400)
+
+        # Optional: Check if they are eligible to withdraw this much
+        total_earnings = DriverWalletTransaction.objects.filter(driver=user).aggregate(total=Sum('amount'))['total'] or 0.0
+        if amount > total_earnings:
+            return Response({"error": "Withdrawal amount exceeds total earnings."}, status=400)
+
+        CashOutRequest.objects.create(driver=user, amount=amount)
+        return Response({"message": "Cash out request submitted."}, status=201)

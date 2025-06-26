@@ -19,7 +19,6 @@ class RideShareVehicle(models.Model):
     def __str__(self):
         return f"{self.model_name} ({self.vehicle_number})"
 
-
 class Ride(models.Model):
     vehicle = models.ForeignKey(RideShareVehicle, on_delete=models.CASCADE, related_name='rides')
     driver = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='shared_rides')
@@ -27,7 +26,9 @@ class Ride(models.Model):
     to_location = models.CharField(max_length=255)
     ride_date = models.DateField()
     ride_time = models.TimeField()
-    available_seats = models.PositiveIntegerField()
+    total_seats = models.PositiveIntegerField(default=0)  # Total fixed at creation
+    seats_left = models.PositiveIntegerField()   # This will decrease as users join
+
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

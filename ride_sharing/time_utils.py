@@ -1,18 +1,19 @@
-from django.utils.timezone import is_aware
+from django.utils.timezone import is_aware, make_aware
 from pytz import timezone
 from datetime import datetime
+from django.utils import timezone as dj_timezone
 
 def convert_to_ist(dt):
     """
-    Converts a datetime object to IST (Asia/Kolkata).
+    Converts a datetime object to IST and returns a formatted string.
     """
     if not isinstance(dt, datetime):
-        return None  # or raise TypeError
+        return None
 
     if not is_aware(dt):
-        from django.utils.timezone import make_aware
-        from django.utils import timezone as dj_timezone
         dt = make_aware(dt, dj_timezone.utc)
 
     ist = timezone('Asia/Kolkata')
-    return dt.astimezone(ist)
+    dt_ist = dt.astimezone(ist)
+
+    return dt_ist.strftime('%Y-%m-%d %I:%M %p')  # Example: 2025-06-24 03:57 PM
