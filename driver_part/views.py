@@ -11,6 +11,8 @@ from . serializers import *
 from django.db.models import Sum, Avg, Q
 from datetime import datetime
 from decimal import Decimal
+from django.utils import timezone
+from datetime import timedelta
 from rest_framework import status
 from auth_api.models import DriverRating
 from django.core.exceptions import ValidationError
@@ -82,8 +84,7 @@ class AvailableNowRidesAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
     
-
-class AvailableScheduledRidesAPIView(StandardResponseMixin,APIView):
+class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -97,13 +98,18 @@ class AvailableScheduledRidesAPIView(StandardResponseMixin,APIView):
         except City.DoesNotExist:
             return Response({"error": "City not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Current time + 1 hour (exclude rides starting within the next 1 hour)
+        now_plus_1_hour = timezone.now() + timedelta(hours=1)
+
         rides = RideRequest.objects.filter(
             ride_type='scheduled',
             status='pending',
-            city=city
+            city=city,
+            scheduled_time__gt=now_plus_1_hour  # only rides that are more than 1 hour away
         ).exclude(
-            declined_by_drivers__driver=request.user  # Exclude rides declined by this driver
-            )
+            declined_by_drivers__driver=request.user
+        )
+
         if not rides.exists():
             return Response({"message": "No scheduled rides available."}, status=status.HTTP_200_OK)
 
@@ -180,23 +186,32 @@ class CancelRideAPIView(StandardResponseMixin,APIView):
 
         return Response({"message": "Ride cancelled successfully."}, status=200)
     
-
-class RideDetailAPIView(StandardResponseMixin,APIView):
+class RideDetailAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
+
     def get(self, request, ride_id):
         try:
-            ride = RideRequest.objects.select_related('user').prefetch_related('ride_stops').get(id=ride_id)
-            serializer = RideDetailSerializer(ride,context={'request': request})
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            ride = RideRequest.objects.select_related('user').prefetch_related('ride_stops').get(
+                id=ride_id, 
+                status='accepted',
+                driver=request.user  # Optional: ensures only assigned driver can view
+            )
+            if ride.driver != request.user:
+                return Response({'detail': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         except RideRequest.DoesNotExist:
-            return Response({'detail': 'Ride not found'}, status=status.HTTP_404_NOT_FOUND)
-        
+            return Response({'detail': 'Ride not found or not yet accepted or completed'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = RideDetailSerializer(ride, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class RideDetailView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, ride_id):
         try:
-            ride = RideRequest.objects.get(id=ride_id)
+            ride = RideRequest.objects.get(id=ride_id,status='accepted',driver=request.user)
+            if ride.driver != request.user:
+                return Response({'detail': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         except RideRequest.DoesNotExist:
             return Response({'detail': 'Ride not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -271,7 +286,7 @@ class GenerateRideOTPView(StandardResponseMixin,APIView):
         otp_code = str(random.randint(100000, 999999))
 
         try:
-            ride = RideRequest.objects.get(id=ride_id, driver=request.user)
+            ride = RideRequest.objects.get(id=ride_id, status="accepted", driver=request.user)
         except RideRequest.DoesNotExist:
             return Response({"detail": "Ride not found"}, status=404)
 
@@ -327,30 +342,44 @@ class VerifyRideOTPView(StandardResponseMixin,APIView):
 
         return Response({"message": "OTP verified"})
 
-class RideSummaryForDriverAPIView(StandardResponseMixin,APIView):
+class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
         try:
-            ride = RideRequest.objects.get(id=ride_id, driver=request.user)
+            ride = RideRequest.objects.get(id=ride_id, status="accepted", driver=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"detail": "Ride not found or you're not the assigned driver."}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            payment = RidePaymentDetail.objects.get(ride=ride)
-        except RidePaymentDetail.DoesNotExist:
-            return Response({"detail": "Payment details not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found or ride completed"}, status=status.HTTP_404_NOT_FOUND)
 
         rider = ride.user
         ist = pytz.timezone("Asia/Kolkata")
 
-        # Convert to IST if exists
         start_time_ist = ride.start_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.start_time else None
         end_time_ist = ride.end_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.end_time else None
 
         duration = None
         if ride.start_time and ride.end_time:
             duration = ride.end_time - ride.start_time
+
+        # Try to get payment details
+        payment_info = None
+        try:
+            payment = RidePaymentDetail.objects.get(ride=ride)
+            payment_info = {
+                "grand_total": float(payment.grand_total),
+                "promo_discount": float(payment.promo_discount),
+                "tip_amount": float(payment.tip_amount),
+                "wallet": float(payment.driver_earnings),
+                "payment_method": payment.payment_method,
+                "payment_status": payment.payment_status,
+            }
+        except RidePaymentDetail.DoesNotExist:
+            # fallback minimal payment info
+            ride_price = ride.offered_price if ride.offered_price else ride.estimated_price
+            payment_info = {
+                "grand_total": float(ride_price) if ride_price else None,
+                "payment_status": "pending"
+            }
 
         return Response({
             "rider": {
@@ -367,14 +396,11 @@ class RideSummaryForDriverAPIView(StandardResponseMixin,APIView):
                 "end_time": end_time_ist,
                 "duration": str(duration) if duration else None,
             },
-            "payment_summary": {
-                "grand_total": float(payment.grand_total),
-                "promo_discount": float(payment.promo_discount),
-                "tip_amount": float(payment.tip_amount),
-                "wallet": float(payment.driver_earnings),
-                "payment_method": payment.payment_method,
-                "payment_status": payment.payment_status,
-            }
+            "ride_summary": {
+                "distance_km": float(ride.distance_km),
+                "price": float(ride.offered_price if ride.offered_price else ride.estimated_price)
+            },
+            "payment_summary": payment_info
         }, status=status.HTTP_200_OK)
 
 
@@ -523,7 +549,6 @@ class DriverRideEarningDetailAPIView(UpdateRidePaymentStatusAPIView,APIView):
 
             # Final amount after deduction + tips
             total_received = payment.driver_earnings - fee_amount + payment.tip_amount
-
             payment_info = {
                 "driver_earnings": float(payment.driver_earnings),
                 "tip_amount": float(payment.tip_amount),

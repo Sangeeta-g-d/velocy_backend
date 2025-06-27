@@ -58,9 +58,9 @@ class AddRideStopAPIView(StandardResponseMixin,APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class EstimateRidePriceAPIView(StandardResponseMixin,APIView):
+class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
     def post(self, request):
-        serializer = EstimatePriceInputSerializer(data=request.data)
+        serializer = EstimatePriceInputSerializer(data=request.data)  # ✅ Fix is here
         if serializer.is_valid():
             ride_id = serializer.validated_data['ride_id']
             vehicle_type_id = serializer.validated_data['vehicle_type_id']
@@ -70,18 +70,25 @@ class EstimateRidePriceAPIView(StandardResponseMixin,APIView):
             except RideRequest.DoesNotExist:
                 return Response({"detail": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
 
+            if ride.status not in ['draft', 'pending']:
+                print("++++++++++++++++++++++++++++++++++++")
+                return Response(
+                    {"detail": "Estimated price can only be updated for draft or pending rides."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             if not ride.city:
                 return Response({"detail": "City not selected for this ride."}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
                 price_entry = CityVehiclePrice.objects.get(city=ride.city, vehicle_type_id=vehicle_type_id)
             except CityVehiclePrice.DoesNotExist:
-                return Response({"detail": "Pricing not found for this city and vehicle type."}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {"detail": "Pricing not found for this city and vehicle type."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
-            # Calculate estimated price
             estimated_price = price_entry.price_per_km * ride.distance_km
-
-            # Save estimated price and vehicle type in the RideRequest model
             ride.estimated_price = round(estimated_price, 2)
             ride.vehicle_type_id = vehicle_type_id
             ride.save()
@@ -95,7 +102,6 @@ class EstimateRidePriceAPIView(StandardResponseMixin,APIView):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
     
 
 class RideRequestUpdateAPIView(StandardResponseMixin,APIView):
