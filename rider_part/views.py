@@ -142,7 +142,7 @@ class DriverDetailsAPIView(StandardResponseMixin,APIView):
 
     def get(self, request, ride_id):
         try:
-            ride = RideRequest.objects.get(id=ride_id)
+            ride = RideRequest.objects.get(id=ride_id,status="accepted")
             driver = ride.driver
             if not driver:
                 return Response({"detail": "Driver not assigned to this ride."}, status=400)
@@ -172,7 +172,7 @@ class RideRouteAPIView(StandardResponseMixin,APIView):
 
     def get(self, request, ride_id):
         try:
-            ride = RideRequest.objects.prefetch_related('ride_stops').get(id=ride_id)
+            ride = RideRequest.objects.prefetch_related('ride_stops').get(id=ride_id,status="accepted")
             serializer = RideRouteSerializer(ride)
             return Response(serializer.data)
         except RideRequest.DoesNotExist:
@@ -184,7 +184,7 @@ class RideSummaryAPIView(StandardResponseMixin,APIView):
 
     def get(self, request, ride_id):
         try:
-            ride = RideRequest.objects.get(id=ride_id, user=request.user)
+            ride = RideRequest.objects.get(id=ride_id, user=request.user,status="accepted")
             serializer = RideSummaryFormattedSerializer(ride)
             return Response(serializer.data)
         except RideRequest.DoesNotExist:

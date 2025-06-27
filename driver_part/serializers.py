@@ -5,6 +5,7 @@ from admin_part.models import City, VehicleType
 from rider_part.models import RideRequest, RideStop
 import pytz
 from auth_api.models import DriverDocumentInfo
+from ride_sharing.time_utils import convert_to_ist
 
 from django.utils.timezone import localtime
 User = get_user_model()
@@ -167,34 +168,33 @@ class DriverRideHistorySerializer(serializers.ModelSerializer):
 
     def get_date(self, obj):
         if obj.start_time:
-            ist = pytz.timezone("Asia/Kolkata")
-            ist_time = obj.start_time.astimezone(ist)
-            today = timezone.now().astimezone(ist).date()
-            ride_date = ist_time.date()
-
-            if ride_date == today:
-                return "Today"
-            elif ride_date == (today - timedelta(days=1)):
-                return "Yesterday"
-            return ist_time.strftime('%Y-%m-%d')
+            return convert_to_ist(obj.start_time).split()[0]  # Returns 'YYYY-MM-DD'
         return None
 
     def get_start_time(self, obj):
         if obj.start_time:
-            ist_time = obj.start_time.astimezone(pytz.timezone("Asia/Kolkata"))
-            return ist_time.strftime('%I:%M %p')
+            return convert_to_ist(obj.start_time).split()[1] + " " + convert_to_ist(obj.start_time).split()[2]  # 'HH:MM AM/PM'
+        return None
+
+    def get_payment_method(self, obj):
+        if hasattr(obj, 'payment_detail') and obj.payment_detail:
+            return obj.payment_detail.payment_method
         return None
 
     def get_amount_received(self, obj):
-        if obj.driver:
-            wallet_entries = DriverWalletTransaction.objects.filter(driver=obj.driver, ride=obj)
-            total = wallet_entries.aggregate(total=models.Sum('amount'))['total'] or 0.0
-            return float(total)
-        return 0.0
-
-    def get_payment_method(self, obj):
         payment = getattr(obj, 'payment_detail', None)
-        return payment.payment_method if payment else None
+        if not payment:
+            return None
+
+        if payment.payment_method == 'cash':
+            if obj.offered_price is not None:
+                return float(obj.offered_price)
+            elif obj.estimated_price is not None:
+                return float(obj.estimated_price)
+            else:
+                return None
+        else:
+            return float(payment.driver_earnings)
 
 
 

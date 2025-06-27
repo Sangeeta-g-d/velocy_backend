@@ -405,7 +405,7 @@ class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
 
 
 # update payment status
-class UpdateRidePaymentStatusAPIView(StandardResponseMixin,APIView):
+class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -413,78 +413,97 @@ class UpdateRidePaymentStatusAPIView(StandardResponseMixin,APIView):
         payment_status = request.data.get('payment_status')
 
         if not ride_id or not payment_status:
-            return Response({"detail": "Ride ID and payment status are required."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Ride ID and payment status are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if payment_status not in ['pending', 'completed', 'failed', 'cancelled']:
-            return Response({"detail": "Invalid payment status."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Invalid payment status."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             ride = RideRequest.objects.get(id=ride_id, driver=request.user)
         except RideRequest.DoesNotExist:
-            return Response({"detail": "Ride not found or you are not the assigned driver."},
-                            status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Ride not found or you are not the assigned driver."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         try:
             payment_detail = RidePaymentDetail.objects.get(ride=ride)
         except RidePaymentDetail.DoesNotExist:
-            return Response({"detail": "Payment details not found for this ride."},
-                            status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Payment details not found for this ride."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         if payment_detail.payment_status in ['completed', 'cancelled']:
-            return Response({"detail": "Cannot update payment status once completed or cancelled."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Cannot update payment status once completed or cancelled."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # ✅ If cash method and status is 'completed', decrement counter
+        # ✅ If cash method and status is 'completed', decrement driver's cash payment count
         if payment_status == 'completed' and payment_detail.payment_method == 'cash':
             driver = request.user
             if driver.cash_payments_left > 0:
                 driver.cash_payments_left -= 1
                 driver.save()
             else:
-                return Response({"detail": "You have no cash payments left."},
-                                status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "You have no cash payments left."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # ✅ Update payment status
         payment_detail.payment_status = payment_status
         payment_detail.save()
 
-        # ✅ If completed, update ride status and wallet
+        # ✅ If completed, update ride status and conditionally add wallet transaction
         if payment_status == 'completed':
             # Mark ride as completed
             ride.status = 'completed'
             ride.save()
 
-            driver = request.user
-            base_earning = payment_detail.driver_earnings
-            tip = payment_detail.tip_amount or Decimal('0.00')
+            # Only credit wallet if NOT a cash payment
+            if payment_detail.payment_method != 'cash':
+                driver = request.user
+                base_earning = payment_detail.driver_earnings
+                tip = payment_detail.tip_amount or Decimal('0.00')
 
-            # Fetch active platform fee
-            platform_fee = Decimal('0.00')
-            active_fee = PlatformSetting.objects.filter(is_active=True).order_by('-updated_at').first()
-            if active_fee:
-                if active_fee.fee_type == 'percentage':
-                    platform_fee = (active_fee.fee_value / Decimal('100')) * base_earning
-                else:
-                    platform_fee = active_fee.fee_value
+                # Fetch active platform fee
+                platform_fee = Decimal('0.00')
+                active_fee = PlatformSetting.objects.filter(is_active=True).order_by('-updated_at').first()
+                if active_fee:
+                    if active_fee.fee_type == 'percentage':
+                        platform_fee = (active_fee.fee_value / Decimal('100')) * base_earning
+                    else:
+                        platform_fee = active_fee.fee_value
 
-            # Final earnings
-            net_earning = base_earning - platform_fee + tip
+                # Final earnings
+                net_earning = base_earning - platform_fee + tip
 
-            DriverWalletTransaction.objects.create(
-                driver=driver,
-                ride=ride,
-                amount=net_earning,
-                transaction_type='ride_earning',
-                description=f"Earnings for Ride #{ride.id} | Base: ₹{base_earning} - Platform Fee: ₹{platform_fee} + Tip: ₹{tip}"
-            )
+                # Create wallet transaction
+                DriverWalletTransaction.objects.create(
+                    driver=driver,
+                    ride=ride,
+                    amount=net_earning,
+                    transaction_type='ride_earning',
+                    description=f"Earnings for Ride #{ride.id} | Base: ₹{base_earning} - Platform Fee: ₹{platform_fee} + Tip: ₹{tip}"
+                )
 
         return Response({
             "success": True,
             "ride_id": ride.id,
             "payment_status": payment_status,
-            "message": "Payment status and ride status updated. Driver wallet credited." if payment_status == 'completed' else "Payment status updated."
+            "message": (
+                "Payment status and ride status updated."
+                + (" Driver wallet credited." if payment_detail.payment_method != 'cash' else " (Cash payment - wallet not affected).")
+                if payment_status == 'completed' else "Payment status updated."
+            )
         }, status=status.HTTP_200_OK)
 
 
