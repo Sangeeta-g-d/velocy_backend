@@ -32,6 +32,7 @@ class GetRideShareVehicleAPIView(StandardResponseMixin, APIView):
         serializer = RideShareVehicleSerializer(vehicles, many=True, context={'request': request})
         return self.response(data=serializer.data, status_code=200)
     
+
 class CreateRideAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -58,6 +59,7 @@ class CreateRideAPIView(StandardResponseMixin, APIView):
             ride = serializer.save()
             return self.response(data={"ride_id": ride.id}, status_code=201)
         return self.response(serializer.errors, status_code=400)
+
 
 class UpcomingRidesAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
@@ -107,6 +109,7 @@ class PublicRidesListAPIView(StandardResponseMixin, APIView):
 
         serializer = PublicRideSerializer(upcoming_rides, many=True, context={'request': request})
         return self.response(data=serializer.data, status_code=200)
+    
     
 class JoinRideAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]

@@ -197,7 +197,6 @@ class DriverRideHistorySerializer(serializers.ModelSerializer):
             return float(payment.driver_earnings)
 
 
-
 # vehicle docs
 class DriverDocumentSerializer(serializers.ModelSerializer):
     vehicle_registration_doc = serializers.SerializerMethodField()

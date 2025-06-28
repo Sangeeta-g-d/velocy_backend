@@ -60,6 +60,7 @@ class RideCreateSerializer(serializers.ModelSerializer):
             'ride_date',
             'ride_time',
             'available_seats',
+            'price_per_person',   # 💰 Added here
             'notes',
         ]
 
@@ -82,6 +83,7 @@ class RideSerializer(serializers.ModelSerializer):
     ride_time = serializers.TimeField(format="%H:%M")
     created_at = serializers.SerializerMethodField()
     is_upcoming = serializers.SerializerMethodField()
+    price_per_person = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)  # 💰 Added
 
     class Meta:
         model = Ride
@@ -93,6 +95,7 @@ class RideSerializer(serializers.ModelSerializer):
             'ride_time',
             'seats_left',
             'total_seats',
+            'price_per_person', 
             'notes',
             'created_at',
             'is_upcoming',
@@ -108,7 +111,6 @@ class RideSerializer(serializers.ModelSerializer):
         return ride_dt > current_time
 
 
-
 class PublicRideSerializer(serializers.ModelSerializer):
     creator_username = serializers.CharField(source='driver.username', read_only=True)
     creator_profile = serializers.ImageField(source='driver.profile', read_only=True)
@@ -116,6 +118,7 @@ class PublicRideSerializer(serializers.ModelSerializer):
     ride_date = serializers.DateField(format="%Y-%m-%d")
     ride_time = serializers.TimeField(format="%H:%M")
     created_at = serializers.SerializerMethodField()
+    price_per_person = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)  # ✅ added
 
     class Meta:
         model = Ride
@@ -126,6 +129,7 @@ class PublicRideSerializer(serializers.ModelSerializer):
             'ride_date',
             'ride_time',
             'seats_left',
+            'price_per_person',  # ✅ include in output
             'notes',
             'creator_username',
             'creator_profile',
@@ -135,6 +139,7 @@ class PublicRideSerializer(serializers.ModelSerializer):
 
     def get_created_at(self, obj):
         return convert_to_ist(obj.created_at)
+
     
 class RideJoinRequestCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -206,14 +211,15 @@ class RideJoinRequestSerializer(serializers.ModelSerializer):
         from .time_utils import convert_to_ist  # ensure you're using the updated one
         return convert_to_ist(obj.requested_at)
     
-
 class UserRequestedRideSerializer(serializers.ModelSerializer):
     from_location = serializers.CharField(source='ride.from_location')
     to_location = serializers.CharField(source='ride.to_location')
     ride_date = serializers.DateField(source='ride.ride_date')
     ride_time = serializers.TimeField(source='ride.ride_time')
-    total_seats = serializers.IntegerField(source='ride.total_seats')         
-    available_seats = serializers.IntegerField(source='ride.seats_left')     
+    total_seats = serializers.IntegerField(source='ride.total_seats')
+    available_seats = serializers.IntegerField(source='ride.seats_left')
+    price_per_person = serializers.DecimalField(source='ride.price_per_person', max_digits=8, decimal_places=2)
+    total_amount = serializers.SerializerMethodField()
     notes = serializers.CharField(source='ride.notes', allow_blank=True)
     vehicle_model = serializers.CharField(source='ride.vehicle.model_name')
     driver_username = serializers.CharField(source='ride.driver.username')
@@ -231,8 +237,10 @@ class UserRequestedRideSerializer(serializers.ModelSerializer):
             'to_location',
             'ride_date',
             'ride_time',
-            'total_seats',       # Added
+            'total_seats',
             'available_seats',
+            'price_per_person',  
+            'total_amount',      
             'notes',
             'vehicle_model',
             'driver_username',
@@ -247,3 +255,6 @@ class UserRequestedRideSerializer(serializers.ModelSerializer):
 
     def get_requested_at(self, obj):
         return convert_to_ist(obj.requested_at)
+
+    def get_total_amount(self, obj):
+        return float(obj.ride.price_per_person) * obj.seats_requested
