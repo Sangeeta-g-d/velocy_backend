@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('dashboard/',views.dashboard,name="dashboard"),
     path('login/', views.login_view, name='login'),
+    path('logout/',views.logout_view,name="logout"),
     path('approve_drivers/',views.approve_drivers,name="approve_drivers"),
     path('driver_details/<int:driver_id>/',views.driver_details,name="driver_details"),
     path('add-city/', views.add_city, name='add_city'),
@@ -40,5 +41,15 @@ urlpatterns = [
     # 25-6-25
     path('cash_out_requests/',views.cash_out_requests,name="cash_out_requests"),
     path('user_profile/<int:user_id>/',views.user_profile,name="user_profile"),
+    path('process-cash-out/<int:cashOut_id>/',views.process_cash_out,name="process_cash_out"),
+
+
+
+
+
+    # corporate urls
+    path('corporate_requests/',views.corporate_requests,name="corporate_requests"),
+    path('company_details/<int:company_id>/',views.company_details,name="company_details"),
+    path('approve-company/<int:company_id>/',views.approve_company,name="approve_company")
     
 ]

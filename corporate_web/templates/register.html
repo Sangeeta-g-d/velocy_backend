@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CorporateHub - Create Account</title>
+  <link rel="stylesheet" href="/static/assets/css/register.css" />
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+
+</head>
+<body>
+ <form method="post" action="">
+  {% csrf_token %}
+  <div class="container">
+    <h2>Create Your Corporate Account</h2>
+    <p class="subtitle">Set up your company and admin access</p>
+
+    <!-- Company Details -->
+    <h3>Company Information</h3>
+    <div class="form-row">
+      <div class="form-column">
+        <div class="form-group">
+          <label for="company-name">Company Name</label>
+          <input type="text" id="company-name" name="company_name" placeholder="Enter company name" />
+        </div>
+        <div class="form-group">
+          <label for="gst-number">GST Number</label>
+          <input type="text" id="gst-number" name="gst_number" placeholder="Enter GST number" />
+        </div>
+        <div class="form-group">
+          <label for="city">City</label>
+          <input type="text" id="city" name="city" placeholder="Enter city" />
+        </div>
+      </div>
+
+      <div class="form-column">
+        <div class="form-group">
+          <label for="registration-number">Business Registration Number</label>
+          <input type="text" id="registration-number" name="registration_number" placeholder="Enter registration number" />
+        </div>
+        <div class="form-group">
+          <label for="pincode">Pincode</label>
+          <input type="text" id="pincode" name="pincode" placeholder="Enter pincode" />
+        </div>
+        <div class="form-group">
+          <label for="address">Full Address</label>
+          <input type="text" id="address" name="address" placeholder="Enter full address" />
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Admin User Info -->
+    <h3>Corporate Admin Account</h3>
+    <div class="form-row">
+      <div class="form-column">
+        <div class="form-group">
+          <label for="admin-name">Admin Full Name</label>
+          <input type="text" id="admin-name" name="admin_name" placeholder="Enter full name" />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="Create password" />
+        </div>
+      </div>
+      <div class="form-column">
+        <div class="form-group">
+          <label for="email">Work Email</label>
+          <input type="email" id="email" name="email" placeholder="Enter work email" />
+        </div>
+        <div class="form-group">
+          <label for="phone-number">Phone Number</label>
+          <input type="text" id="phone-number" name="phone_number" placeholder="Enter phone number" />
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Billing -->
+    <h3>Billing Preferences</h3>
+    <div class="form-row">
+      <div class="form-column">
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="billing_preference" value="prepaid" /> Prepaid</label>
+          <p class="checkbox-description">Pay in advance for services</p>
+        </div>
+      </div>
+      <div class="form-column">
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="billing_preference" value="postpaid" /> Postpaid</label>
+          <p class="checkbox-description">Pay at the end of billing cycle</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-wrapper">
+      <button class="btn" type="submit">Create Account</button>
+    </div>
+
+    <div class="footer">
+      <p>© 2025 CorporateHub. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+        <a href="#">Security</a>
+      </div>
+    </div>
+  </div>
+</form>
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+<script>
+  function showToast(message, type = "success") {
+    Toastify({
+      text: message,
+      duration: 5000,
+      close: true,
+      gravity: "top",
+      position: "center",
+      style: {
+        background: type === "success" ? "#28a745" : "#dc3545",
+        color: "#fff"
+      }
+    }).showToast();
+  }
+
+  {% if toast_message %}
+    showToast("{{ toast_message|escapejs }}", "{{ toast_type|escapejs }}");
+  {% endif %}
+</script>
+
+
+</body>
+</html>

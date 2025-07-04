@@ -28,6 +28,7 @@ urlpatterns = [
     path('sharing/',include('ride_sharing.urls')),
     path('notification/',include('notifications.urls')),
     path('pooling/',include('car_pooling.urls')),
+    path('corporate/',include('corporate_web.urls')),
     path('',include('admin_part.urls')),
 ]
 if settings.DEBUG:

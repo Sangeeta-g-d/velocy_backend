@@ -1,0 +1,57 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="section">
+  <h2 class="section-title">Approve New Companies</h2>
+
+  <!-- Company Application Cards -->
+ {% for company in companies %}
+<div class="company-card" onclick="goToDetails('{{ company.id }}')">
+  <div class="company-info">
+    <div class="company-header">
+      <i class="fas fa-building company-icon"></i>
+      <span class="company-name">{{ company.company_name }}</span>
+    </div>
+    <span class="company-applied-date">Applied: {{ company.applied_ist }}</span>
+  </div>
+  <div class="company-actions">
+    {% if not company.is_approved %}
+    <button class="btn btn-black" onclick="event.stopPropagation(); approveCompany('{{ company.id }}')">Approve</button>
+    {% else %}
+    <button class="btn btn-secondary" disabled onclick="event.stopPropagation();">Approved</button>
+    {% endif %}
+  </div>
+</div>
+{% empty %}
+<p>No new company requests.</p>
+{% endfor %}
+
+
+  <!-- Company Stats (Dummy Static Content for Now) -->
+
+</div>
+<script>
+    function goToDetails(companyId) {
+    window.location.href = `/company_details/${companyId}/`;
+  }
+  function approveCompany(companyId){
+    companyID = parseInt(companyId)
+    if (confirm("Are you sure you want to verify this company?")) {
+      fetch(`/approve-company/${companyId}/`,{
+        method: 'POST',
+        headers: {
+          'X-CSRFToken':'{{ csrf_token }}',
+          'Content-type':'application/json'
+        }
+      }).then(response => {
+        if(response.ok){
+          showToast('Company approved successfully!')
+          setTimeout(()=> location.reload(),4000)
+        }
+        else{
+          showToast("Failed to approve company!")
+        }
+      })
+    }
+  }
+</script>
+{% endblock %}

@@ -52,7 +52,8 @@ INSTALLED_APPS = [
     'rent_vehicle',
     'ride_sharing',
     'notifications',
-    'car_pooling'
+    'car_pooling',
+    'corporate_web',
 ]
 INSTALLED_APPS += ['channels']
 

@@ -32,7 +32,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('rider', 'Rider'),
         ('driver', 'Driver'),
-        ('admin', 'Admin'),
+        ('corporate_admin', 'Corporate_Admin'),
+        ('employee','Employee')
     )
 
     GENDER_CHOICES = (
@@ -43,7 +44,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     phone_number = models.CharField(max_length=15, unique=True)
     email = models.EmailField(blank=True, null=True)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES,default='rider')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES,default='rider')
     username = models.CharField(max_length=100, blank=True, null=True)
     profile = models.ImageField(upload_to='profile_images/', blank=True, null=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
@@ -56,6 +57,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
     is_online = models.BooleanField(default=False)
+
+    company = models.ForeignKey(
+    'corporate_web.CompanyAccount',  # Use string reference: 'app_label.ModelName'
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name='employees'
+    )
 
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = []

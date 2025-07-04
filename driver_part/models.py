@@ -15,8 +15,7 @@ class DeclinedRide(models.Model):
 class CashOutRequest(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
+        ('processed', 'Processed'),
     ]
 
     driver = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'role': 'driver'})

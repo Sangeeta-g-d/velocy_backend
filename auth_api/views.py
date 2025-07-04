@@ -111,7 +111,6 @@ class RegisterWithOTPView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class LoginWithOTPView(APIView):
     MASTER_OTP = '112233'  # your master OTP
 
@@ -151,6 +150,13 @@ class LoginWithOTPView(APIView):
                 if not doc or not doc.verified:
                     return Response({'error': 'Approval pending. Please wait for admin verification.'}, status=status.HTTP_403_FORBIDDEN)
 
+            # 🚫 Employee Role Check
+            if user.role == 'employee':
+                credit = getattr(user, 'credit', None)
+                if not credit or not credit.is_active:
+                    return Response({'error': 'Your account is not active. Please contact your company admin.'},
+                                    status=status.HTTP_403_FORBIDDEN)
+
             # ✅ Generate JWT tokens
             refresh = RefreshToken.for_user(user)
 
@@ -166,7 +172,6 @@ class LoginWithOTPView(APIView):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 
 # update profile 
 class UpdateUserProfileView(APIView):

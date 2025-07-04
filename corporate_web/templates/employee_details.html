@@ -1,0 +1,57 @@
+{% extends 'company_base.html' %}
+{% block content %}
+<div class="container">
+  <div class="top-controls">
+    <a href="{% url 'employee_list' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+  </div>
+
+  <h2 class="section-title">Employee Profile: {{ employee.username }}</h2>
+
+  <div class="driver-card">
+    <div class="flex-row" style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
+
+      <!-- Column 1: Employee Info -->
+      <div class="info-box" style="flex: 1; min-width: 250px;">
+        <h4>Employee Info</h4>
+        <p><span class="bold-font">Name:</span> {{ employee.username }}</p>
+        <p><span class="bold-font">Phone:</span> {{ employee.phone_number }}</p>
+        <p><span class="bold-font">Email:</span> {{ employee.email|default:"N/A" }}</p>
+        <p><span class="bold-font">Gender:</span> {{ employee.gender|title }}</p>
+        <p><span class="bold-font">Street:</span> {{ employee.street|default:"-" }}</p>
+        <p><span class="bold-font">Area:</span> {{ employee.area|default:"-" }}</p>
+      </div>
+
+      <!-- Column 2: Credit Info -->
+      {% if credit %}
+      <div class="info-box" style="flex: 1; min-width: 250px;">
+        <h4>Credits</h4>
+        <p><span class="bold-font">Total Credits:</span> ₹{{ credit.total_credits }}</p>
+        <p><span class="bold-font">Used Credits:</span> ₹{{ credit.used_credits }}</p>
+        <p><span class="bold-font">Available:</span> ₹{{ credit.available_credits }}</p>
+        <p><span class="bold-font">Credit Status:</span>
+          <span class="{{ credit.is_active|yesno:'badge-green,badge-red' }}">
+            {{ credit.is_active|yesno:"Active,Closed" }}
+          </span>
+        </p>
+      </div>
+      {% endif %}
+
+      <!-- Column 3: Profile Image -->
+      <div class="info-box" style="flex: 0 0 180px; text-align: center;">
+        {% if employee.profile %}
+          <img src="{{ employee.profile.url }}" alt="Profile Photo"
+               style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 8px rgba(0,0,0,0.1);">
+        {% else %}
+          <div style="width: 140px; height: 140px; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #777;">
+            No Image
+          </div>
+        {% endif %}
+        <p style="margin-top: 10px; font-weight: bold;">{{ employee.username }}</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

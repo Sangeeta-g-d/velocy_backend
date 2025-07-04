@@ -17,15 +17,21 @@ class VehicleTypeSerializer(serializers.ModelSerializer):
 class RideRequestCreateSerializer(serializers.ModelSerializer):
     city_name = serializers.CharField(write_only=True)
     ride_type = serializers.ChoiceField(choices=RideRequest.RIDE_TYPE_CHOICES)
-    scheduled_time = serializers.DateTimeField(required=False, allow_null=True)  # ✅ added
+    scheduled_time = serializers.DateTimeField(required=False, allow_null=True)
+    ride_purpose = serializers.ChoiceField(
+        choices=RideRequest.RIDE_PURPOSE_CHOICES,
+        default='personal',
+        required=False
+    )
 
     class Meta:
         model = RideRequest
         fields = [
             'id',
             'ride_type',
-            'scheduled_time',  # ✅ include here
+            'scheduled_time',
             'city_name',
+            'ride_purpose',  # ✅ added here
             'from_location', 'from_latitude', 'from_longitude',
             'to_location', 'to_latitude', 'to_longitude',
             'distance_km',
@@ -52,9 +58,12 @@ class RideRequestCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         city = validated_data.pop('city_name')
         user = self.context['request'].user
+        company = getattr(user, 'company', None)
+
         return RideRequest.objects.create(
             user=user,
             city=city,
+            company=company,
             status='draft',
             **validated_data
         )
@@ -135,9 +144,8 @@ class RideRouteSerializer(serializers.ModelSerializer):
         fields = [
             'from_location', 'from_latitude', 'from_longitude',
             'to_location', 'to_latitude', 'to_longitude',
-            'stops'
+            'stops','ride_purpose'
         ]
-
 
 class RideSummaryFormattedSerializer(serializers.ModelSerializer):
     price = serializers.SerializerMethodField()
@@ -152,7 +160,7 @@ class RideSummaryFormattedSerializer(serializers.ModelSerializer):
             'end_time',
             'price',
             'distance_km',
-            'duration'
+            'duration',
         ]
 
     def get_price(self, obj):
@@ -175,7 +183,7 @@ class RideSummaryFormattedSerializer(serializers.ModelSerializer):
             hours, minutes = divmod(total_minutes, 60)
             return f"{hours} hours {minutes} minutes"
         return None
-    
+
 
 # ride history
 class RiderRideHistorySerializer(serializers.ModelSerializer):

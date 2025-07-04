@@ -1,0 +1,65 @@
+{% extends 'company_base.html' %}
+{% block content %}
+<div class="container">
+  <h2 class="section-title">Employee List</h2>
+   <!-- Search Input -->
+    <input type="text" id="searchInput" class="form-group-input search-bar" placeholder="Search by Employee Name">
+    <div class="table-container">
+    <table class="styled-table" id="employeeTable">
+      <thead>
+        <tr>
+          <th>Profile</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Gender</th>
+          <th>Street</th>
+          <th>Area</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees %}
+        <tr>
+          <td>
+            {% if emp.profile %}
+              <img src="{{ emp.profile.url }}" width="40" height="40" style="border-radius: 50%;">
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>{{ emp.username|default:"N/A" }}</td>
+          <td>{{ emp.phone_number }}</td>
+          <td>{{ emp.email|default:"N/A" }}</td>
+          <td>{{ emp.gender|title }}</td>
+          <td>{{ emp.street|default:"-" }}</td>
+          <td>{{ emp.area|default:"-" }}</td>
+          <td>
+            <a href="{% url 'employee_details' emp.id %}" class="action-btn">Details</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" style="text-align:center;">No employees found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <!-- Pagination Controls -->
+    <div class="pagination-container">
+        <ul id="pagination" class="pagination"></ul>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initializeTablePagination({
+            tableId: "employeeTable",
+            searchInputId: "searchInput",
+            paginationId: "pagination",
+            rowsPerPage: 15  // Change per page basis
+        });
+    });
+</script>
+{% endblock %}

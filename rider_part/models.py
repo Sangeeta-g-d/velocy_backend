@@ -21,7 +21,10 @@ class RideRequest(models.Model):
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     )
-
+    RIDE_PURPOSE_CHOICES = (
+    ('official', 'Official'),
+    ('personal', 'Personal'),
+    )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ride_requests')
     city = models.ForeignKey(City, on_delete=models.SET_NULL, null=True)
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.SET_NULL, null=True)
@@ -49,7 +52,8 @@ class RideRequest(models.Model):
     end_time = models.DateTimeField(null=True, blank=True, help_text="Ride end time (in IST)")
     
     driver = models.ForeignKey(User,on_delete=models.SET_NULL,null=True, blank=True, related_name='accepted_rides')
-
+    company = models.ForeignKey('corporate_web.CompanyAccount', on_delete=models.SET_NULL, null=True, blank=True)
+    ride_purpose = models.CharField(max_length=10,choices=RIDE_PURPOSE_CHOICES,default='personal',help_text="Whether this is a company-funded or personal ride")
     def __str__(self):
         return f"Ride by {self.user} - {self.from_location} → {self.to_location}"
 
@@ -81,6 +85,7 @@ class RidePaymentDetail(models.Model):
     PAYMENT_METHOD_CHOICES = [
         ('cash', 'Cash'),
         ('upi', 'UPI'),
+        ('wallet','Wallet')
     ]
 
     PAYMENT_STATUS_CHOICES = [

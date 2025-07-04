@@ -1,0 +1,157 @@
+body{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fa;
+    color: #333;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 800px;
+    margin: 30px auto;
+    padding: 30px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    color: #2c3e50;
+    margin-top: 0;
+}
+
+h2 {
+    color: #2c3e50;
+    font-size: 1.8rem;
+    margin-top: 0;
+    margin-bottom: 13px;
+    font-weight: 400;
+}
+
+h3 {
+    color: #2c3e50;
+    font-size: 1.2rem;
+    margin-top: 25px;
+    margin-bottom: 12px;
+    font-weight: 400;
+}
+
+
+.subtitle {
+    color: #7f8c8d;
+    margin-bottom: 30px;
+    font-size: 20px;
+    margin-top: 0px;
+}
+   .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px; /* increased gap between columns */
+  margin-bottom: 20px;
+}
+.form-column {
+  flex: 1;
+  min-width: 300px;
+  padding-right: 10px; /* small padding between columns */
+}
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: #333;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.form-group input::placeholder {
+    color: #bbb;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #272727;
+    box-shadow: 0 0 0 2px rgba(39, 39, 39, 0.2);
+}
+
+.divider {
+    border: none;
+    height: 1px;
+    background-color: #eee;
+    margin: 30px 0;
+}
+
+.checkbox-group {
+    margin-bottom: 15px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.checkbox-description {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    margin-left: 28px;
+    margin-top: 5px;
+}
+
+.footer {
+    text-align: center;
+    margin-top: 40px;
+    color: #7f8c8d;
+    font-size: 0.9rem;
+}
+
+.footer-links {
+    margin-top: 10px;
+}
+
+.footer-links a {
+    color: #3498db;
+    text-decoration: none;
+    margin: 0 10px;
+}
+
+.footer-links a:hover {
+    text-decoration: underline;
+}
+
+.button-wrapper {
+  text-align: right;
+  margin-top: 20px;
+}
+
+.btn {
+  padding: 10px 25px;
+  background-color: #272727;
+  color: white;
+  font-size: 1rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.btn:hover {
+  background-color: #0f0f0f;
+}

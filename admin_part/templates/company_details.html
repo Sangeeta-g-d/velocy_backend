@@ -1,0 +1,39 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+
+<div class="container">
+  <!-- Top Controls -->
+  <div class="top-controls">
+    <a href="{% url 'corporate_requests' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+  </div>
+
+  <div class="driver-card">
+    <div class="flex-row">
+
+      <!-- Company Info -->
+      <div class="info-box">
+        <h4>Company Information</h4>
+        <p><span class="bold-font">Company Name:</span> {{ company.company_name }}</p>
+        <p><span class="bold-font">Business Reg. No.:</span> {{ company.business_registration_number }}</p>
+        <p><span class="bold-font">GST Number:</span> {{ company.gst_number }}</p>
+        <p><span class="bold-font">Address:</span> {{ company.address }}, {{ company.city }} - {{ company.pincode }}</p>
+        <p><span class="bold-font">Created At:</span> {{ company.created_at|date:"F j, Y, g:i A" }}</p>
+        <p><span class="bold-font">Approved:</span> {{ company.is_approved }}</p>
+      </div>
+
+      <!-- Admin Info -->
+      <div class="info-box">
+        <h4>Corporate Admin Details</h4>
+        <p><span class="bold-font">Name:</span> {{ admin_user.username }}</p>
+        <p><span class="bold-font">Phone:</span> {{ admin_user.phone_number }}</p>
+        <p><span class="bold-font">Email:</span> {{ admin_user.email }}</p>
+        <p><span class="bold-font">Address:</span> {{ admin_user.street }}, {{ admin_user.area }} ({{ admin_user.address_type }})</p>
+        <p><span class="bold-font">Applied:</span> {{ admin_user.date_joined|date:"F j, Y, g:i A" }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

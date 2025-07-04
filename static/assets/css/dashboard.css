@@ -171,12 +171,18 @@
     .topbar .profile:hover .logout-btn {
       display: block;
     }
-
+.search-bar{
+  margin-bottom: 15px; 
+  width: 100%; 
+  padding: 8px; 
+  border: 1px solid #ccc; 
+  border-radius: 5px;
+}
  .main-content {
   flex: 1;
   margin-top: 60px;
   margin-left: 240px; /* default sidebar width */
-  padding: 20px;
+  padding: 30px;
   overflow-y: auto;
   background-color: #f9f9f9;
   transition: margin-left 0.3s ease;
@@ -324,7 +330,7 @@
     background-color: #1f1f1f;
   }
 .section-title{
-  font-weight: 500;
+  font-weight: 400;
   margin-bottom: 20px;
 }
 .form-grid-2col {
@@ -400,6 +406,7 @@
 .table-container {
   flex: 1;
   min-width: 300px;
+  overflow-x:auto;
 }
   .action-btn {
     padding: 6px 12px;
@@ -485,6 +492,10 @@
       font-size: 16px;
       color: #333;
     }
+    .thin-heading{
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
   
 /* driver details style code */
 
@@ -494,6 +505,7 @@
     border-radius: 12px;
     padding: 30px;
     box-sizing: border-box;
+    margin-bottom: 20px;
   }
 
   .flex-row {
@@ -938,3 +950,65 @@
     color: red;
     font-weight: bold;
   }
+
+  .single-ride {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  padding: 20px;
+  background-color: #fefefe;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.ride-row {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.ride-col {
+  flex: 1;
+  min-width: 220px;
+}
+
+.ride-title {
+  font-size: 16px;
+  color: #0a58ca;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+}
+.badge.pending { background-color: #ffc107; }
+.badge.accepted { background-color: #17a2b8; }
+.badge.completed { background-color: #28a745; }
+.badge.cancelled { background-color: #dc3545; }
+
+.stars {
+  font-size: 18px;
+  color: #ffd700;
+}
+.star {
+  display: inline-block;
+  margin-right: 2px;
+}
+.star.filled {
+  color: #f4c150;
+}
+.status-btn {
+  background-color: #dddddd;
+  color: #000000;
+  cursor: not-allowed;
+  pointer-events: none; 
+}
+
+.process-btn {
+  background-color: #28a745;
+  color: white;
+}

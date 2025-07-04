@@ -1,11 +1,15 @@
 from django.shortcuts import render,redirect,get_object_or_404
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login,logout
 from auth_api.models import CustomUser,DriverDocumentInfo
 from .models import *
 from driver_part.models import CashOutRequest
 import json
+from django.views.decorators.http import require_POST
 from django.utils.timezone import localtime
 from auth_api.models import DriverRating
+from django.utils.timezone import localtime
+from corporate_web.models import CompanyAccount
+from django.db.models import Avg
 from rider_part.models import RideRequest, DriverWalletTransaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -28,18 +32,37 @@ def dashboard(request):
 
 def login_view(request):
     error = None
+
     if request.method == 'POST':
         phone_number = request.POST.get('phone_number')
         password = request.POST.get('password')
 
         user = authenticate(request, phone_number=phone_number, password=password)
+
         if user is not None:
-            login(request, user)
-            return redirect('dashboard')  # or your target view
+            if user.role == 'corporate_admin':
+                try:
+                    company = CompanyAccount.objects.get(admin_user=user)
+                    if company.is_approved:
+                        login(request, user)
+                        return redirect('company_dashboard')
+                    else:
+                        error = 'Your company is not yet verified. Please wait for approval.'
+                except CompanyAccount.DoesNotExist:
+                    error = 'Company account not found.'
+            elif user.is_superuser:
+                login(request, user)
+                return redirect('dashboard')
+            else:
+                error = 'Access denied. Only approved company admins or superusers can log in.'
         else:
             error = 'Invalid phone number or password.'
 
     return render(request, 'login.html', {'error': error})
+
+def logout_view(request):
+    logout(request)
+    return redirect('/login/')
 
 def approve_drivers(request):
     drivers = CustomUser.objects.all()
@@ -415,19 +438,82 @@ def cash_out_requests(request):
     }
     return render(request, 'cash_out_requests.html', context)
 
-
 def user_profile(request, user_id):
     driver = get_object_or_404(CustomUser, id=user_id, role='driver')
-    
+
     recent_rides = RideRequest.objects.filter(driver=driver).order_by('-created_at')[:5]
-    reviews = DriverRating.objects.filter(driver=driver).order_by('-created_at')[:5]
+    latest_cashout = CashOutRequest.objects.filter(driver=driver).order_by('-requested_at').first()
+    ride_data = []
+    for ride in recent_rides:
+        payment = getattr(ride, 'payment_detail', None)
+        rating = getattr(ride, 'driver_rating', None)
+
+        ride_data.append({
+            'ride': ride,
+            'payment': payment,
+            'rating': rating,
+            'promo_code': payment.promo_code if payment else None,
+            'promo_discount': payment.promo_discount if payment else 0,
+        })
+
     recent_transactions = DriverWalletTransaction.objects.filter(driver=driver).order_by('-created_at')[:5]
+
+    avg_rating = DriverRating.objects.filter(driver=driver).aggregate(avg=Avg('rating'))['avg'] or 0
 
     context = {
         'driver': driver,
-        'recent_rides': recent_rides,
-        'reviews': reviews,
+        'ride_data': ride_data,
         'recent_transactions': recent_transactions,
         'current_url_name': 'cash_out',
+        'avg_rating': avg_rating,
+        'latest_cashout': latest_cashout,
     }
     return render(request, 'user_profile.html', context)
+
+def process_cash_out(request, cashOut_id):
+    if request.method == "POST":
+        try:
+            obj = CashOutRequest.objects.get(id=cashOut_id)
+            obj.status = "processed"
+            obj.save()
+            return JsonResponse({"status": "success"})
+        except DriverDocumentInfo.DoesNotExist:
+            return JsonResponse({"status": "error"}, status=404)
+        
+
+
+
+
+
+
+# Corporate side code
+def corporate_requests(request):
+    ist = pytz.timezone("Asia/Kolkata")  # ✅ Correct usage
+    companies = CompanyAccount.objects.select_related("admin_user")
+    for company in companies:
+        company.applied_ist = localtime(company.created_at, ist).strftime("%b %d, %Y at %I:%M %p")
+    context = {
+        'companies': companies,
+        'current_url_name':"corporate_request"
+    }
+    return render(request, 'corporate_requests.html', context)
+
+def company_details(request, company_id):
+    company = get_object_or_404(CompanyAccount, id=company_id)
+    admin_user = company.admin_user  # related OneToOne user
+    return render(request, 'company_details.html', {
+        'company': company,
+        'admin_user': admin_user,
+        'current_url_name':"corporate_request"
+    })
+
+def approve_company(request, company_id):
+    if request.method == "POST":
+        try:
+            obj = CompanyAccount.objects.get(id=company_id)
+            obj.is_approved = True
+            obj.save()
+            return JsonResponse({"status": "success"})
+        except CompanyAccount.DoesNotExist:
+            return JsonResponse({"status": "error"}, status=404)
+        

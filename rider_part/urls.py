@@ -31,5 +31,9 @@ urlpatterns = [
 
     # 23-6-25
     path('active-promos/', ActivePromoCodesAPIView.as_view(), name='active-promo-codes'),
+
+    # corporate url
+    path('corporate-user-payment/<int:ride_id>/', RideCorporatePaymentSummaryAPIView.as_view(), name='ride_payment_summary'),
+    path('corporate-confirm-payment/<int:ride_id>/', RideCorporateConfirmAPIView.as_view(), name='ride_confirm'),
     
 ]

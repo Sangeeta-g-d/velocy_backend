@@ -71,7 +71,7 @@ class AvailableNowRidesAPIView(APIView):
             ride_type='now',
             status='pending',
             city=city
-        )
+        ).order_by('-id')
 
         if not rides.exists():
             return Response({"status": True, "message": "No rides available.", "data": []}, status=status.HTTP_200_OK)

@@ -26,8 +26,8 @@
                     <td>
                         {% if req.status == "pending" %}
                             <span class="status-badge pending">Pending</span>
-                        {% elif req.status == "approved" %}
-                            <span class="status-badge approved">Approved</span>
+                        {% elif req.status == "processed" %}
+                            <span class="status-badge approved">Processed</span>
                         {% else %}
                             <span class="status-badge rejected">Rejected</span>
                         {% endif %}

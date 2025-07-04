@@ -7,6 +7,7 @@ from rest_framework import generics, permissions
 from django.db.models import Avg
 from decimal import Decimal
 from auth_api.models import DriverRating
+from django.db import transaction
 from . models import *
 from rest_framework.permissions import IsAuthenticated
 from .mixins import StandardResponseMixin
@@ -98,7 +99,8 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
                 "vehicle_type_id": vehicle_type_id,
                 "price_per_km": price_entry.price_per_km,
                 "distance_km": ride.distance_km,
-                "estimated_price": round(estimated_price, 2)
+                "estimated_price": round(estimated_price, 2),
+                "user_role":request.user.role
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -205,6 +207,11 @@ class ValidateAndApplyPromoCodeAPIView(StandardResponseMixin,APIView):
             ride = RideRequest.objects.get(id=ride_id, user=request.user)
         except RideRequest.DoesNotExist:
             return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # ❌ Prevent promo application if it's an official ride
+        if ride.ride_purpose == 'official':
+            return Response({"detail": "Promo codes cannot be applied to official rides."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         ride_price = ride.offered_price or ride.estimated_price
         if ride_price is None:
@@ -329,6 +336,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin,APIView):
             "payment_method": payment_method,
             "message": "Payment details recorded successfully."
         }, status=status.HTTP_200_OK)
+
 
 class RiderRideDetailAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]
@@ -475,3 +483,97 @@ class ActivePromoCodesAPIView(StandardResponseMixin,APIView):
         ]
 
         return Response(data, status=status.HTTP_200_OK)
+    
+
+# corporate ride payment summary
+class RideCorporatePaymentSummaryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, ride_id):
+        user = request.user
+
+        try:
+            ride = RideRequest.objects.select_related('company').get(
+                id=ride_id, user=user, status="accepted", ride_purpose="official"
+            )
+        except RideRequest.DoesNotExist:
+            return Response({"detail": "Ride not found or not eligible."}, status=404)
+
+        company = ride.company
+        credit = getattr(user, 'credit', None)
+
+        if not credit or not credit.is_active:
+            return Response({"detail": "No active employee credits found."}, status=400)
+
+        total_amount = ride.offered_price or ride.estimated_price or 0
+        available_credit = credit.available_credits()
+        remaining_credit = available_credit - total_amount
+
+        if remaining_credit < 0:
+            return Response({"detail": "Insufficient credits for this ride."}, status=400)
+
+        return Response({
+            "ride_id": ride.id,
+            "company_name": company.company_name if company else None,
+            "total_amount": float(total_amount),
+            "available_credit": float(available_credit),
+            "credit_after_deduction": float(remaining_credit),
+        })
+
+class RideCorporateConfirmAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_id):
+        user = request.user
+
+        try:
+            ride = RideRequest.objects.select_related('driver', 'company').get(
+                id=ride_id, user=user, status="accepted", ride_purpose="official"
+            )
+        except RideRequest.DoesNotExist:
+            return Response({"detail": "Ride not found or not eligible."}, status=404)
+
+        credit = getattr(user, 'credit', None)
+        if not credit or not credit.is_active:
+            return Response({"detail": "No active employee credits found."}, status=400)
+
+        total_amount = ride.offered_price or ride.estimated_price or 0
+        if total_amount <= 0:
+            return Response({"detail": "Invalid ride amount."}, status=400)
+
+        if credit.available_credits() < total_amount:
+            return Response({"detail": "Insufficient credits."}, status=400)
+
+        driver = ride.driver
+        if not driver:
+            return Response({"detail": "Driver not assigned."}, status=400)
+
+        try:
+            with transaction.atomic():
+                # Get or create payment detail
+                payment, _ = RidePaymentDetail.objects.get_or_create(
+                    ride=ride,
+                    defaults={
+                        'user': user,
+                        'grand_total': total_amount,
+                        'payment_method': 'wallet',
+                        'payment_status': 'pending',
+                        'promo_code': None,
+                        'promo_discount': 0,
+                        'tip_amount': 0,
+                        'driver_earnings': total_amount  # just store base earnings for now
+                    }
+                )
+
+                # Deduct credits
+                credit.used_credits += total_amount
+                credit.save()
+
+            return Response({
+                "message": "Payment confirmed and credits deducted.",
+                "amount_deducted": float(total_amount),
+                "remaining_credits": float(credit.available_credits())
+            }, status=200)
+
+        except Exception as e:
+            return Response({"detail": str(e)}, status=500)

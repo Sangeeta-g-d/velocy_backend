@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Updated Dashboard</title>
+  <title>Corporate Dashboard</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="/static/assets/css/dashboard.css">
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
@@ -18,29 +18,11 @@
   <!-- Sidebar -->
  <div class="sidebar" id="sidebar">
   <ul class="nav-links">
-    <li class="{% if current_url_name == 'dashboard' %}active{% endif %}">
-      <a href="{% url 'dashboard' %}"><i class="fas fa-home"></i> Home</a>
+    <li class="{% if current_url_name == 'company_dashboard' %}active{% endif %}">
+      <a href="{% url 'company_dashboard' %}"><i class="fas fa-home"></i> Home</a>
     </li>
-    <li class="{% if current_url_name == 'approve_drivers' %}active{% endif %}">
-      <a href="{% url 'approve_drivers' %}"><i class="fas fa-user-check"></i>Approve Drivers</a>
-    </li>
-    <li class="{% if current_url_name == 'cab' %}active{% endif %}">
-      <a href="{% url 'cab_management' %}"><i class="fas fa-car"></i>Cab Management</a>
-    </li>
-    <li class="{% if current_url_name == 'rental_vehicles' %}active{% endif %}">
-      <a href="{% url 'rental_vehicles' %}"><i class="fas fa-car"></i>Rental Vehicles</a>
-    </li>
-   <li class="{% if current_url_name == 'ride_sharing' %}active{% endif %}">
-      <a href="{% url 'ride_sharing_request' %}"><i class="fas fa-car"></i>Ride Sharing</a>
-    </li>
-   <li class="{% if current_url_name == 'promo_code' %}active{% endif %}">
-      <a href="{% url 'promo_code' %}"><i class="fas fa-car"></i>Promo Code</a>
-    </li>
-    <li class="{% if current_url_name == 'cash_out' %}active{% endif %}">
-      <a href="{% url 'cash_out_requests' %}"><i class="fas fa-car"></i>Cash out Requests</a>
-    </li>
-    <li class="{% if current_url_name == 'corporate_request' %}active{% endif %}">
-      <a href="{% url 'corporate_requests' %}"><i class="fas fa-car"></i>Approve Companies</a>
+    <li class="{% if current_url_name == 'employee_list' %}active{% endif %}">
+      <a href="{% url 'employee_list' %}"><i class="fas fa-home"></i>Employee List</a>
     </li>
   </ul>
 </div>
@@ -49,11 +31,12 @@
   <div class="topbar">
     <div class="left">
       <i class="fas fa-bars toggle-btn" onclick="toggleSidebar()"></i>
-      <span class="title">Dashboard</span>
+      <i class="fas fa-building"></i>  <span class="title">{{ request.user.company_account.company_name }}</span>
+
     </div>
    <div class="profile" onclick="toggleDropdown()">
   <img src="/static/assets/images/default.jpeg" alt="Profile" />
-  <span class="username">John Doe</span>
+  <span class="username">{{request.user.username}}</span>
   <div class="dropdown-menu" id="profileDropdown">
     <a href="#">View Profile</a>
     <a href="#">Settings</a>

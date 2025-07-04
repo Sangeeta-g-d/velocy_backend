@@ -1,0 +1,61 @@
+{% extends 'company_base.html' %}
+{% block content %}
+
+<div class="company-dashboard">
+    <!-- Metrics Section -->
+  <div class="company-metrics-container">
+    <div class="company-metric-card">
+        <div class="metric-icon"><i class="fas fa-car-side"></i></div>
+        <div class="company-metric-title">Total Rides</div>
+        <div class="company-metric-value">1,234</div>
+        <div class="company-metric-change">+12% from last month</div>
+    </div>
+
+    <div class="company-metric-card">
+        <div class="metric-icon"><i class="fas fa-users"></i></div>
+        <div class="company-metric-title">Active Employees</div>
+        <div class="company-metric-value">89</div>
+        <div class="company-metric-change">+3 new this month</div>
+    </div>
+
+    <div class="company-metric-card">
+        <div class="metric-icon"><i class="fas fa-wallet"></i></div>
+        <div class="company-metric-title">Total Spend</div>
+        <div class="company-metric-value">$12,450</div>
+        <div class="company-metric-change">This month</div>
+    </div>
+</div>
+
+
+    <!-- Quick Actions Section -->
+ <div class="company-actions-section">
+  <div class="company-actions-header">Quick Actions</div>
+  <div class="company-actions-horizontal">
+
+    <a href="{% url 'add_employee' %}" class="company-action-link">
+      <div class="company-action-item">
+        <span class="company-action-icon"><i class="fas fa-user-plus"></i></span>
+        <span class="company-action-text">Add Employee</span>
+      </div>
+    </a>
+
+    <a href="" class="company-action-link">
+      <div class="company-action-item">
+        <span class="company-action-icon"><i class="fas fa-coins"></i></span>
+        <span class="company-action-text">Assign Credits</span>
+      </div>
+    </a>
+
+    <a href="" class="company-action-link">
+      <div class="company-action-item">
+        <span class="company-action-icon"><i class="fas fa-calendar-alt"></i></span>
+        <span class="company-action-text">Schedule Rides</span>
+      </div>
+    </a>
+
+  </div>
+</div>
+
+
+</div>
+{% endblock %}

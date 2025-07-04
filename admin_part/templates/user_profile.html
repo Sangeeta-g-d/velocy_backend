@@ -1,112 +1,132 @@
 {% extends 'admin_base.html' %}
 {% block content %}
 <div class="container">
-
   <div class="top-controls">
-  <a href="{% url 'approve_drivers' %}" class="back-arrow" title="Back">
-    <i class="fas fa-arrow-left"></i> Back
-  </a>
-
+    <a href="{% url 'cash_out_requests' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+    <div class="right-buttons">
+  {% if latest_cashout %}
+    <button class="btn status-btn" disabled>
+      Status: {{ latest_cashout.status|title }}
+    </button>
+    {% if latest_cashout.status == 'pending' %}
+      <button class="btn process-btn" onclick="processCashout('{{ latest_cashout.id }}')">Process</button>
+    {% endif %}
+  {% endif %}
 </div>
-
-  <h2 class="section-title">Driver Profile: {{ driver.username }}</h2>
-<div class="driver-card">
+  </div>
+  <h2 class="section-title">
+  Driver Profile: {{ driver.username }}
+  {% if avg_rating %}
+    <span class="star-display">
+      {% for i in "12345" %}
+        {% if forloop.counter <= avg_rating %}
+          <span class="star filled">&#9733;</span>
+        {% else %}
+          <span class="star">&#9734;</span>
+        {% endif %}
+      {% endfor %}
+      <small>({{ avg_rating|floatformat:1 }}/5)</small>
+    </span>
+  {% else %}
+    <small>(No ratings)</small>
+  {% endif %}
+</h2>
+  <div class="driver-card">
     <div class="flex-row">
       <div class="info-box">
-      <h4>Driver Information</h4>
-      <p><span class="bold-font">Name:</span> {{ driver.username }}</p>
-      <p><span class="bold-font">Phone:</span> {{ driver.phone_number }}</p>
-      <p><span class="bold-font">Status:</span> <span class="{{ driver.is_online|yesno:'badge-green,badge-red' }}">{{ driver.is_online|yesno:'Online,Offline' }}</span></p>
-      <p><span class="bold-font">Cash Limit Left:</span> {{ driver.cash_payments_left }}</p>
+        <h4>Driver Information</h4>
+        <p><span class="bold-font">Name:</span> {{ driver.username }}</p>
+        <p><span class="bold-font">Phone:</span> {{ driver.phone_number }}</p>
+        <p><span class="bold-font">Status:</span>
+          <span class="{{ driver.is_online|yesno:'badge-green,badge-red' }}">
+            {{ driver.is_online|yesno:'Online,Offline' }}
+          </span>
+        </p>
+        <p><span class="bold-font">Cash Limit Left:</span> {{ driver.cash_payments_left }}</p>
       </div>
+
+      {% if driver.vehicle_info %}
       <div class="info-box">
-         {% if driver.vehicle_info %}
-    
-      <h4>Vehicle Info</h4>
-      <p><span class="bold-font">Vehicle Number:</span> {{ driver.vehicle_info.vehicle_number }}</p>
-      <p><span class="bold-font">Type:</span> {{ driver.vehicle_info.vehicle_type }}</p>
-      <p><span class="bold-font">Company:</span> {{ driver.vehicle_info.car_company }}</p>
-      <p><span class="bold-font">Model:</span> {{ driver.vehicle_info.car_model }} ({{ driver.vehicle_info.year }})</p>
-    </div>
-    {% endif %}
+        <h4>Vehicle Info</h4>
+        <p><span class="bold-font">Vehicle Number:</span> {{ driver.vehicle_info.vehicle_number }}</p>
+        <p><span class="bold-font">Type:</span> {{ driver.vehicle_info.vehicle_type }}</p>
+        <p><span class="bold-font">Company:</span> {{ driver.vehicle_info.car_company }}</p>
+        <p><span class="bold-font">Model:</span> {{ driver.vehicle_info.car_model }} ({{ driver.vehicle_info.year }})</p>
       </div>
+      {% endif %}
+    </div>
+  </div>
+<!-- Grouped Ride Details -->
+<div class="driver-card">
+  <h3 class="thin-heading">Recent Rides</h3>
+  {% if ride_data %}
+    {% for item in ride_data %}
+      <div class="ride-card single-ride info-box">
+        <div class="ride-row">
+        
+          <div class="ride-col">
+  <h4 class="ride-title">Ride on {{ item.ride.created_at|date:"M d, Y H:i" }}</h4>
+  <p><span class="bold-font">Ride ID:</span> #{{ item.ride.id }}</p>
+  <p><span class="bold-font">From:</span> {{ item.ride.from_location }}</p>
+  <p><span class="bold-font">To:</span> {{ item.ride.to_location }}</p>
+  <p><span class="bold-font">Distance:</span> {{ item.ride.distance_km }} km</p>
+  <p><span class="bold-font">Status:</span> 
+    <span class="badge {{ item.ride.status }}">{{ item.ride.status|capfirst }}</span>
+  </p>
 </div>
-  <div class="grid">
-    <!-- Driver Info -->
-    <div class="card">
-      <h3>Basic Info</h3>
-      <p><strong>Name:</strong> {{ driver.username }}</p>
-      <p><strong>Phone:</strong> {{ driver.phone_number }}</p>
-      <p><strong>Status:</strong> <span class="{{ driver.is_online|yesno:'badge-green,badge-red' }}">{{ driver.is_online|yesno:'Online,Offline' }}</span></p>
-      <p><strong>Cash Limit Left:</strong> ₹{{ driver.cash_payments_left }}</p>
-    </div>
+          <!-- Column 2: Payment Info -->
+          <div class="ride-col">
+            {% if item.payment %}
+              <h4 class="ride-title">Earnings</h4>
+              <p><span class="bold-font">Total:</span> ₹{{ item.payment.grand_total }}
+               {% if item.promo_code %}
+                <br><small class="text-muted">Promo: <strong>{{ item.promo_code.code }}</strong> (-₹{{ item.promo_discount }})</small>
+              {% endif %}</p>
+              <p><span class="bold-font">Driver:</span> ₹{{ item.payment.driver_earnings }}</p>
+              <p><span class="bold-font">Method:</span> {{ item.payment.payment_method|capfirst }}</p>
+              <p><span class="bold-font">Status:</span> {{ item.payment.payment_status|capfirst }}</p>
+            {% else %}
+              <p>No payment info</p>
+            {% endif %}
+          </div>
 
-    <!-- Vehicle Info -->
-    {% if driver.vehicle_info %}
-    <div class="card">
-      <h3>Vehicle Info</h3>
-      <p><strong>Vehicle Number:</strong> {{ driver.vehicle_info.vehicle_number }}</p>
-      <p><strong>Type:</strong> {{ driver.vehicle_info.vehicle_type }}</p>
-      <p><strong>Company:</strong> {{ driver.vehicle_info.car_company }}</p>
-      <p><strong>Model:</strong> {{ driver.vehicle_info.car_model }} ({{ driver.vehicle_info.year }})</p>
-    </div>
-    {% endif %}
-  </div>
+          <!-- Column 3: Rating -->
+          <div class="ride-col">
+            {% if item.rating %}
+              <h4 class="ride-title">Rating & Review</h4>
+              <p><span class="bold-font">By:</span> {{ item.rating.rated_by.username }}</p>
+              <div class="stars">
+                {% for i in "12345" %}
+                  {% if forloop.counter <= item.rating.rating %}
+                    <span class="star filled">&#9733;</span>
+                  {% else %}
+                    <span class="star">&#9734;</span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <p><em>{{ item.rating.review }}</em></p>
+              <span class="timestamp">{{ item.rating.created_at|date:"M d, Y H:i" }}</span>
+            {% else %}
+              <p>No rating</p>
+            {% endif %}
+          </div>
 
-  <!-- Recent Rides -->
-  <div class="card full-width">
-    <h3>Recent Rides</h3>
-    {% if recent_rides %}
-    <table>
-      <thead>
-        <tr>
-          <th>From</th>
-          <th>To</th>
-          <th>Distance (km)</th>
-          <th>Date</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ride in recent_rides %}
-        <tr>
-          <td>{{ ride.from_location }}</td>
-          <td>{{ ride.to_location }}</td>
-          <td>{{ ride.distance_km }}</td>
-          <td>{{ ride.created_at|date:"M d, Y H:i" }}</td>
-          <td>{{ ride.status|capfirst }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p>No rides found.</p>
-    {% endif %}
-  </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>No recent rides found.</p>
+  {% endif %}
+</div>
 
-  <!-- Reviews -->
-  <div class="card full-width">
-    <h3>Ratings & Reviews</h3>
-    {% if reviews %}
-    <ul class="review-list">
-      {% for r in reviews %}
-      <li>
-        <strong>{{ r.rated_by.username }}</strong> rated <strong>{{ r.rating }}/5</strong>
-        <p><em>{{ r.review }}</em></p>
-        <span class="timestamp">{{ r.created_at|date:"M d, Y H:i" }}</span>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p>No reviews yet.</p>
-    {% endif %}
-  </div>
 
   <!-- Wallet History -->
-  <div class="card full-width">
-    <h3>Wallet Transactions</h3>
+  <div class="driver-card">
+    <h3 class="thin-heading">Wallet Transactions</h3>
     {% if recent_transactions %}
-    <table>
+    <table class="styled-table">
       <thead>
         <tr>
           <th>Type</th>
@@ -130,64 +150,26 @@
     <p>No transaction history.</p>
     {% endif %}
   </div>
+
 </div>
-
-<style>
-
-.back-link {
-  display: inline-block;
-  margin-bottom: 20px;
-  color: #333;
-  text-decoration: none;
-  font-size: 16px;
-}
-.back-link:hover {
-  text-decoration: underline;
-}
-.grid {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-.card {
-  background: #f9f9f9;
-  padding: 15px 20px;
-  border-radius: 10px;
-  flex: 1;
-  min-width: 300px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-.full-width {
-  width: 100%;
-  margin-top: 20px;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-}
-table th, table td {
-  border: 1px solid #e2e2e2;
-  padding: 10px;
-  text-align: left;
-}
-table th {
-  background: #f0f0f0;
-}
-.review-list {
-  list-style: none;
-  padding: 0;
-}
-.review-list li {
-  margin-bottom: 15px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-}
-.timestamp {
-  font-size: 12px;
-  color: #777;
-}
-
-</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script>
+  function processCashout(cashOutId){
+    cashOutId = parseInt(cashOutId)
+    fetch(`/process-cash-out/${cashOutId}/`,{
+      method: 'POST',
+      headers: {
+        'X-CSRFToken':'{{ csrf_token }}',
+        'Content-type':'application/json'
+      }
+    }).then(response => {
+      if (response.ok){
+        showToast('Status updated successfully')
+        setTimeout(() => location.reload(), 4000);
+      }else{
+        showToast("Failed to update status")
+      }
+    })
+  }
+</script>
 {% endblock %}
