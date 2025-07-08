@@ -14,6 +14,10 @@ from .mixins import StandardResponseMixin
 from admin_part.models import PromoCode, PromoCodeUsage
 from django.db import IntegrityError
 from django.core.exceptions import ValidationError
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from admin_part.models import PlatformSetting
+
 
 class VehicleTypeListView(StandardResponseMixin,APIView):
     def get(self, request):
@@ -256,37 +260,30 @@ class ValidateAndApplyPromoCodeAPIView(StandardResponseMixin,APIView):
             "message": "Promo code applied successfully."
         }, status=status.HTTP_200_OK)
     
-class FinalizeRidePaymentAPIView(StandardResponseMixin,APIView):
+class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         ride_id = request.data.get('ride_id')
         payment_method = request.data.get('payment_method')
         tip_amount = request.data.get('tip_amount', 0)
+        upi_payment_id = request.data.get('upi_payment_id')
 
-        # Validate required fields
         if not ride_id or not payment_method:
-            return Response({"detail": "Ride ID and payment method are required."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Ride ID and payment method are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Validate payment method
         valid_payment_methods = dict(RidePaymentDetail.PAYMENT_METHOD_CHOICES).keys()
         if payment_method not in valid_payment_methods:
-            return Response({"detail": f"Invalid payment method. Must be one of {list(valid_payment_methods)}."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": f"Invalid payment method. Must be one of {list(valid_payment_methods)}."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch the ride
         try:
             ride = RideRequest.objects.get(id=ride_id, user=request.user)
         except RideRequest.DoesNotExist:
             return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Prevent duplicate payments
         if RidePaymentDetail.objects.filter(ride=ride).exclude(payment_status='pending').exists():
-            return Response({"detail": "Payment details already submitted for this ride."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Payment already submitted."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Safe tip conversion
         try:
             tip_amount = Decimal(tip_amount)
         except:
@@ -294,9 +291,9 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin,APIView):
 
         ride_price = ride.offered_price or ride.estimated_price
         if ride_price is None:
-            return Response({"detail": "Price not available for this ride."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Price not available."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Promo code logic
+        # Handle promo
         try:
             promo_usage = PromoCodeUsage.objects.get(user=request.user, ride=ride)
             promo = promo_usage.promo_code
@@ -311,9 +308,44 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin,APIView):
             discount = Decimal(0)
 
         grand_total = max(ride_price - discount, 0) + tip_amount
-        driver_earning = ride_price  # Promo/tip doesn't affect driver earning
+        driver_earning = ride_price
 
-        payment_detail, created = RidePaymentDetail.objects.update_or_create(
+        payment_status = 'pending'
+        if payment_method == 'upi':
+            if not upi_payment_id:
+                return Response({"detail": "UPI Payment ID is required for UPI method."}, status=status.HTTP_400_BAD_REQUEST)
+            payment_status = 'completed'
+            ride.status = 'completed'
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'payment_ride_{ride.id}',
+                {
+                    'type': 'payment_status_update',
+                    'payment_status': 'completed',
+                    'message': f'UPI payment successful. Ride #{ride.id} marked as completed.',
+                }
+            )
+            ride.save()
+
+            # Add wallet credit for driver
+            from decimal import Decimal
+            platform_fee = Decimal('0')
+            active_fee = PlatformSetting.objects.filter(is_active=True).first()
+            if active_fee:
+                if active_fee.fee_type == 'percentage':
+                    platform_fee = (active_fee.fee_value / 100) * driver_earning
+                else:
+                    platform_fee = active_fee.fee_value
+            net_earning = driver_earning - platform_fee + tip_amount
+            DriverWalletTransaction.objects.create(
+                driver=ride.driver,
+                ride=ride,
+                amount=net_earning,
+                transaction_type='ride_earning',
+                description=f"Auto-completed UPI payment for Ride #{ride.id}"
+            )
+
+        RidePaymentDetail.objects.update_or_create(
             ride=ride,
             defaults={
                 'user': request.user,
@@ -322,8 +354,9 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin,APIView):
                 'tip_amount': tip_amount,
                 'grand_total': grand_total,
                 'payment_method': payment_method,
-                'payment_status': 'pending',
+                'payment_status': payment_status,
                 'driver_earnings': driver_earning,
+                'upi_payment_id': upi_payment_id if payment_method == 'upi' else None,
             }
         )
 
@@ -334,8 +367,10 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin,APIView):
             "tip_amount": float(tip_amount),
             "grand_total": float(grand_total),
             "payment_method": payment_method,
-            "message": "Payment details recorded successfully."
+            "payment_status": payment_status,
+            "message": "Payment successful and ride completed." if payment_status == 'completed' else "Payment recorded. Waiting for driver confirmation."
         }, status=status.HTTP_200_OK)
+
 
 
 class RiderRideDetailAPIView(StandardResponseMixin,APIView):
@@ -577,3 +612,14 @@ class RideCorporateConfirmAPIView(APIView):
 
         except Exception as e:
             return Response({"detail": str(e)}, status=500)
+
+class RiderProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role != 'rider':
+            return Response({"error": "User is not a rider."}, status=403)
+
+        serializer = RiderProfileSerializer(user, context={'request': request})
+        return Response(serializer.data)

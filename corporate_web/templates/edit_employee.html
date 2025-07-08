@@ -1,0 +1,75 @@
+{% extends 'company_base.html' %}
+{% block content %}
+<div class="container">
+  <div class="top-controls">
+    <a href="{% url 'employee_list' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+  </div>
+
+  <h2 class="section-title center-heading">Edit Employee</h2>
+  <div class="form-container">
+    <form method="POST" enctype="multipart/form-data" class="promo-form">
+      {% csrf_token %}
+      <div class="form-grid form-grid-2col">
+
+        <div class="form-group">
+          <label for="username">Name</label>
+          <input type="text" name="username" id="username" value="{{ employee.username }}" required>
+        </div>
+
+       <div class="form-group">
+  <label for="phone_number">Phone Number</label>
+  <input type="text" name="phone_number" id="phone_number" value="{{ employee.phone_number }}"
+         required maxlength="15"
+         pattern="^\+?\d{10,15}$"
+         title="Phone number can start with + and must contain 10 to 15 digits"
+         oninput="this.value = this.value.replace(/[^+\d]/g, '')">
+</div>
+
+        <div class="form-group">
+          <label for="email">Email (optional)</label>
+          <input type="email" name="email" id="email" value="{{ employee.email }}">
+        </div>
+
+        <div class="form-group">
+          <label for="gender">Gender</label>
+          <select name="gender" id="gender" required>
+            <option value="male" {% if employee.gender == "male" %}selected{% endif %}>Male</option>
+            <option value="female" {% if employee.gender == "female" %}selected{% endif %}>Female</option>
+            <option value="other" {% if employee.gender == "other" %}selected{% endif %}>Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="street">Street</label>
+          <input type="text" name="street" id="street" value="{{ employee.street }}">
+        </div>
+
+        <div class="form-group">
+          <label for="area">Area</label>
+          <input type="text" name="area" id="area" value="{{ employee.area }}">
+        </div>
+
+        <div class="form-group">
+          <label for="profile">Profile Photo</label>
+          <input type="file" name="profile" id="profile" accept="image/*">
+          {% if employee.profile %}
+            <br><img src="{{ employee.profile.url }}" width="50" style="margin-top: 5px; border-radius: 5px;">
+          {% endif %}
+        </div>
+
+        <div class="form-group">
+          <label for="total_credits">Credit Balance</label>
+          <input type="number" name="total_credits" id="total_credits" value="{{ employee.credit.total_credits }}" step="0.01" required>
+
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-black">Update Employee</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

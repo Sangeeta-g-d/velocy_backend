@@ -4,6 +4,7 @@ from auth_api.models import CustomUser,DriverDocumentInfo
 from .models import *
 from driver_part.models import CashOutRequest
 import json
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.utils.timezone import localtime
 from auth_api.models import DriverRating
@@ -40,19 +41,22 @@ def login_view(request):
         user = authenticate(request, phone_number=phone_number, password=password)
 
         if user is not None:
+            login(request, user)  # ✅ Log in first
+
+            if user.is_superuser:
+                return redirect('dashboard')  # Django admin or custom admin dashboard
+
             if user.role == 'corporate_admin':
                 try:
                     company = CompanyAccount.objects.get(admin_user=user)
-                    if company.is_approved:
-                        login(request, user)
-                        return redirect('company_dashboard')
-                    else:
+                    if not company.is_approved:
                         error = 'Your company is not yet verified. Please wait for approval.'
+                    elif company.purchased_plan:  # check if any plans are purchased
+                        return redirect('/corporate/company_dashboard')  # Main company dashboard
+                    else:
+                        return redirect('/corporate/choose_plan/')  # Redirect to buy plan
                 except CompanyAccount.DoesNotExist:
                     error = 'Company account not found.'
-            elif user.is_superuser:
-                login(request, user)
-                return redirect('dashboard')
             else:
                 error = 'Access denied. Only approved company admins or superusers can log in.'
         else:
@@ -60,17 +64,26 @@ def login_view(request):
 
     return render(request, 'login.html', {'error': error})
 
+
 def logout_view(request):
     logout(request)
     return redirect('/login/')
 
 def approve_drivers(request):
-    drivers = CustomUser.objects.all()
+    drivers = CustomUser.objects.filter(role="driver")
     context = {
         "current_url_name":"approve_drivers",
         'drivers': drivers
     }
     return render(request, 'approve_drivers.html', context)
+
+def users_list(request):
+    riders = CustomUser.objects.filter(role="rider")
+    context = {
+        "current_url_name":"rider_list",
+        'riders': riders
+    }
+    return render(request, 'users_list.html', context)
 
 def driver_details(request, driver_id):
     driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
@@ -517,3 +530,51 @@ def approve_company(request, company_id):
         except CompanyAccount.DoesNotExist:
             return JsonResponse({"status": "error"}, status=404)
         
+
+# add_prepaid_plan
+
+def prepaid_plans(request):
+    plans = PrepaidPlan.objects.all().order_by('-created_at')
+    return render(request, 'prepaid_plans.html', {'prepaid_plans': plans})
+
+def add_prepaid_plan(request):
+    if request.method == 'POST':
+        try:
+            name = request.POST.get('name')
+            price = request.POST.get('price')
+            validity_type = request.POST.get('validity_type')
+            validity_days = request.POST.get('validity_days')
+            credits_provided = request.POST.get('credits_provided')
+            description = request.POST.get('description')
+            benefits = request.POST.get('benefits')
+            is_active = request.POST.get('is_active') == 'on'
+
+            PrepaidPlan.objects.create(
+                name=name,
+                price=price,
+                validity_type=validity_type,
+                validity_days=validity_days,
+                credits_provided=credits_provided,
+                description=description,
+                benefits=benefits,
+                is_active=is_active,
+            )
+
+            return redirect(f"{reverse('add_prepaid_plan')}?created=1")
+
+        except Exception as e:
+            error_message = str(e).replace(' ', '+')
+            return redirect(f"{reverse('add_prepaid_plan')}?error={error_message}")
+
+    return render(request, 'add_prepaid_plan.html')
+
+@csrf_exempt
+def delete_prepaid_plan(request, plan_id):
+    if request.method == 'POST':
+        try:
+            plan = PrepaidPlan.objects.get(id=plan_id)
+            plan.delete()
+            return JsonResponse({'success': True})
+        except PrepaidPlan.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Plan not found'})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})

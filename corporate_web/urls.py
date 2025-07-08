@@ -7,5 +7,10 @@ urlpatterns = [
     path('company_dashboard/',views.company_dashboard,name="company_dashboard"),
     path('add_employee/',views.add_employee,name="add_employee"),
     path('employee_list/',views.employee_list,name="employee_list"),
-    path('employee_details/<int:employee_id>/',views.employee_details,name="employee_details")
+    path('edit_employees/<int:employee_id>/', views.edit_employee_view, name='edit_employee'),
+    path('employee_details/<int:employee_id>/',views.employee_details,name="employee_details"),
+    path('choose_plan/',views.plans,name="plans"),
+    path('create_order/<int:plan_id>/', views.create_razorpay_order, name='create_order'),
+    path('payment_success/', views.payment_success, name='payment_success'),
+    path('success_page/',views.success_page,name="success_page")
 ]

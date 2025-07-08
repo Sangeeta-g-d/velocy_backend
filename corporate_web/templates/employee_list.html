@@ -35,8 +35,9 @@
           <td>{{ emp.street|default:"-" }}</td>
           <td>{{ emp.area|default:"-" }}</td>
           <td>
-            <a href="{% url 'employee_details' emp.id %}" class="action-btn">Details</a>
-          </td>
+  <a href="{% url 'employee_details' emp.id %}" class="action-btn">Details</a>
+  <a href="{% url 'edit_employee' emp.id %}" class="action-btn edit-btn">Edit</a>
+</td>
         </tr>
         {% empty %}
         <tr>
@@ -53,13 +54,21 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        initializeTablePagination({
-            tableId: "employeeTable",
-            searchInputId: "searchInput",
-            paginationId: "pagination",
-            rowsPerPage: 15  // Change per page basis
-        });
+  document.addEventListener("DOMContentLoaded", function () {
+    const params = new URLSearchParams(window.location.search);
+    
+    if (params.get("updated") === "1") {
+      showToast("Employee updated successfully!", "success");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    initializeTablePagination({
+      tableId: "employeeTable",
+      searchInputId: "searchInput",
+      paginationId: "pagination",
+      rowsPerPage: 15
     });
+  });
 </script>
+
 {% endblock %}

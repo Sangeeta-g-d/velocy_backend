@@ -1,0 +1,39 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="section">
+  <h2 class="section-title">Drivers List</h2>
+  <div class="table-responsive">
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Profile</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Gender</th>
+          <th>Action</th>  <!-- New column -->
+        </tr>
+      </thead>
+      <tbody>
+        {% for driver in riders %}
+        <tr>
+          <td>
+            {% if driver.profile %}
+              <img src="{{ driver.profile.url }}" width="40" height="40" style="border-radius: 50%;">
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>{{ driver.username|default:"N/A" }}</td>
+          <td>{{ driver.phone_number }}</td>
+          <td>{{ driver.gender|title }}</td>
+        
+          <td>
+            <a href="{% url 'driver_details' driver.id %}" class="action-btn" style="text-decoration: none;">View</a>
+          </td>  <!-- New Action column -->
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

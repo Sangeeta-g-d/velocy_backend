@@ -5,6 +5,7 @@ from . import serializers
 
 urlpatterns = [
     path('vehicle-types/', VehicleTypeListView.as_view(), name='vehicle-type-list'),
+    path('rider-profile/', RiderProfileView.as_view(), name='rider_profile'),
 
     # ride request
     path('confirm_location/', RideRequestCreateView.as_view(), name='ride-request-create'),

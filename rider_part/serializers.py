@@ -223,3 +223,17 @@ class RiderRideHistorySerializer(serializers.ModelSerializer):
         if payment:
             return float(payment.grand_total)
         return 0.0
+    
+
+class RiderProfileSerializer(serializers.ModelSerializer):
+    profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'profile']
+
+    def get_profile(self, obj):
+        request = self.context.get('request')
+        if obj.profile and request:
+            return request.build_absolute_uri(obj.profile.url)
+        return None

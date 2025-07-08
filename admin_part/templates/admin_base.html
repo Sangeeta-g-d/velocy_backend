@@ -24,6 +24,9 @@
     <li class="{% if current_url_name == 'approve_drivers' %}active{% endif %}">
       <a href="{% url 'approve_drivers' %}"><i class="fas fa-user-check"></i>Approve Drivers</a>
     </li>
+     <li class="{% if current_url_name == 'rider_list' %}active{% endif %}">
+      <a href="{% url 'users_list' %}"><i class="fas fa-user-check"></i>Users List</a>
+    </li>
     <li class="{% if current_url_name == 'cab' %}active{% endif %}">
       <a href="{% url 'cab_management' %}"><i class="fas fa-car"></i>Cab Management</a>
     </li>

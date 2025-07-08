@@ -23,6 +23,7 @@ urlpatterns = [
     path('vehicle_details/<int:vehicle_id>/',views.vehicle_details,name="vehicle_details"),
     path('verify-rental-vehicle/<int:vehicle_id>/', views.verify_rental_vehicle, name='verify_rental_vehicle'),
     path('disapprove-rental-vehicle/<int:vehicle_id>/', views.disapprove_rental_vehicle, name='disapprove_rental_vehicle'),
+    path('users_list/',views.users_list,name="users_list"),
 
     # 12-6-25
     path('add-promo-code/',views.add_promo_code,name="add_promo_code"),
@@ -50,6 +51,9 @@ urlpatterns = [
     # corporate urls
     path('corporate_requests/',views.corporate_requests,name="corporate_requests"),
     path('company_details/<int:company_id>/',views.company_details,name="company_details"),
-    path('approve-company/<int:company_id>/',views.approve_company,name="approve_company")
-    
+    path('approve-company/<int:company_id>/',views.approve_company,name="approve_company"),
+    path('add_prepaid_plan/',views.add_prepaid_plan,name="add_prepaid_plan"),
+    path('prepaid_plans/',views.prepaid_plans,name="prepaid_plans"),
+    path('delete_prepaid_plan/<int:plan_id>/', views.delete_prepaid_plan, name='delete_prepaid_plan'),
 ]
+    

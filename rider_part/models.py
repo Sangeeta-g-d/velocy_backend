@@ -105,6 +105,7 @@ class RidePaymentDetail(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     driver_earnings = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Actual amount driver will earn from this ride (before platform fees if applicable)")
+    upi_payment_id = models.CharField(max_length=100, null=True, blank=True, help_text="Transaction ID for UPI payments")
 
     def __str__(self):
         return f"Payment for Ride {self.ride.id} by {self.user}"

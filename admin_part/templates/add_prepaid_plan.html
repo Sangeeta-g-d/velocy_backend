@@ -1,0 +1,85 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+  <div class="top-controls">
+    <a href="{% url 'prepaid_plans' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+  </div>
+
+  <h2 class="section-title center-heading">Create Prepaid Plan</h2>
+
+  <div class="form-container">
+   <form method="POST" class="promo-form">
+  {% csrf_token %}
+  <div class="form-grid form-grid-2col">
+
+    <div class="form-group">
+      <label for="name">Plan Name</label>
+      <input type="text" name="name" id="name" placeholder="Enter plan name" required>
+    </div>
+
+    <div class="form-group">
+      <label for="price">Price (INR)</label>
+      <input type="number" step="0.01" name="price" id="price" placeholder="e.g. 999.00" required>
+    </div>
+
+    <div class="form-group">
+      <label for="validity_type">Validity Type</label>
+     <select name="validity_type" id="validity_type" required>
+  <option value="" disabled selected>Select validity</option>
+  <option value="monthly">Monthly</option>
+  <option value="quarterly">Quarterly</option>
+  <option value="half_yearly">Half-Yearly</option>
+  <option value="yearly">Yearly</option>
+</select>
+
+    </div>
+
+    <div class="form-group">
+      <label for="validity_days">Validity in Days</label>
+      <input type="number" name="validity_days" id="validity_days" placeholder="e.g. 30" required>
+    </div>
+
+    <div class="form-group">
+      <label for="credits_provided">Credits Provided</label>
+      <input type="number" name="credits_provided" id="credits_provided" placeholder="e.g. 1000" required>
+    </div>
+
+    <div class="form-group checkbox-group">
+      <label for="is_active">Active</label>
+      <input type="checkbox" name="is_active" id="is_active" checked>
+    </div>
+
+    <div class="form-group full-width">
+      <label for="benefits">Benefits</label>
+      <textarea name="benefits" id="benefits" rows="3" placeholder="List benefits or additional info..."></textarea>
+    </div>
+
+    <div class="form-group full-width">
+      <label for="description">Description</label>
+      <textarea name="description" id="description" rows="3" placeholder="Plan details or conditions..."></textarea>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn-black">Create Plan</button>
+  </div>
+</form>
+
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('created') === '1') {
+      showToast("Prepaid plan created successfully!");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (urlParams.get('error')) {
+      showToast(decodeURIComponent(urlParams.get('error')), "error");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  });
+</script>
+{% endblock %}

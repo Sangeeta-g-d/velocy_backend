@@ -137,3 +137,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except RideRequest.DoesNotExist:
             logger.error(f"RideRequest with ID {ride_id} does not exist. Message from user {sender} was not saved.")
             return False
+        
+
+class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.ride_id = self.scope['url_route']['kwargs']['ride_id']
+        self.group_name = f'payment_ride_{self.ride_id}'
+
+        self.user = self.scope['user']
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data):
+        # This consumer is push-only; clients don't need to send messages here.
+        pass
+
+    async def payment_status_update(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'payment_status_update',
+            'ride_id': self.ride_id,
+            'payment_status': event['payment_status'],
+            'message': event['message'],
+        }))

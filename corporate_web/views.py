@@ -3,9 +3,15 @@ from . models import *
 from django.contrib.auth.hashers import make_password
 from django.db import transaction, IntegrityError
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse, HttpResponseForbidden
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.views.decorators.csrf import csrf_exempt
 from . models import *
+from django.urls import reverse
+import razorpay
+from django.conf import settings
+from django.http import JsonResponse
 User = get_user_model()
 # Create your views here.
 
@@ -64,11 +70,120 @@ def register(request):
     })
 
 
+def plans(request):
+    plans = PrepaidPlan.objects.filter(is_active=True).order_by('price')
+    return render(request, 'plans.html', {'plans': plans})
+
+@login_required(login_url='/login/')
+def create_razorpay_order(request, plan_id):
+    if request.method != "POST":
+        print("❌ Invalid request method for create_razorpay_order.")
+        return HttpResponseForbidden("Invalid request method")
+
+    try:
+        plan = PrepaidPlan.objects.get(id=plan_id)
+        print(f"🔎 Selected Plan: {plan.name}, Price: {plan.price}, Validity: {plan.validity_days} days")
+
+        amount_in_paisa = int(plan.price * 100)
+        print(f"💰 Amount in paisa: {amount_in_paisa}")
+
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        payment = client.order.create({
+            'amount': amount_in_paisa,
+            'currency': 'INR',
+            'payment_capture': '1'
+        })
+
+        print(f"🧾 Razorpay Order Created: {payment['id']}")
+
+        prepaid = CompanyPrepaidPlan.objects.create(
+            company=request.user.company_account,
+            plan=plan,
+            razorpay_order_id=payment['id'],
+            amount_paid=plan.price
+        )
+
+        print(f"✅ CompanyPrepaidPlan created: ID {prepaid.id}, Order ID: {prepaid.razorpay_order_id}")
+
+        return JsonResponse({
+            'order_id': payment['id'],
+            'razorpay_key': settings.RAZORPAY_KEY_ID,
+            'amount': amount_in_paisa,
+            'currency': 'INR',
+            'company_prepaid_id': prepaid.id
+        })
+
+    except Exception as e:
+        print("❌ Exception in create_razorpay_order:", e)
+        return JsonResponse({'error': 'Failed to create Razorpay order'}, status=500)
+
+
+@csrf_exempt
+def payment_success(request):
+    if request.method == "POST":
+        data = request.POST
+        razorpay_order_id = data.get("razorpay_order_id")
+        razorpay_payment_id = data.get("razorpay_payment_id")
+        razorpay_signature = data.get("razorpay_signature")
+
+        print("📥 Payment POST data received")
+        print(f"  - Order ID: {razorpay_order_id}")
+        print(f"  - Payment ID: {razorpay_payment_id}")
+        print(f"  - Signature: {razorpay_signature}")
+
+        try:
+            plan = CompanyPrepaidPlan.objects.select_related('company', 'plan').get(
+                razorpay_order_id=razorpay_order_id
+            )
+
+            print(f"🔁 Found CompanyPrepaidPlan for order {razorpay_order_id}")
+            print(f"  - Company: {plan.company.company_name}")
+            print(f"  - Plan: {plan.plan.name}")
+
+            plan.razorpay_payment_id = razorpay_payment_id
+            plan.razorpay_signature = razorpay_signature
+            plan.payment_status = 'success'
+
+            # Use purchase_date as start_date
+            plan.start_date = plan.purchase_date
+            plan.end_date = plan.purchase_date + timezone.timedelta(days=plan.plan.validity_days)
+            plan.credits_remaining = plan.plan.credits_provided
+
+            plan.save()
+            print("✅ Plan updated successfully")
+
+            company = plan.company
+            company.purchased_plan = True
+            company.save()
+            print("🏢 Company updated with purchased_plan=True")
+
+            return redirect('/corporate/success_page')
+
+        except CompanyPrepaidPlan.DoesNotExist:
+            print("❌ CompanyPrepaidPlan not found for Razorpay Order ID:", razorpay_order_id)
+            return redirect('/plans/?status=fail')
+
+def success_page(request):
+    return render(request,'success_page.html')
+
+@login_required(login_url='/login/')
 def company_dashboard(request):
+    user = request.user
+    active_plan = None
+
+    if hasattr(user, 'company_account'):
+        active_plan = (
+            CompanyPrepaidPlan.objects
+            .filter(company=user.company_account, payment_status='success')
+            .order_by('-purchase_date')
+            .first()
+        )
+
     context = {
-        "current_url_name":"company_dashboard"
+        "current_url_name": "company_dashboard",
+        "active_plan": active_plan
     }
-    return render(request,'company_dashboard.html',context)
+    return render(request, 'company_dashboard.html', context)
 
 def add_employee(request):
     if request.method == 'POST':
@@ -115,6 +230,33 @@ def add_employee(request):
         "current_url_name": "company_dashboard"
     }
     return render(request, 'add_employee.html', context)
+
+
+def edit_employee_view(request, employee_id):
+    employee = get_object_or_404(CustomUser, id=employee_id, role='employee')
+    if request.method == 'POST':
+        employee.username = request.POST.get('username')
+        employee.phone_number = request.POST.get('phone_number')
+        employee.email = request.POST.get('email')
+        employee.gender = request.POST.get('gender')
+        employee.street = request.POST.get('street')
+        employee.area = request.POST.get('area')
+
+        if request.FILES.get('profile'):
+            employee.profile = request.FILES['profile']
+
+        # Update credits if changed
+        try:
+            credit = float(request.POST.get('total_credits'))
+            employee.cash_payments_left = credit
+        except:
+            pass
+
+        employee.save()
+        return redirect(reverse('employee_list') + '?updated=1')
+
+    return render(request, 'edit_employee.html', {'employee': employee})
+
 
 
 @login_required

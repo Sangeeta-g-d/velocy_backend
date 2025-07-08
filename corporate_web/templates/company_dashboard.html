@@ -1,8 +1,37 @@
 {% extends 'company_base.html' %}
 {% block content %}
 
+
 <div class="company-dashboard">
     <!-- Metrics Section -->
+     {% if active_plan %}
+<div class="company-plan-details">
+  <h2 class="plan-title">Your Current Plan: {{ active_plan.plan.name }}</h2>
+  <div class="plan-info-grid">
+    <div class="plan-info-item">
+      <strong>Start Date:</strong> {{ active_plan.start_date|date:"F d, Y" }}
+    </div>
+    <div class="plan-info-item">
+      <strong>End Date:</strong> {{ active_plan.end_date|date:"F d, Y" }}
+    </div>
+    <div class="plan-info-item">
+      <strong>Credits Remaining:</strong> {{ active_plan.credits_remaining }}
+    </div>
+    <div class="plan-info-item">
+      <strong>Amount Paid:</strong> ₹{{ active_plan.amount_paid }}
+    </div>
+    <div class="plan-info-item">
+      <strong>Status:</strong> 
+      <span style="color: green;">{{ active_plan.payment_status|capfirst }}</span>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="company-plan-details">
+  <h3>No active plan found. Please purchase a plan to continue using corporate features.</h3>
+</div>
+{% endif %}
+
   <div class="company-metrics-container">
     <div class="company-metric-card">
         <div class="metric-icon"><i class="fas fa-car-side"></i></div>

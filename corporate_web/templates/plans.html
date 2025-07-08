@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Choose a Prepaid Plan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/assets/css/plans.css">
+</head>
+<body>
+
+  <div class="container">
+    <h2 class="section-title">Choose a Prepaid Plan</h2>
+    <div class="plans-grid">
+      {% for plan in plans %}
+      <div class="plan-card">
+        <div>
+          <h3 class="plan-title">{{ plan.name }}</h3>
+          <p class="plan-price">₹{{ plan.price }}</p>
+          <p class="plan-validity"><strong>Validity:</strong> {{ plan.validity_days }} days ({{ plan.validity_type|title }})</p>
+          <p class="plan-credits"><strong>Credits:</strong> {{ plan.credits_provided }}</p>
+
+          {% if plan.benefits %}
+          <div class="plan-benefits">
+            <strong>Benefits:</strong>
+            <ul>
+              {% for benefit in plan.benefits.splitlines %}
+              <li>{{ benefit }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+
+          {% if plan.description %}
+          <p class="plan-description">{{ plan.description }}</p>
+          {% endif %}
+        </div>
+
+        <!-- 🔁 Note the dynamic data-url -->
+        <form onsubmit="startPayment(event)" data-url="{% url 'create_order' plan.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn">Subscribe</button>
+        </form>
+      </div>
+      {% empty %}
+      <p>No active prepaid plans available.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+ <script>
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  function startPayment(event) {
+    event.preventDefault();
+    const form = event.target;
+    const url = form.getAttribute('data-url');
+    console.log("⏳ Starting payment process...");
+    console.log("🔗 Requesting Razorpay order from:", url);
+
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({})
+    })
+    .then(response => {
+      console.log("✅ Received response from /create_order:", response.status);
+      if (!response.ok) {
+        throw new Error("Failed to create Razorpay order");
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log("🎯 Razorpay order created successfully:", data);
+      const options = {
+        key: data.razorpay_key,
+        amount: data.amount,
+        currency: data.currency,
+        name: "Company Prepaid Plan",
+        description: "Subscription Payment",
+        order_id: data.order_id,
+        handler: function (response) {
+          console.log("💳 Razorpay payment completed:", response);
+          const formData = new FormData();
+          formData.append("razorpay_order_id", response.razorpay_order_id);
+          formData.append("razorpay_payment_id", response.razorpay_payment_id);
+          formData.append("razorpay_signature", response.razorpay_signature);
+
+          console.log("📤 Sending payment details to /payment_success/...");
+          fetch("/corporate/payment_success/", {
+            method: "POST",
+            body: formData,
+          })
+          .then(() => {
+            console.log("✅ Payment success saved. Redirecting...");
+            window.location.href = "/corporate/success_page/";
+          })
+          .catch((err) => {
+            console.error("❌ Failed to process payment success:", err);
+            window.location.href = "/plans/?status=fail";
+          });
+        },
+        prefill: {
+          email: "{{ request.user.email }}",
+          contact: "{{ request.user.phone_number }}"
+        },
+        theme: {
+          color: "#000"
+        }
+      };
+
+      console.log("🚀 Opening Razorpay checkout...");
+      const rzp = new Razorpay(options);
+      rzp.open();
+    })
+    .catch(error => {
+      console.error("❌ Razorpay error:", error);
+      alert("Something went wrong. Please try again.");
+    });
+  }
+</script>
+
+</body>
+</html>
