@@ -612,22 +612,53 @@ class DriverNameAPIView(UpdateRidePaymentStatusAPIView,APIView):
     
 
 # ride history
-class DriverRideHistoryAPIView(APIView):
+class DriverPastRideHistoryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         driver = request.user
         rides = RideRequest.objects.filter(
             driver=driver,
-            status='completed'
+            status__in=['completed', 'cancelled']
         ).select_related('payment_detail').order_by('-start_time')
 
-        serializer = DriverRideHistorySerializer(rides, many=True)
+        completed_rides = []
+        cancelled_rides = []
+
+        for ride in rides:
+            serialized = DriverRideHistorySerializer(ride).data
+            if ride.status == 'completed':
+                completed_rides.append(serialized)
+            elif ride.status == 'cancelled':
+                cancelled_rides.append(serialized)
+
         return Response({
             "status": True,
             "message": "Ride history fetched successfully.",
+            "completed_rides": completed_rides,
+            "cancelled_rides": cancelled_rides
+        }, status=status.HTTP_200_OK)
+
+
+class DriverScheduledRidesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        driver = request.user
+        scheduled_rides = RideRequest.objects.filter(
+            driver=driver,
+            status='accepted',
+            ride_type='scheduled'
+        ).order_by('scheduled_time')
+
+        serializer = DriverScheduledRideSerializer(scheduled_rides, many=True)
+        return Response({
+            "status": True,
+            "message": "Upcoming scheduled rides fetched successfully.",
             "data": serializer.data
         }, status=status.HTTP_200_OK)
+
+
 
 class DriverEarningsSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
