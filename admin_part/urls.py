@@ -44,6 +44,9 @@ urlpatterns = [
     path('user_profile/<int:user_id>/',views.user_profile,name="user_profile"),
     path('process-cash-out/<int:cashOut_id>/',views.process_cash_out,name="process_cash_out"),
 
+    # driver role
+    path('change_driver_role/<int:driver_id>/', views.change_driver_role, name='update_driver_role'),
+
 
 
 

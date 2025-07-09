@@ -41,6 +41,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('female', 'Female'),
         ('other', 'Other'),
     )
+    DRIVER_TYPE_CHOICES = (
+        ('normal', 'Normal Only'),
+        ('corporate', 'Corporate Only'),
+        ('both', 'Both'),
+    )
 
     phone_number = models.CharField(max_length=15, unique=True)
     email = models.EmailField(blank=True, null=True)
@@ -58,12 +63,21 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(default=timezone.now)
     is_online = models.BooleanField(default=False)
 
-    company = models.ForeignKey(
-    'corporate_web.CompanyAccount',  # Use string reference: 'app_label.ModelName'
-    on_delete=models.SET_NULL,
-    null=True,
-    blank=True,
-    related_name='employees'
+    company = models.ForeignKey('corporate_web.CompanyAccount', on_delete=models.SET_NULL,null=True,blank=True,related_name='employees')
+
+
+    # corporate settings
+    driver_type = models.CharField(max_length=20,choices=DRIVER_TYPE_CHOICES,blank=True,null=True,
+        help_text="Defines if the driver can do normal, corporate or both rides",default="normal"
+    )
+    is_universal_corporate_driver = models.BooleanField(default=False,
+        help_text="Check this if driver can serve all corporate accounts"
+    )
+    is_corporate_driver = models.BooleanField(default=False)
+    corporate_companies = models.ManyToManyField('corporate_web.CompanyAccount',
+        blank=True,
+        related_name='assigned_drivers',
+        help_text="If not universal, assign specific corporate accounts"
     )
 
     USERNAME_FIELD = 'phone_number'

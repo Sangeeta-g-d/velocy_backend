@@ -17,35 +17,39 @@
 
   <!-- Sidebar -->
  <div class="sidebar" id="sidebar">
-  <ul class="nav-links">
-    <li class="{% if current_url_name == 'dashboard' %}active{% endif %}">
-      <a href="{% url 'dashboard' %}"><i class="fas fa-home"></i> Home</a>
-    </li>
-    <li class="{% if current_url_name == 'approve_drivers' %}active{% endif %}">
-      <a href="{% url 'approve_drivers' %}"><i class="fas fa-user-check"></i>Approve Drivers</a>
-    </li>
-     <li class="{% if current_url_name == 'rider_list' %}active{% endif %}">
-      <a href="{% url 'users_list' %}"><i class="fas fa-user-check"></i>Users List</a>
-    </li>
-    <li class="{% if current_url_name == 'cab' %}active{% endif %}">
-      <a href="{% url 'cab_management' %}"><i class="fas fa-car"></i>Cab Management</a>
-    </li>
-    <li class="{% if current_url_name == 'rental_vehicles' %}active{% endif %}">
-      <a href="{% url 'rental_vehicles' %}"><i class="fas fa-car"></i>Rental Vehicles</a>
-    </li>
-   <li class="{% if current_url_name == 'ride_sharing' %}active{% endif %}">
-      <a href="{% url 'ride_sharing_request' %}"><i class="fas fa-car"></i>Ride Sharing</a>
-    </li>
-   <li class="{% if current_url_name == 'promo_code' %}active{% endif %}">
-      <a href="{% url 'promo_code' %}"><i class="fas fa-car"></i>Promo Code</a>
-    </li>
-    <li class="{% if current_url_name == 'cash_out' %}active{% endif %}">
-      <a href="{% url 'cash_out_requests' %}"><i class="fas fa-car"></i>Cash out Requests</a>
-    </li>
-    <li class="{% if current_url_name == 'corporate_request' %}active{% endif %}">
-      <a href="{% url 'corporate_requests' %}"><i class="fas fa-car"></i>Approve Companies</a>
-    </li>
-  </ul>
+ <ul class="nav-links">
+  <li class="{% if current_url_name == 'dashboard' %}active{% endif %}">
+    <a href="{% url 'dashboard' %}"><i class="fas fa-tachometer-alt"></i> Home</a>
+  </li>
+  <li class="{% if current_url_name == 'approve_drivers' %}active{% endif %}">
+    <a href="{% url 'approve_drivers' %}"><i class="fas fa-user-check"></i> Approve Drivers</a>
+  </li>
+  <li class="{% if current_url_name == 'rider_list' %}active{% endif %}">
+    <a href="{% url 'users_list' %}"><i class="fas fa-users"></i> Users List</a>
+  </li>
+  <li class="{% if current_url_name == 'cab' %}active{% endif %}">
+    <a href="{% url 'cab_management' %}"><i class="fas fa-taxi"></i> Cab Management</a>
+  </li>
+  <li class="{% if current_url_name == 'rental_vehicles' %}active{% endif %}">
+    <a href="{% url 'rental_vehicles' %}"><i class="fas fa-car-side"></i> Rental Vehicles</a>
+  </li>
+  <li class="{% if current_url_name == 'ride_sharing' %}active{% endif %}">
+    <a href="{% url 'ride_sharing_request' %}"><i class="fas fa-users"></i> Ride Sharing</a>
+  </li>
+  <li class="{% if current_url_name == 'promo_code' %}active{% endif %}">
+    <a href="{% url 'promo_code' %}"><i class="fas fa-tag"></i> Promo Code</a>
+  </li>
+  <li class="{% if current_url_name == 'cash_out' %}active{% endif %}">
+    <a href="{% url 'cash_out_requests' %}"><i class="fas fa-wallet"></i> Cash out Requests</a>
+  </li>
+  <li class="{% if current_url_name == 'corporate_request' %}active{% endif %}">
+    <a href="{% url 'corporate_requests' %}"><i class="fas fa-building"></i> Approve Companies</a>
+  </li>
+  <li class="{% if current_url_name == 'prepaid' %}active{% endif %}">
+    <a href="{% url 'prepaid_plans' %}"><i class="fas fa-coins"></i> Prepaid Plans</a>
+  </li>
+</ul>
+
 </div>
 
   <!-- Topbar -->

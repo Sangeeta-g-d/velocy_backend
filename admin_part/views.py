@@ -4,6 +4,7 @@ from auth_api.models import CustomUser,DriverDocumentInfo
 from .models import *
 from driver_part.models import CashOutRequest
 import json
+from django.contrib.auth.decorators import login_required
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.utils.timezone import localtime
@@ -96,6 +97,47 @@ def driver_details(request, driver_id):
         'document_info': document_info,
         'current_url_name':'approve_drivers'
     })
+
+@login_required
+def change_driver_role(request, driver_id):
+    driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
+
+    if request.method == 'POST':
+        role_type = request.POST.get('role_type')
+
+        if role_type == 'normal':
+            driver.is_corporate_driver = False
+            driver.is_universal_corporate = False
+            driver.assigned_companies.clear()
+        elif role_type == 'corporate':
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate = False
+            selected_ids = request.POST.getlist('company_ids')
+            companies = CompanyAccount.objects.filter(id__in=selected_ids)
+            driver.assigned_companies.set(companies)
+        elif role_type == 'both':
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate = True
+            driver.assigned_companies.clear()
+
+        driver.save()
+        return redirect('driver_details', driver_id=driver.id)
+
+@login_required
+@require_POST
+def update_driver_role(request, driver_id):
+    driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
+    driver.is_corporate_driver = bool(request.POST.get('is_corporate_driver'))
+    driver.is_universal_corporate_driver = bool(request.POST.get('is_universal'))
+
+    if driver.is_corporate_driver and not driver.is_universal_corporate_driver:
+        company_ids = request.POST.getlist('corporate_companies')
+        driver.corporate_companies.set(CompanyAccount.objects.filter(id__in=company_ids))
+    else:
+        driver.corporate_companies.clear()
+
+    driver.save()
+    return redirect('driver_details', driver_id=driver.id)
 
 def verify_driver(request, driver_id):
     if request.method == "POST":
@@ -535,7 +577,11 @@ def approve_company(request, company_id):
 
 def prepaid_plans(request):
     plans = PrepaidPlan.objects.all().order_by('-created_at')
-    return render(request, 'prepaid_plans.html', {'prepaid_plans': plans})
+    context = {
+        "current_url_name": "prepaid",
+        "prepaid_plans": plans
+    }
+    return render(request, 'prepaid_plans.html',context)
 
 def add_prepaid_plan(request):
     if request.method == 'POST':
