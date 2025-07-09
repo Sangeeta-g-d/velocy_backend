@@ -479,22 +479,52 @@ class RateDriverAPIView(StandardResponseMixin,APIView):
 
 
 # ride history
-class RiderRideHistoryAPIView(APIView):
+class RiderPastRideHistoryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         rider = request.user
         rides = RideRequest.objects.filter(
             user=rider,
-            status='completed'
+            status__in=['completed', 'cancelled']
         ).select_related('payment_detail').order_by('-start_time')
 
-        serializer = RiderRideHistorySerializer(rides, many=True)
+        completed_rides = []
+        cancelled_rides = []
+
+        for ride in rides:
+            serialized = RiderRideHistorySerializer(ride).data
+            if ride.status == 'completed':
+                completed_rides.append(serialized)
+            elif ride.status == 'cancelled':
+                cancelled_rides.append(serialized)
+
         return Response({
             "status": True,
             "message": "Ride history fetched successfully.",
+            "completed_rides": completed_rides,
+            "cancelled_rides": cancelled_rides
+        }, status=status.HTTP_200_OK)
+
+
+class RiderScheduledRidesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        rider = request.user
+        scheduled_rides = RideRequest.objects.filter(
+            user=rider,
+            status='pending',
+            ride_type='scheduled'
+        ).order_by('scheduled_time')
+
+        serializer = RiderScheduledRideSerializer(scheduled_rides, many=True)
+        return Response({
+            "status": True,
+            "message": "Scheduled rides fetched successfully.",
             "data": serializer.data
         }, status=status.HTTP_200_OK)
+
 
 
 # promo codes

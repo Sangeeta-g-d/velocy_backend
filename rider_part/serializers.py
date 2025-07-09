@@ -225,6 +225,27 @@ class RiderRideHistorySerializer(serializers.ModelSerializer):
         return 0.0
     
 
+class RiderScheduledRideSerializer(serializers.ModelSerializer):
+    scheduled_date = serializers.SerializerMethodField()
+    scheduled_time = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideRequest
+        fields = ['id', 'from_location', 'to_location', 'scheduled_date', 'scheduled_time']
+
+    def get_scheduled_date(self, obj):
+        if obj.scheduled_time:
+            ist_time = obj.scheduled_time.astimezone(pytz.timezone("Asia/Kolkata"))
+            return ist_time.strftime('%Y-%m-%d')
+        return None
+
+    def get_scheduled_time(self, obj):
+        if obj.scheduled_time:
+            ist_time = obj.scheduled_time.astimezone(pytz.timezone("Asia/Kolkata"))
+            return ist_time.strftime('%I:%M %p')
+        return None
+
+
 class RiderProfileSerializer(serializers.ModelSerializer):
     profile = serializers.SerializerMethodField()
 

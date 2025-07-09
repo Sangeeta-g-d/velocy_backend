@@ -28,7 +28,8 @@ urlpatterns = [
     path('rate-driver/<int:ride_id>/', RateDriverAPIView.as_view(), name='rate_driver'),
 
     # 21-6-25
-    path('rider-ride-history/',RiderRideHistoryAPIView.as_view(),name="ride-history"),
+    path('rider-ride-history/',RiderPastRideHistoryAPIView.as_view(),name="ride-history"),
+    path('upcoming-rides/', RiderScheduledRidesAPIView.as_view(), name='upcoming-rides'),
 
     # 23-6-25
     path('active-promos/', ActivePromoCodesAPIView.as_view(), name='active-promo-codes'),
