@@ -29,6 +29,26 @@
         <p><span class="bold-font">Email:</span> {{ driver.email }}</p>
         <p><span class="bold-font">Gender:</span> {{ driver.gender }}</p>
         <p><span class="bold-font">Address:</span> {{ driver.street }}, {{ driver.area }} ({{ driver.address_type }})</p>
+    <p><span class="bold-font">Driver Role Type:</span>
+  {% if driver.driver_type == 'normal' %}
+    Normal Only
+  {% elif driver.driver_type == 'corporate' %}
+    {% if driver.is_universal_corporate_driver %}
+      Corporate Only (All Companies)
+    {% else %}
+      Corporate Only (Specific Companies)
+    {% endif %}
+  {% elif driver.driver_type == 'both' %}
+    {% if driver.is_universal_corporate_driver %}
+      Both (All Companies)
+    {% else %}
+      Both (Specific Companies)
+    {% endif %}
+  {% else %}
+    Unknown
+  {% endif %}
+</p>
+
       </div>
 
       <div class="info-box">
@@ -39,6 +59,21 @@
           <p><span class="bold-font">Car Company:</span> {{ vehicle_info.car_company }}</p>
           <p><span class="bold-font">Car Model:</span> {{ vehicle_info.car_model }}</p>
           <p><span class="bold-font">Year:</span> {{ vehicle_info.year }}</p>
+          
+{% if driver.driver_type != 'normal' and not driver.is_universal_corporate_driver %}
+  <p><span class="bold-font">Assigned Companies:</span>
+    {% if driver.corporate_companies.all %}
+      <ul style="margin-left: 15px;">
+        {% for company in driver.corporate_companies.all %}
+          <li>{{ company.company_name }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <span>Not assigned to any companies</span>
+    {% endif %}
+  </p>
+{% endif %}
+
         {% else %}
           <p>No vehicle info available.</p>
         {% endif %}
@@ -86,21 +121,27 @@
     <form method="POST" action="{% url 'update_driver_role' driver.id %}">
       {% csrf_token %}
       <div class="modal-content">
-        <label for="role">Select Role Type</label>
-        <select name="role_type" id="role" required class="form-control" onchange="toggleCompanySection()">
-          <option value="normal" {% if driver.role == 'driver' and not driver.is_corporate_driver %}selected{% endif %}>Normal Driver</option>
-          <option value="corporate" {% if driver.is_corporate_driver and not driver.is_universal_corporate %}selected{% endif %}>Corporate Driver (Specific)</option>
-          <option value="both" {% if driver.is_corporate_driver and driver.is_universal_corporate %}selected{% endif %}>Corporate Driver (Universal)</option>
-        </select>
+        <label for="role_type">Select Driver Type</label>
+<select name="driver_type" id="role_type" class="form-control" required onchange="toggleCompanySection()">
+  <option value="normal" {% if driver.driver_type == 'normal' %}selected{% endif %}>Normal Only</option>
+  <option value="corporate_specific" {% if driver.driver_type == 'corporate' and not driver.is_universal_corporate_driver %}selected{% endif %}>Corporate Only (Specific Companies)</option>
+  <option value="corporate_universal" {% if driver.driver_type == 'corporate' and driver.is_universal_corporate_driver %}selected{% endif %}>Corporate Only (All Companies)</option>
+  <option value="both_specific" {% if driver.driver_type == 'both' and not driver.is_universal_corporate_driver %}selected{% endif %}>Both (Specific Companies)</option>
+  <option value="both_universal" {% if driver.driver_type == 'both' and driver.is_universal_corporate_driver %}selected{% endif %}>Both (All Companies)</option>
+</select>
 
-        <div id="companySelection" style="margin-top: 15px; display: none;">
-          <label>Select Specific Companies</label>
-          {% for company in companies %}
-            <div>
-              <input class="form-control" type="checkbox" name="company_ids" value="{{ company.id }}" {% if company in driver.assigned_companies.all %}checked{% endif %}> {{ company.company_name }}
-            </div>
-          {% endfor %}
-        </div>
+<div id="companySelection" style="margin-top: 15px; display: none;">
+  <label>Select Companies</label>
+  {% for company in companies %}
+    <div>
+      <label>
+        <input type="checkbox" name="company_ids" value="{{ company.id }}"
+          {% if company in driver.corporate_companies.all %}checked{% endif %}> {{ company.company_name }}
+      </label>
+    </div>
+  {% endfor %}
+</div>
+
 
         <div style="margin-top: 20px; text-align: right;">
           <button type="submit" class="btn btn-black">Save</button>
@@ -131,10 +172,12 @@
   }
 
   function toggleCompanySection() {
-    const role = document.getElementById("role").value;
-    const companyDiv = document.getElementById("companySelection");
-    companyDiv.style.display = (role === "corporate") ? "block" : "none";
-  }
+  const roleType = document.getElementById("role_type").value;
+  const companyDiv = document.getElementById("companySelection");
+  const showCompanies = roleType === "corporate_specific" || roleType === "both_specific";
+  companyDiv.style.display = showCompanies ? "block" : "none";
+}
+
 
   function confirmVerify(driverId) {
     driverId = parseInt(driverId);
@@ -190,74 +233,4 @@
     }
   });
 </script>
-
-<!-- Modal CSS -->
-<style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0,0,0,0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-    z-index: 1000;
-  }
-
-  .modal-overlay.active {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .modal {
-    background-color: white;
-    border-radius: 10px;
-    padding: 20px 30px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    transform: translateY(-50px);
-    transition: transform 0.3s ease;
-    display: block;
-  }
-
-  .modal-overlay.active .modal {
-    transform: translateY(0);
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-  }
-
-  .modal-header h2 {
-    font-size: 22px;
-    margin: 0;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #666;
-  }
-
-  .close-btn:hover {
-    color: #000;
-  }
-
-  .modal-content {
-    font-size: 16px;
-    color: #333;
-  }
-</style>
-
 {% endblock %}

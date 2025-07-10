@@ -7,6 +7,7 @@ from rest_framework import generics, permissions
 from django.db.models import Avg
 from decimal import Decimal
 from auth_api.models import DriverRating
+from corporate_web.models import CompanyPrepaidPlan
 from django.db import transaction
 from . models import *
 from rest_framework.permissions import IsAuthenticated
@@ -607,7 +608,22 @@ class RideCorporateConfirmAPIView(APIView):
             return Response({"detail": "Invalid ride amount."}, status=400)
 
         if credit.available_credits() < total_amount:
-            return Response({"detail": "Insufficient credits."}, status=400)
+            return Response({"detail": "Insufficient employee credits."}, status=400)
+
+        company = ride.company
+        if not company:
+            return Response({"detail": "Company not assigned for this ride."}, status=400)
+
+        # Get active prepaid plan
+        plan = CompanyPrepaidPlan.objects.filter(
+            company=company,
+            payment_status='success',
+            start_date__lte=timezone.now(),
+            end_date__gte=timezone.now()
+        ).order_by('-end_date').first()
+
+        if not plan or plan.credits_remaining < total_amount:
+            return Response({"detail": "Insufficient corporate plan credits."}, status=400)
 
         driver = ride.driver
         if not driver:
@@ -615,7 +631,7 @@ class RideCorporateConfirmAPIView(APIView):
 
         try:
             with transaction.atomic():
-                # Get or create payment detail
+                # Create or update ride payment
                 payment, _ = RidePaymentDetail.objects.get_or_create(
                     ride=ride,
                     defaults={
@@ -626,18 +642,23 @@ class RideCorporateConfirmAPIView(APIView):
                         'promo_code': None,
                         'promo_discount': 0,
                         'tip_amount': 0,
-                        'driver_earnings': total_amount  # just store base earnings for now
+                        'driver_earnings': total_amount
                     }
                 )
 
-                # Deduct credits
+                # Deduct employee credits
                 credit.used_credits += total_amount
                 credit.save()
 
+                # Deduct corporate prepaid plan credits
+                plan.credits_remaining -= total_amount
+                plan.save()
+
             return Response({
-                "message": "Payment confirmed and credits deducted.",
+                "message": "Payment confirmed. Credits deducted from employee and company.",
                 "amount_deducted": float(total_amount),
-                "remaining_credits": float(credit.available_credits())
+                "employee_remaining_credits": float(credit.available_credits()),
+                "company_remaining_credits": float(plan.credits_remaining)
             }, status=200)
 
         except Exception as e:

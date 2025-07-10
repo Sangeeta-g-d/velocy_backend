@@ -770,7 +770,8 @@ class DriverDocumentAPIView(UpdateRidePaymentStatusAPIView,APIView):
 
         serializer = DriverDocumentSerializer(document_info, context={'request': request})
         return Response(serializer.data, status=200)
-    
+
+
 class DriverStatsAPIView(UpdateRidePaymentStatusAPIView,APIView):
     permission_classes = [IsAuthenticated]
 
@@ -835,3 +836,64 @@ class DriverCashOutRequestAPIView(APIView):
 
         CashOutRequest.objects.create(driver=user, amount=amount)
         return Response({"message": "Cash out request submitted."}, status=201)
+    
+
+# corporate available ride API
+class CorporateAvailableRidesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        city_name = request.data.get('city_name')
+
+        # ✅ Ensure city is provided
+        if not city_name:
+            return Response({"status": False, "message": "City name is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ Fetch city object
+        try:
+            city = City.objects.get(name__iexact=city_name)
+        except City.DoesNotExist:
+            return Response({"status": False, "message": "City not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # ✅ Ensure only drivers are allowed
+        if user.role != 'driver':
+            return Response({"status": False, "message": "Only drivers can access this API."}, status=status.HTTP_403_FORBIDDEN)
+
+        # ✅ Reject if driver is not corporate
+        if user.driver_type == 'normal':
+            return Response({"status": False, "message": "You are not a corporate driver."}, status=status.HTTP_403_FORBIDDEN)
+
+        # ✅ Determine the company filter logic
+        if user.is_universal_corporate_driver:
+            # Universal driver → all approved corporate rides in that city
+            rides = RideRequest.objects.filter(
+                ride_type='now',
+                status='pending',
+                city=city,
+                company__isnull=False,
+                ride_purpose="official"
+            )
+        else:
+            # Assigned companies only
+            assigned_companies = user.corporate_companies.all()
+            if not assigned_companies.exists():
+                return Response({"status": False, "message": "No corporate companies assigned to you."}, status=status.HTTP_403_FORBIDDEN)
+
+            rides = RideRequest.objects.filter(
+                ride_type='now',
+                status='pending',
+                city=city,
+                company__in=assigned_companies,
+                ride_purpose="official"
+            )
+
+        if not rides.exists():
+            return Response({"status": True, "message": "No corporate rides available.", "data": []}, status=status.HTTP_200_OK)
+
+        serializer = RideNowDestinationSerializer(rides, many=True)
+        return Response({
+            "status": True,
+            "message": "success",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)

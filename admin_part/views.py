@@ -91,11 +91,15 @@ def driver_details(request, driver_id):
     vehicle_info = getattr(driver, 'vehicle_info', None)
     document_info = getattr(driver, 'document_info', None)
 
+    # ✅ Fetch approved companies
+    approved_companies = CompanyAccount.objects.filter(is_approved=True)
+
     return render(request, 'driver_details.html', {
         'driver': driver,
         'vehicle_info': vehicle_info,
         'document_info': document_info,
-        'current_url_name':'approve_drivers'
+        'companies': approved_companies,  # <-- pass this to template
+        'current_url_name': 'approve_drivers',
     })
 
 @login_required
@@ -103,41 +107,91 @@ def change_driver_role(request, driver_id):
     driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
 
     if request.method == 'POST':
-        role_type = request.POST.get('role_type')
+        driver_type = request.POST.get('driver_type')
+        print("Driver Type:", driver_type)  # Debugging line
 
-        if role_type == 'normal':
+        if driver_type == 'normal':
+            driver.driver_type = 'normal'
             driver.is_corporate_driver = False
-            driver.is_universal_corporate = False
-            driver.assigned_companies.clear()
-        elif role_type == 'corporate':
+            driver.is_universal_corporate_driver = False
+            driver.corporate_companies.clear()
+
+        elif driver_type == 'corporate_specific':
+            driver.driver_type = 'corporate'
             driver.is_corporate_driver = True
-            driver.is_universal_corporate = False
+            driver.is_universal_corporate_driver = False
             selected_ids = request.POST.getlist('company_ids')
             companies = CompanyAccount.objects.filter(id__in=selected_ids)
-            driver.assigned_companies.set(companies)
-        elif role_type == 'both':
+            driver.corporate_companies.set(companies)
+
+        elif driver_type == 'corporate_universal':
+            driver.driver_type = 'corporate'
             driver.is_corporate_driver = True
-            driver.is_universal_corporate = True
-            driver.assigned_companies.clear()
+            driver.is_universal_corporate_driver = True
+            driver.corporate_companies.clear()
+
+        elif driver_type == 'both_specific':
+            driver.driver_type = 'both'
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate_driver = False
+            selected_ids = request.POST.getlist('company_ids')
+            companies = CompanyAccount.objects.filter(id__in=selected_ids)
+            driver.corporate_companies.set(companies)
+
+        elif driver_type == 'both_universal':
+            driver.driver_type = 'both'
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate_driver = True
+            driver.corporate_companies.clear()
 
         driver.save()
         return redirect('driver_details', driver_id=driver.id)
 
+    return redirect('approve_drivers')  # Fallback in case of non-POST request
+
 @login_required
 @require_POST
 def update_driver_role(request, driver_id):
-    driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
-    driver.is_corporate_driver = bool(request.POST.get('is_corporate_driver'))
-    driver.is_universal_corporate_driver = bool(request.POST.get('is_universal'))
+    driver = get_object_or_404(CustomUser, id=driver_id)
+    
+    if request.method == 'POST':
+        role_type = request.POST.get('driver_type')
+        company_ids = request.POST.getlist('company_ids')
 
-    if driver.is_corporate_driver and not driver.is_universal_corporate_driver:
-        company_ids = request.POST.getlist('corporate_companies')
-        driver.corporate_companies.set(CompanyAccount.objects.filter(id__in=company_ids))
-    else:
+        # Reset everything
+        driver.is_corporate_driver = False
+        driver.is_universal_corporate_driver = False
         driver.corporate_companies.clear()
 
-    driver.save()
-    return redirect('driver_details', driver_id=driver.id)
+        if role_type == 'normal':
+            driver.driver_type = 'normal'
+
+        elif role_type == 'corporate_specific':
+            driver.driver_type = 'corporate'
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate_driver = False
+            driver.corporate_companies.set(company_ids)
+
+        elif role_type == 'corporate_universal':
+            driver.driver_type = 'corporate'
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate_driver = True
+
+        elif role_type == 'both_specific':
+            driver.driver_type = 'both'
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate_driver = False
+            driver.corporate_companies.set(company_ids)
+
+        elif role_type == 'both_universal':
+            driver.driver_type = 'both'
+            driver.is_corporate_driver = True
+            driver.is_universal_corporate_driver = True
+
+        driver.save()
+        # messages.success(request, "Driver role updated successfully.")
+        return redirect('driver_details', driver_id=driver_id)
+
 
 def verify_driver(request, driver_id):
     if request.method == "POST":

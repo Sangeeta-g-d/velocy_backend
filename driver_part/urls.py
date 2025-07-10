@@ -39,5 +39,8 @@ urlpatterns = [
     path('today-earnings/', DriverStatsAPIView.as_view(), name='driver-daily-stats'),
     path('cash-out/',DriverCashOutRequestAPIView.as_view(),name="cash-out"),
 
+    # corporate ride APIs
+    path('corporate-available-rides/', CorporateAvailableRidesAPIView.as_view(), name='corporate_available_rides'),
+
 
 ]
