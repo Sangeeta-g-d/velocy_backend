@@ -41,6 +41,7 @@ class CompanyPrepaidPlan(models.Model):
 
     # Credit tracking
     credits_remaining = models.PositiveIntegerField(default=0)
+    total_credits = models.PositiveIntegerField(default=0)
 
     def is_active(self):
         return self.start_date and self.end_date and self.start_date <= timezone.now() <= self.end_date

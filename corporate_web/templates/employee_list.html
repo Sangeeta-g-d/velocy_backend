@@ -37,6 +37,7 @@
           <td>
   <a href="{% url 'employee_details' emp.id %}" class="action-btn">Details</a>
   <a href="{% url 'edit_employee' emp.id %}" class="action-btn edit-btn">Edit</a>
+   <a href="{% url 'employee_activity' emp.id %}" class="action-btn edit-btn">Activity</a>
 </td>
         </tr>
         {% empty %}

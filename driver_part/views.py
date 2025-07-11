@@ -70,7 +70,7 @@ class AvailableNowRidesAPIView(APIView):
         rides = RideRequest.objects.filter(
             ride_type='now',
             status='pending',
-            city=city
+            city=city,ride_purpose  = 'personal'  # Only personal rides for now
         ).order_by('-id')
 
         if not rides.exists():

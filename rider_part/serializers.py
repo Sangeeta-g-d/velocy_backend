@@ -47,13 +47,24 @@ class RideRequestCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         ride_type = attrs.get('ride_type')
         scheduled_time = attrs.get('scheduled_time')
-
+        ride_purpose = attrs.get('ride_purpose', 'personal')  # default is personal
+    
         if ride_type == 'scheduled' and not scheduled_time:
             raise serializers.ValidationError({
                 'scheduled_time': 'This field is required when ride_type is scheduled.'
             })
-
+    
+        # 🚫 Check if user is employee for official ride
+        request = self.context.get('request')
+        user = request.user if request else None
+    
+        if ride_purpose == 'official' and user and user.role != 'employee':
+            raise serializers.ValidationError({
+                'ride_purpose': 'Only employees can create an official ride.'
+            })
+    
         return attrs
+    
 
     def create(self, validated_data):
         city = validated_data.pop('city_name')

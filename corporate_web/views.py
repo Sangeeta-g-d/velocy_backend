@@ -5,11 +5,18 @@ from django.db import transaction, IntegrityError
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponseForbidden
 from django.contrib.auth import get_user_model
+from django.utils.timezone import localtime
+import pytz
+from django.utils.timezone import make_aware
+
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from . models import *
 from django.urls import reverse
+from django.template.loader import render_to_string
 import razorpay
+from rider_part.models import RideRequest
+from django.db.models import Sum
 from django.conf import settings
 from django.http import JsonResponse
 User = get_user_model()
@@ -148,6 +155,7 @@ def payment_success(request):
             plan.start_date = plan.purchase_date
             plan.end_date = plan.purchase_date + timezone.timedelta(days=plan.plan.validity_days)
             plan.credits_remaining = plan.plan.credits_provided
+            plan.total_credits = plan.plan.credits_provided
 
             plan.save()
             print("✅ Plan updated successfully")
@@ -170,21 +178,41 @@ def success_page(request):
 def company_dashboard(request):
     user = request.user
     active_plan = None
+    assigned_credits = 0
+    available_to_assign = 0
+    used_credits = 0
+    remaining_plan_credits = 0
 
     if hasattr(user, 'company_account'):
-        active_plan = (
-            CompanyPrepaidPlan.objects
-            .filter(company=user.company_account, payment_status='success')
-            .order_by('-purchase_date')
-            .first()
-        )
+        company = user.company_account
+
+        active_plan = CompanyPrepaidPlan.objects.filter(
+            company=company, payment_status='success'
+        ).order_by('-start_date').first()
+
+        if active_plan:
+            # Get assigned and used credits
+            assigned_credits = EmployeeCredit.objects.filter(
+                employee__company=company
+            ).aggregate(total=Sum('total_credits'))['total'] or 0
+
+            used_credits = EmployeeCredit.objects.filter(
+                employee__company=company
+            ).aggregate(total=Sum('used_credits'))['total'] or 0
+
+            available_to_assign = max(active_plan.total_credits - assigned_credits, 0)
+            remaining_plan_credits = max(active_plan.total_credits - used_credits, 0)
 
     context = {
         "current_url_name": "company_dashboard",
-        "active_plan": active_plan
+        "active_plan": active_plan,
+        "assigned_credits": assigned_credits,
+        "available_to_assign": available_to_assign,
+        "remaining_plan_credits": remaining_plan_credits,
     }
     return render(request, 'company_dashboard.html', context)
 
+@login_required(login_url='/login/')
 def add_employee(request):
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -197,10 +225,35 @@ def add_employee(request):
         profile = request.FILES.get('profile')
         total_credits = request.POST.get('total_credits')
 
+        if not total_credits:
+            return redirect('/corporate/add_employee/?error=Total credit is required.')
+
+        try:
+            total_credits = float(total_credits)
+        except ValueError:
+            return redirect('/corporate/add_employee/?error=Invalid credit amount.')
+
         if User.objects.filter(phone_number=phone_number).exists():
             return redirect('/corporate/add_employee/?error=Phone number already registered.')
 
         try:
+            company = request.user.company_account
+            active_plan = CompanyPrepaidPlan.objects.filter(
+                company=company, payment_status='success'
+            ).order_by('-purchase_date').first()
+
+            if not active_plan:
+                return redirect('/corporate/add_employee/?error=No active plan found.')
+
+            assigned_credits = EmployeeCredit.objects.filter(
+                employee__company_account=company
+            ).aggregate(Sum('total_credits'))['total_credits__sum'] or 0
+
+            unassigned_credits = active_plan.total_credits - assigned_credits
+
+            if total_credits > unassigned_credits:
+                return redirect(f'/corporate/add_employee/?error=Not enough available company credits. Only {unassigned_credits} left.')
+
             with transaction.atomic():
                 employee = User.objects.create(
                     username=username,
@@ -211,12 +264,12 @@ def add_employee(request):
                     area=area,
                     profile=profile,
                     role='employee',
-                    company=request.user.company_account,
+                    company=company,
                 )
 
                 EmployeeCredit.objects.create(
                     employee=employee,
-                    total_credits=total_credits or 0,
+                    total_credits=total_credits,
                     used_credits=0,
                     is_active=True
                 )
@@ -226,8 +279,22 @@ def add_employee(request):
         except Exception as e:
             return redirect(f'/corporate/add_employee/?error={str(e)}')
 
+    # GET request
+    available_to_assign = 0
+    if hasattr(request.user, 'company_account'):
+        company = request.user.company_account
+        active_plan = CompanyPrepaidPlan.objects.filter(
+            company=company, payment_status='success'
+        ).order_by('-purchase_date').first()
+        if active_plan:
+            assigned = EmployeeCredit.objects.filter(
+                employee__company_account=company
+            ).aggregate(Sum('total_credits'))['total_credits__sum'] or 0
+            available_to_assign = max(active_plan.total_credits - assigned, 0)
+
     context = {
-        "current_url_name": "company_dashboard"
+        "current_url_name": "company_dashboard",
+        "available_to_assign": available_to_assign
     }
     return render(request, 'add_employee.html', context)
 
@@ -284,3 +351,33 @@ def employee_details(request, employee_id):
         "current_url_name": "employee_list"
     }
     return render(request, 'employee_details.html', context)
+
+
+@login_required(login_url='/login/')
+def book_ride(request):
+    context= {
+        "current_url_name": "book_ride"
+    }
+    return render(request, 'book_ride.html', context)
+        
+def employee_activity(request, employee_id):
+    employee = get_object_or_404(CustomUser, id=employee_id)
+
+    # Get recent 20 rides
+    rides = RideRequest.objects.filter(user=employee).order_by('-created_at')[:20]
+
+    # Convert UTC to IST
+    ist = pytz.timezone("Asia/Kolkata")
+    for ride in rides:
+        utc_time = ride.created_at
+        if utc_time.tzinfo is None:
+            utc_time = make_aware(utc_time, timezone=pytz.UTC)
+        ride.created_at_ist = utc_time.astimezone(ist)
+
+    context = {
+        "employee_id": employee_id,
+        "employee": employee,
+        "recent_rides": rides,
+        "current_url_name": "employee_activity"
+    }
+    return render(request, 'employee_activity.html', context)

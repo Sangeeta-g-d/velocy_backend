@@ -1,0 +1,61 @@
+{% extends 'company_Dashboard.html' %}
+{% block content %}
+
+<div class="container">
+    <h2 style="margin-bottom: 15px;">Employee Ride Activity - {{ employee.username }}</h2>
+
+    <!-- Search -->
+    <input type="text" id="searchInput" class="form-group-input search-bar" placeholder="Search Rides">
+
+    <!-- Ride Table -->
+    <div class="table-container">
+        <table class="styled-table" id="rideTable">
+            <thead>
+                <tr>
+                    <th>Ride ID</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Distance</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Price</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ride in recent_rides %}
+                <tr>
+                    <td>#{{ ride.id }}</td>
+                    <td>{{ ride.from_location }}</td>
+                    <td>{{ ride.to_location }}</td>
+                    <td>{{ ride.distance_km }} km</td>
+                    <td>{{ ride.ride_type|title }}</td>
+                    <td>
+                        <span class="status-badge approved {{ ride.status }}">{{ ride.status|title }}</span>
+                    </td>
+                    <td>₹{{ ride.estimated_price|default:ride.offered_price }}</td>
+                    <td>{{ ride.created_at_ist|date:"Y-m-d H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination-container">
+        <ul id="pagination" class="pagination"></ul>
+    </div>
+</div>
+
+<!-- JS -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        initializeTablePagination({
+            tableId: "rideTable",
+            searchInputId: "searchInput",
+            paginationId: "pagination",
+            rowsPerPage: 10
+        });
+    });
+</script>
+{% endblock %}

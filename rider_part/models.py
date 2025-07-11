@@ -24,6 +24,7 @@ class RideRequest(models.Model):
     RIDE_PURPOSE_CHOICES = (
     ('official', 'Official'),
     ('personal', 'Personal'),
+    ('corporate_admin', 'Corporate Admin Booking'), 
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ride_requests')
     city = models.ForeignKey(City, on_delete=models.SET_NULL, null=True)
@@ -53,7 +54,12 @@ class RideRequest(models.Model):
     
     driver = models.ForeignKey(User,on_delete=models.SET_NULL,null=True, blank=True, related_name='accepted_rides')
     company = models.ForeignKey('corporate_web.CompanyAccount', on_delete=models.SET_NULL, null=True, blank=True)
-    ride_purpose = models.CharField(max_length=10,choices=RIDE_PURPOSE_CHOICES,default='personal',help_text="Whether this is a company-funded or personal ride")
+    ride_purpose = models.CharField(max_length=20,choices=RIDE_PURPOSE_CHOICES,default='personal',help_text="Whether this is a company-funded or personal ride")
+
+
+    employees = models.ManyToManyField(User, blank=True, related_name='rides_as_passenger',
+                                   help_text="Employees included in this corporate admin ride.")
+
     def __str__(self):
         return f"Ride by {self.user} - {self.from_location} → {self.to_location}"
 

@@ -24,6 +24,9 @@
     <li class="{% if current_url_name == 'employee_list' %}active{% endif %}">
       <a href="{% url 'employee_list' %}"><i class="fas fa-home"></i>Employee List</a>
     </li>
+     <li class="{% if current_url_name == 'book_ride' %}active{% endif %}">
+      <a href="{% url 'book_ride' %}"><i class="fas fa-home"></i>Book Ride</a>
+    </li>
   </ul>
 </div>
 

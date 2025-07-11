@@ -9,6 +9,7 @@ from decimal import Decimal
 from auth_api.models import DriverRating
 from corporate_web.models import CompanyPrepaidPlan
 from django.db import transaction
+from corporate_web.models import EmployeeCredit
 from . models import *
 from rest_framework.permissions import IsAuthenticated
 from .mixins import StandardResponseMixin
@@ -66,26 +67,29 @@ class AddRideStopAPIView(StandardResponseMixin,APIView):
 
 class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
     def post(self, request):
-        serializer = EstimatePriceInputSerializer(data=request.data)  # ✅ Fix is here
+        serializer = EstimatePriceInputSerializer(data=request.data)
         if serializer.is_valid():
             ride_id = serializer.validated_data['ride_id']
             vehicle_type_id = serializer.validated_data['vehicle_type_id']
 
+            # Fetch ride
             try:
                 ride = RideRequest.objects.get(id=ride_id)
             except RideRequest.DoesNotExist:
                 return Response({"detail": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
 
+            # Ride must be draft or pending
             if ride.status not in ['draft', 'pending']:
-                print("++++++++++++++++++++++++++++++++++++")
                 return Response(
                     {"detail": "Estimated price can only be updated for draft or pending rides."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            # City must be assigned
             if not ride.city:
                 return Response({"detail": "City not selected for this ride."}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Fetch city pricing
             try:
                 price_entry = CityVehiclePrice.objects.get(city=ride.city, vehicle_type_id=vehicle_type_id)
             except CityVehiclePrice.DoesNotExist:
@@ -94,8 +98,38 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
+            # Calculate price
             estimated_price = price_entry.price_per_km * ride.distance_km
-            ride.estimated_price = round(estimated_price, 2)
+            rounded_price = round(estimated_price, 2)
+
+            # 🔐 Check employee credit if ride is official
+            if ride.ride_purpose == 'official' and request.user.role == 'employee':
+                try:
+                    employee_credit = request.user.credit
+                except EmployeeCredit.DoesNotExist:
+                    return Response(
+                        {"detail": "Employee credits not found."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if not employee_credit.is_active:
+                    return Response(
+                        {"detail": "Your employee credits are inactive."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if employee_credit.available_credits() < rounded_price:
+                    return Response(
+                        {
+                            "detail": "Insufficient credit balance for this ride.",
+                            "available_credits": float(employee_credit.available_credits()),
+                            "estimated_price": float(rounded_price),
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            # Save estimate to ride
+            ride.estimated_price = rounded_price
             ride.vehicle_type_id = vehicle_type_id
             ride.save()
 
@@ -104,11 +138,12 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
                 "vehicle_type_id": vehicle_type_id,
                 "price_per_km": price_entry.price_per_km,
                 "distance_km": ride.distance_km,
-                "estimated_price": round(estimated_price, 2),
-                "user_role":request.user.role
+                "estimated_price": rounded_price,
+                "user_role": request.user.role
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     
 
 class RideRequestUpdateAPIView(StandardResponseMixin,APIView):
@@ -658,7 +693,6 @@ class RideCorporateConfirmAPIView(APIView):
                 "message": "Payment confirmed. Credits deducted from employee and company.",
                 "amount_deducted": float(total_amount),
                 "employee_remaining_credits": float(credit.available_credits()),
-                "company_remaining_credits": float(plan.credits_remaining)
             }, status=200)
 
         except Exception as e:

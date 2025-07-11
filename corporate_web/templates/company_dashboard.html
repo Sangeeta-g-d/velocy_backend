@@ -4,7 +4,7 @@
 
 <div class="company-dashboard">
     <!-- Metrics Section -->
-     {% if active_plan %}
+  {% if active_plan %}
 <div class="company-plan-details">
   <h2 class="plan-title">Your Current Plan: {{ active_plan.plan.name }}</h2>
   <div class="plan-info-grid">
@@ -14,16 +14,27 @@
     <div class="plan-info-item">
       <strong>End Date:</strong> {{ active_plan.end_date|date:"F d, Y" }}
     </div>
-    <div class="plan-info-item">
-      <strong>Credits Remaining:</strong> {{ active_plan.credits_remaining }}
-    </div>
-    <div class="plan-info-item">
+     <div class="plan-info-item">
       <strong>Amount Paid:</strong> ₹{{ active_plan.amount_paid }}
     </div>
-    <div class="plan-info-item">
-      <strong>Status:</strong> 
+     <div class="plan-info-item">
+      <strong>Status:</strong>
       <span style="color: green;">{{ active_plan.payment_status|capfirst }}</span>
     </div>
+    <div class="plan-info-item">
+      <strong>Total Credits:</strong> {{ active_plan.total_credits }}
+    </div>
+    <div class="plan-info-item">
+      <strong>Assigned Credits:</strong> {{ assigned_credits }}
+    </div>
+    <div class="plan-info-item">
+      <strong>Unassigned Credits:</strong> {{ available_to_assign }}
+    </div>
+   
+   
+    <div class="plan-info-item">
+  <strong>Plan Credits Remaining:</strong> {{ remaining_plan_credits }}
+</div>
   </div>
 </div>
 {% else %}

@@ -1,0 +1,14 @@
+{% for ride in rides %}
+<tr>
+    <td>#{{ride.id}}</td>
+    <td>{{ ride.from_location }}</td>
+    <td>{{ ride.to_location }}</td>
+    <td>{{ ride.distance_km }} km</td>
+    <td>{{ ride.ride_type|title }}</td>
+    <td>
+        <span class="status-badge approved {{ ride.status }}">{{ ride.status|title }}</span>
+    </td>
+    <td>₹{{ ride.estimated_price|default:ride.offered_price }}</td>
+    <td>{{ ride.created_at_ist|date:"Y-m-d H:i" }}</td>
+</tr>
+{% endfor %}

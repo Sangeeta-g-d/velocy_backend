@@ -19,12 +19,12 @@
         </div>
 
         <div class="form-group">
-  <label for="phone_number">Phone Number</label>
-  <input type="text" name="phone_number" id="phone_number"
-         placeholder="Enter phone number" required
-         pattern="\d{10}" maxlength="10" minlength="10"
-         title="Phone number must be exactly 10 digits" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-</div>
+          <label for="phone_number">Phone Number</label>
+          <input type="text" name="phone_number" id="phone_number"
+                 placeholder="Enter phone number" required
+                 pattern="\d{10}" maxlength="10" minlength="10"
+                 title="Phone number must be exactly 10 digits" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+        </div>
 
         <div class="form-group">
           <label for="email">Email (optional)</label>
@@ -50,24 +50,62 @@
           <label for="area">Area</label>
           <input type="text" name="area" id="area" placeholder="Enter area or locality">
         </div>
+
         <div class="form-group">
-  <label for="profile">Profile Photo</label>
-  <input type="file" name="profile" id="profile" accept="image/*">
-</div>
-<div class="form-group">
-  <label for="total_credits">Initial Credit</label>
-  <input type="number" name="total_credits" id="total_credits" placeholder="Enter credit amount" step="0.01" required>
-</div>
+          <label for="profile">Profile Photo</label>
+          <input type="file" name="profile" id="profile" accept="image/*">
+        </div>
+
+        <div class="form-group">
+          <label for="total_credits">Initial Credit</label>
+          <input type="number" name="total_credits" id="total_credits"
+                 placeholder="Enter credit amount" step="0.01" required>
+          <small id="credit-warning" style="color:red; display:none;">
+            Credit exceeds unassigned balance (Max: {{ available_to_assign }})
+          </small>
+        </div>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn-black">Add Employee</button>
+        <button type="submit" class="btn-black" id="submit-btn">Add Employee</button>
       </div>
     </form>
   </div>
 </div>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
+    const creditInput = document.getElementById("total_credits");
+    const warning = document.getElementById("credit-warning");
+    const submitBtn = document.getElementById("submit-btn");
+
+    const maxCredits = parseFloat("{{ available_to_assign|floatformat:2 }}") || 0;
+
+    const validateCredits = () => {
+      const entered = parseFloat(creditInput.value);
+      
+      if (isNaN(entered) || entered <= 0) {
+        warning.textContent = "Please enter a valid credit amount.";
+        warning.style.display = "block";
+        submitBtn.disabled = true;
+        return;
+      }
+
+      if (entered > maxCredits) {
+        warning.textContent = `Credit exceeds unassigned balance (Max: {{ available_to_assign }})`;
+        warning.style.display = "block";
+        submitBtn.disabled = true;
+      } else {
+        warning.style.display = "none";
+        submitBtn.disabled = false;
+      }
+    };
+
+    creditInput.addEventListener("input", validateCredits);
+
+    // Run on initial load (in case browser auto-fills the field)
+    validateCredits();
+
+    // Toast messages
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('created') === '1') {
       showToast("Employee profile created successfully!");
@@ -78,4 +116,5 @@
     }
   });
 </script>
+
 {% endblock %}
