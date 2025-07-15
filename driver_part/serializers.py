@@ -79,7 +79,8 @@ class RideAcceptedDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideRequest
         fields = [
-            'id', 'from_location', 'to_location',
+            'id', 'from_location', 'from_latitude', 'from_longitude',  # ✅ Added lat/lng
+            'to_location',
             'ride_type', 'status', 'created_at',
             'scheduled_time', 'ride_stops', 'rider'
         ]
@@ -99,7 +100,7 @@ class RideAcceptedDetailSerializer(serializers.ModelSerializer):
 
     def get_scheduled_time(self, obj):
         return self.format_datetime_to_ist(obj.scheduled_time)
-    
+
 
 class RiderInformationSerializer(serializers.ModelSerializer):
     profile = serializers.SerializerMethodField()
@@ -121,10 +122,12 @@ class RideDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideRequest
         fields = [
-            'from_location', 'to_location',
-            'ride_stops',  # Related name in RideStop model
-            'user'  # Rider info
+            'from_location', 'from_latitude', 'from_longitude',  
+            'to_location', 'to_latitude', 'to_longitude',      
+            'ride_stops',
+            'user'
         ]
+
 
 class RidePriceDetailSerializer(serializers.ModelSerializer):
     ride_stops = RideStopSerializer(many=True, read_only=True)

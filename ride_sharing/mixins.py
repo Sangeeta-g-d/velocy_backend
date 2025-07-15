@@ -14,11 +14,22 @@ class StandardResponseMixin:
                 "data": response.data
             }
         else:
-            # Extract better error message
+            message = "error"
             if isinstance(response.data, dict):
-                message = response.data.get("detail") or next(iter(response.data.values()))[0]
-            else:
-                message = "error"
+                if "detail" in response.data:
+                    message = response.data["detail"]
+                else:
+                    error_list = []
+                    for field, errors in response.data.items():
+                        if isinstance(errors, list):
+                            for error in errors:
+                                error_list.append(f"{field}: {error}")
+                        elif isinstance(errors, dict):  # nested serializer case
+                            for subfield, suberror in errors.items():
+                                error_list.append(f"{field}.{subfield}: {suberror}")
+                        else:
+                            error_list.append(f"{field}: {errors}")
+                    message = " | ".join(error_list)
 
             response.data = {
                 "status": False,

@@ -657,8 +657,11 @@ class RideCorporateConfirmAPIView(APIView):
             end_date__gte=timezone.now()
         ).order_by('-end_date').first()
 
-        if not plan or plan.credits_remaining < total_amount:
-            return Response({"detail": "Insufficient corporate plan credits."}, status=400)
+        if not plan:
+            return Response({"detail": "No active corporate plan found."}, status=400)
+
+        if plan.plan_credits_remaining < total_amount:
+            return Response({"detail": "Insufficient total corporate plan credits."}, status=400)
 
         driver = ride.driver
         if not driver:
@@ -685,12 +688,12 @@ class RideCorporateConfirmAPIView(APIView):
                 credit.used_credits += total_amount
                 credit.save()
 
-                # Deduct corporate prepaid plan credits
-                plan.credits_remaining -= total_amount
+                # Update corporate plan employee spend
+                plan.credits_spent_by_employees += int(total_amount)
                 plan.save()
 
             return Response({
-                "message": "Payment confirmed. Credits deducted from employee and company.",
+                "message": "Payment confirmed. Credits deducted from employee.",
                 "amount_deducted": float(total_amount),
                 "employee_remaining_credits": float(credit.available_credits()),
             }, status=200)

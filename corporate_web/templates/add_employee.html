@@ -15,7 +15,8 @@
 
         <div class="form-group">
           <label for="username">Name</label>
-          <input type="text" name="username" id="username" placeholder="Enter full name" required>
+          <input type="text" name="username" id="username" placeholder="Enter full name" required
+                 value="{{ form_data.username|default:'' }}">
         </div>
 
         <div class="form-group">
@@ -23,43 +24,52 @@
           <input type="text" name="phone_number" id="phone_number"
                  placeholder="Enter phone number" required
                  pattern="\d{10}" maxlength="10" minlength="10"
-                 title="Phone number must be exactly 10 digits" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                 title="Phone number must be exactly 10 digits"
+                 oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                 value="{{ form_data.phone_number|default:'' }}">
         </div>
 
         <div class="form-group">
           <label for="email">Email (optional)</label>
-          <input type="email" name="email" id="email" placeholder="Enter email address">
+          <input type="email" name="email" id="email" placeholder="Enter email address"
+                 value="{{ form_data.email|default:'' }}">
         </div>
 
         <div class="form-group">
           <label for="gender">Gender</label>
           <select name="gender" id="gender" required>
-            <option value="" disabled selected>Select gender</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
+            <option value="" disabled {% if not form_data.gender %}selected{% endif %}>Select gender</option>
+            <option value="male" {% if form_data.gender == 'male' %}selected{% endif %}>Male</option>
+            <option value="female" {% if form_data.gender == 'female' %}selected{% endif %}>Female</option>
+            <option value="other" {% if form_data.gender == 'other' %}selected{% endif %}>Other</option>
           </select>
         </div>
 
         <div class="form-group">
           <label for="street">Street</label>
-          <input type="text" name="street" id="street" placeholder="Enter street name">
+          <input type="text" name="street" id="street" placeholder="Enter street name"
+                 value="{{ form_data.street|default:'' }}">
         </div>
 
         <div class="form-group">
           <label for="area">Area</label>
-          <input type="text" name="area" id="area" placeholder="Enter area or locality">
+          <input type="text" name="area" id="area" placeholder="Enter area or locality"
+                 value="{{ form_data.area|default:'' }}">
         </div>
 
         <div class="form-group">
           <label for="profile">Profile Photo</label>
           <input type="file" name="profile" id="profile" accept="image/*">
+          {% if form_files.profile %}
+            <small>Previously uploaded: {{ form_files.profile.name }}</small>
+          {% endif %}
         </div>
 
         <div class="form-group">
           <label for="total_credits">Initial Credit</label>
           <input type="number" name="total_credits" id="total_credits"
-                 placeholder="Enter credit amount" step="0.01" required>
+                 placeholder="Enter credit amount" step="0.01" required
+                 value="{{ form_data.total_credits|default:'' }}">
           <small id="credit-warning" style="color:red; display:none;">
             Credit exceeds unassigned balance (Max: {{ available_to_assign }})
           </small>
@@ -72,6 +82,7 @@
     </form>
   </div>
 </div>
+
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const creditInput = document.getElementById("total_credits");
@@ -101,20 +112,14 @@
     };
 
     creditInput.addEventListener("input", validateCredits);
-
-    // Run on initial load (in case browser auto-fills the field)
-    validateCredits();
+    validateCredits();  // initial run
 
     // Toast messages
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('created') === '1') {
+    {% if error %}
+      showToast("{{ error|escapejs }}", "error");
+    {% elif request.GET.created == '1' %}
       showToast("Employee profile created successfully!");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (urlParams.get('error')) {
-      showToast(decodeURIComponent(urlParams.get('error')), "error");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    {% endif %}
   });
 </script>
-
 {% endblock %}

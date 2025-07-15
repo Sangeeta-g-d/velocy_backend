@@ -54,6 +54,7 @@ urlpatterns = [
     # corporate urls
     path('corporate_requests/',views.corporate_requests,name="corporate_requests"),
     path('company_details/<int:company_id>/',views.company_details,name="company_details"),
+    path('companies/<int:company_id>/delete/', views.delete_company, name='delete_company'),
     path('approve-company/<int:company_id>/',views.approve_company,name="approve_company"),
     path('add_prepaid_plan/',views.add_prepaid_plan,name="add_prepaid_plan"),
     path('prepaid_plans/',views.prepaid_plans,name="prepaid_plans"),

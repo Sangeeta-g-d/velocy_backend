@@ -179,8 +179,9 @@ def company_dashboard(request):
     user = request.user
     active_plan = None
     assigned_credits = 0
-    available_to_assign = 0
-    used_credits = 0
+    unassigned_credits = 0
+    employee_spent = 0
+    company_spent = 0
     remaining_plan_credits = 0
 
     if hasattr(user, 'company_account'):
@@ -191,78 +192,83 @@ def company_dashboard(request):
         ).order_by('-start_date').first()
 
         if active_plan:
-            # Get assigned and used credits
-            assigned_credits = EmployeeCredit.objects.filter(
-                employee__company=company
-            ).aggregate(total=Sum('total_credits'))['total'] or 0
-
-            used_credits = EmployeeCredit.objects.filter(
-                employee__company=company
-            ).aggregate(total=Sum('used_credits'))['total'] or 0
-
-            available_to_assign = max(active_plan.total_credits - assigned_credits, 0)
-            remaining_plan_credits = max(active_plan.total_credits - used_credits, 0)
+            assigned_credits = active_plan.assigned_credits
+            unassigned_credits = active_plan.unassigned_credits
+            employee_spent = active_plan.credits_spent_by_employees
+            company_spent = active_plan.credits_spent_by_company
+            remaining_plan_credits = active_plan.plan_credits_remaining
 
     context = {
         "current_url_name": "company_dashboard",
         "active_plan": active_plan,
         "assigned_credits": assigned_credits,
-        "available_to_assign": available_to_assign,
+        "unassigned_credits": unassigned_credits,
+        "employee_spent": employee_spent,
+        "company_spent": company_spent,
         "remaining_plan_credits": remaining_plan_credits,
     }
     return render(request, 'company_dashboard.html', context)
 
 @login_required(login_url='/login/')
 def add_employee(request):
+    company = None
+    active_plan = None
+    available_to_assign = 0
+
+    if hasattr(request.user, 'company_account'):
+        company = request.user.company_account
+        active_plan = CompanyPrepaidPlan.objects.filter(
+            company=company, payment_status='success'
+        ).order_by('-purchase_date').first()
+
+        if active_plan:
+            available_to_assign = active_plan.unassigned_credits
+
     if request.method == 'POST':
-        username = request.POST.get('username')
-        raw_phone = request.POST.get('phone_number')
-        phone_number = f"+91{raw_phone.strip()}" if not raw_phone.startswith('+91') else raw_phone.strip()
-        email = request.POST.get('email')
-        gender = request.POST.get('gender')
-        street = request.POST.get('street')
-        area = request.POST.get('area')
-        profile = request.FILES.get('profile')
-        total_credits = request.POST.get('total_credits')
-
-        if not total_credits:
-            return redirect('/corporate/add_employee/?error=Total credit is required.')
+        data = request.POST
+        files = request.FILES
 
         try:
-            total_credits = float(total_credits)
-        except ValueError:
-            return redirect('/corporate/add_employee/?error=Invalid credit amount.')
+            total_credits = float(data.get('total_credits'))
+        except (ValueError, TypeError):
+            return render(request, 'add_employee.html', {
+                "error": "Invalid credit amount.",
+                "available_to_assign": available_to_assign,
+                "form_data": data,
+                "form_files": files,
+                "current_url_name": "company_dashboard"
+            })
 
+        if total_credits > available_to_assign:
+            return render(request, 'add_employee.html', {
+                "error": f"Not enough available company credits. Only {available_to_assign} left.",
+                "available_to_assign": available_to_assign,
+                "form_data": data,
+                "form_files": files,
+                "current_url_name": "company_dashboard"
+            })
+
+        raw_phone = data.get('phone_number', '').strip()
+        phone_number = f"+91{raw_phone}" if not raw_phone.startswith('+91') else raw_phone
         if User.objects.filter(phone_number=phone_number).exists():
-            return redirect('/corporate/add_employee/?error=Phone number already registered.')
+            return render(request, 'add_employee.html', {
+                "error": "Phone number already registered.",
+                "available_to_assign": available_to_assign,
+                "form_data": data,
+                "form_files": files,
+                "current_url_name": "company_dashboard"
+            })
 
         try:
-            company = request.user.company_account
-            active_plan = CompanyPrepaidPlan.objects.filter(
-                company=company, payment_status='success'
-            ).order_by('-purchase_date').first()
-
-            if not active_plan:
-                return redirect('/corporate/add_employee/?error=No active plan found.')
-
-            assigned_credits = EmployeeCredit.objects.filter(
-                employee__company_account=company
-            ).aggregate(Sum('total_credits'))['total_credits__sum'] or 0
-
-            unassigned_credits = active_plan.total_credits - assigned_credits
-
-            if total_credits > unassigned_credits:
-                return redirect(f'/corporate/add_employee/?error=Not enough available company credits. Only {unassigned_credits} left.')
-
             with transaction.atomic():
                 employee = User.objects.create(
-                    username=username,
+                    username=data.get('username'),
                     phone_number=phone_number,
-                    email=email,
-                    gender=gender,
-                    street=street,
-                    area=area,
-                    profile=profile,
+                    email=data.get('email'),
+                    gender=data.get('gender'),
+                    street=data.get('street'),
+                    area=data.get('area'),
+                    profile=files.get('profile'),
                     role='employee',
                     company=company,
                 )
@@ -277,26 +283,18 @@ def add_employee(request):
             return redirect('/corporate/add_employee/?created=1')
 
         except Exception as e:
-            return redirect(f'/corporate/add_employee/?error={str(e)}')
+            return render(request, 'add_employee.html', {
+                "error": str(e),
+                "available_to_assign": available_to_assign,
+                "form_data": data,
+                "form_files": files,
+                "current_url_name": "company_dashboard"
+            })
 
-    # GET request
-    available_to_assign = 0
-    if hasattr(request.user, 'company_account'):
-        company = request.user.company_account
-        active_plan = CompanyPrepaidPlan.objects.filter(
-            company=company, payment_status='success'
-        ).order_by('-purchase_date').first()
-        if active_plan:
-            assigned = EmployeeCredit.objects.filter(
-                employee__company_account=company
-            ).aggregate(Sum('total_credits'))['total_credits__sum'] or 0
-            available_to_assign = max(active_plan.total_credits - assigned, 0)
-
-    context = {
-        "current_url_name": "company_dashboard",
-        "available_to_assign": available_to_assign
-    }
-    return render(request, 'add_employee.html', context)
+    return render(request, 'add_employee.html', {
+        "available_to_assign": available_to_assign,
+        "current_url_name": "company_dashboard"
+    })
 
 
 def edit_employee_view(request, employee_id):
@@ -332,7 +330,7 @@ def employee_list(request):
         employees = CustomUser.objects.filter(
             role='employee',
             company=request.user.company_account
-        )
+        ).order_by('-id')
     else:
         employees = []
 

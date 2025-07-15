@@ -1,101 +1,100 @@
 {% extends 'company_base.html' %}
 {% block content %}
 
-
 <div class="company-dashboard">
-    <!-- Metrics Section -->
+
   {% if active_plan %}
-<div class="company-plan-details">
-  <h2 class="plan-title">Your Current Plan: {{ active_plan.plan.name }}</h2>
-  <div class="plan-info-grid">
-    <div class="plan-info-item">
-      <strong>Start Date:</strong> {{ active_plan.start_date|date:"F d, Y" }}
+  <div class="company-plan-details">
+    <h2 class="plan-title">Your Current Plan: {{ active_plan.plan.name }}</h2>
+    <div class="plan-info-grid">
+      <div class="plan-info-item">
+        <strong>Start Date:</strong> {{ active_plan.start_date|date:"F d, Y" }}
+      </div>
+      <div class="plan-info-item">
+        <strong>End Date:</strong> {{ active_plan.end_date|date:"F d, Y" }}
+      </div>
+      <div class="plan-info-item">
+        <strong>Amount Paid:</strong> ₹{{ active_plan.amount_paid }}
+      </div>
+      <div class="plan-info-item">
+        <strong>Status:</strong>
+        <span style="color: green;">{{ active_plan.payment_status|capfirst }}</span>
+      </div>
+      <div class="plan-info-item">
+        <strong>Total Credits:</strong> {{ active_plan.total_credits }}
+      </div>
+      <div class="plan-info-item">
+        <strong>Assigned Credits:</strong> {{ assigned_credits }}
+      </div>
+      <div class="plan-info-item">
+        <strong>Unassigned Credits:</strong> {{ unassigned_credits }}
+      </div>
+      <div class="plan-info-item">
+        <strong>Plan Credits Remaining:</strong> {{ remaining_plan_credits }}
+      </div>
+      <div class="plan-info-item">
+        <strong>Credits Spent by Company:</strong> {{ company_spent }}
+      </div>
+      <div class="plan-info-item">
+        <strong>Credits Spent by Employees:</strong> {{ employee_spent }}
+      </div>
     </div>
-    <div class="plan-info-item">
-      <strong>End Date:</strong> {{ active_plan.end_date|date:"F d, Y" }}
-    </div>
-     <div class="plan-info-item">
-      <strong>Amount Paid:</strong> ₹{{ active_plan.amount_paid }}
-    </div>
-     <div class="plan-info-item">
-      <strong>Status:</strong>
-      <span style="color: green;">{{ active_plan.payment_status|capfirst }}</span>
-    </div>
-    <div class="plan-info-item">
-      <strong>Total Credits:</strong> {{ active_plan.total_credits }}
-    </div>
-    <div class="plan-info-item">
-      <strong>Assigned Credits:</strong> {{ assigned_credits }}
-    </div>
-    <div class="plan-info-item">
-      <strong>Unassigned Credits:</strong> {{ available_to_assign }}
-    </div>
-   
-   
-    <div class="plan-info-item">
-  <strong>Plan Credits Remaining:</strong> {{ remaining_plan_credits }}
-</div>
   </div>
-</div>
-{% else %}
-<div class="company-plan-details">
-  <h3>No active plan found. Please purchase a plan to continue using corporate features.</h3>
-</div>
-{% endif %}
+  {% else %}
+  <div class="company-plan-details">
+    <h3>No active plan found. Please purchase a plan to continue using corporate features.</h3>
+  </div>
+  {% endif %}
 
   <div class="company-metrics-container">
     <div class="company-metric-card">
-        <div class="metric-icon"><i class="fas fa-car-side"></i></div>
-        <div class="company-metric-title">Total Rides</div>
-        <div class="company-metric-value">1,234</div>
-        <div class="company-metric-change">+12% from last month</div>
+      <div class="metric-icon"><i class="fas fa-car-side"></i></div>
+      <div class="company-metric-title">Total Rides</div>
+      <div class="company-metric-value">1,234</div>
+      <div class="company-metric-change">+12% from last month</div>
     </div>
 
     <div class="company-metric-card">
-        <div class="metric-icon"><i class="fas fa-users"></i></div>
-        <div class="company-metric-title">Active Employees</div>
-        <div class="company-metric-value">89</div>
-        <div class="company-metric-change">+3 new this month</div>
+      <div class="metric-icon"><i class="fas fa-users"></i></div>
+      <div class="company-metric-title">Active Employees</div>
+      <div class="company-metric-value">89</div>
+      <div class="company-metric-change">+3 new this month</div>
     </div>
 
     <div class="company-metric-card">
-        <div class="metric-icon"><i class="fas fa-wallet"></i></div>
-        <div class="company-metric-title">Total Spend</div>
-        <div class="company-metric-value">$12,450</div>
-        <div class="company-metric-change">This month</div>
+      <div class="metric-icon"><i class="fas fa-wallet"></i></div>
+      <div class="company-metric-title">Total Spend</div>
+      <div class="company-metric-value">₹{{ company_spent|add:employee_spent }}</div>
+      <div class="company-metric-change">This month</div>
     </div>
-</div>
-
-
-    <!-- Quick Actions Section -->
- <div class="company-actions-section">
-  <div class="company-actions-header">Quick Actions</div>
-  <div class="company-actions-horizontal">
-
-    <a href="{% url 'add_employee' %}" class="company-action-link">
-      <div class="company-action-item">
-        <span class="company-action-icon"><i class="fas fa-user-plus"></i></span>
-        <span class="company-action-text">Add Employee</span>
-      </div>
-    </a>
-
-    <a href="" class="company-action-link">
-      <div class="company-action-item">
-        <span class="company-action-icon"><i class="fas fa-coins"></i></span>
-        <span class="company-action-text">Assign Credits</span>
-      </div>
-    </a>
-
-    <a href="" class="company-action-link">
-      <div class="company-action-item">
-        <span class="company-action-icon"><i class="fas fa-calendar-alt"></i></span>
-        <span class="company-action-text">Schedule Rides</span>
-      </div>
-    </a>
-
   </div>
-</div>
 
+  <!-- Quick Actions Section -->
+  <div class="company-actions-section">
+    <div class="company-actions-header">Quick Actions</div>
+    <div class="company-actions-horizontal">
 
+      <a href="{% url 'add_employee' %}" class="company-action-link">
+        <div class="company-action-item">
+          <span class="company-action-icon"><i class="fas fa-user-plus"></i></span>
+          <span class="company-action-text">Add Employee</span>
+        </div>
+      </a>
+
+      <a href="#" class="company-action-link">
+        <div class="company-action-item">
+          <span class="company-action-icon"><i class="fas fa-coins"></i></span>
+          <span class="company-action-text">Assign Credits</span>
+        </div>
+      </a>
+
+      <a href="#" class="company-action-link">
+        <div class="company-action-item">
+          <span class="company-action-icon"><i class="fas fa-calendar-alt"></i></span>
+          <span class="company-action-text">Schedule Rides</span>
+        </div>
+      </a>
+    </div>
+  </div>
 </div>
 {% endblock %}

@@ -625,7 +625,21 @@ def approve_company(request, company_id):
             return JsonResponse({"status": "success"})
         except CompanyAccount.DoesNotExist:
             return JsonResponse({"status": "error"}, status=404)
-        
+
+
+@login_required
+def delete_company(request, company_id):
+    company = get_object_or_404(CompanyAccount, id=company_id)
+    
+    # Optional: Check user permissions here if needed
+    if request.method == 'POST':
+        company_name = company.company_name
+        company.delete()  # This will also delete the related admin user due to on_delete=models.CASCADE
+        # messages.success(request, f"Company '{company_name}' and its corporate admin have been deleted.")
+        return redirect('corporate_requests')  # Or any list view of companies
+    
+    # messages.error(request, "Invalid request.")
+    return redirect('company_details', company_id=company_id)  
 
 # add_prepaid_plan
 
