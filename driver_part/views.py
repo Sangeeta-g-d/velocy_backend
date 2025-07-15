@@ -190,7 +190,7 @@ class AcceptRideAPIView(StandardResponseMixin, APIView):
             "ride_details": serializer.data
         }, status=status.HTTP_200_OK)
 
-class CancelRideAPIView(StandardResponseMixin,APIView):
+class CancelRideAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -207,6 +207,26 @@ class CancelRideAPIView(StandardResponseMixin,APIView):
 
         ride.status = 'cancelled'
         ride.save()
+
+        # ✅ Send WebSocket cancel event to rider
+        channel_layer = get_channel_layer()
+        rider_id = ride.user.id
+        group_name = f"user_{rider_id}"
+
+        try:
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    "type": "ride.cancelled",
+                    "ride_id": ride.id,
+                    "message": "Your ride was cancelled by the driver.",
+                    "driver_name": request.user.username,
+                    "driver_id": request.user.id,
+                }
+            )
+            print("✅ Cancellation WebSocket sent to group:", group_name)
+        except Exception as e:
+            print("❌ Error sending cancellation message:", e)
 
         return Response({"message": "Ride cancelled successfully."}, status=200)
     

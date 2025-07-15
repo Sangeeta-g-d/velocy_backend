@@ -195,3 +195,11 @@ class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
             "driver_name": event["driver_name"],
             "driver_id": event["driver_id"],
         })
+    async def ride_cancelled(self, event):
+        await self.send_json({
+            "type": "ride_cancelled",
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "driver_name": event["driver_name"],
+            "driver_id": event["driver_id"],
+        })
