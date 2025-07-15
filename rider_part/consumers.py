@@ -163,3 +163,35 @@ class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
             'payment_status': event['payment_status'],
             'message': event['message'],
         }))
+
+
+
+class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope["user"]
+
+        if self.user.is_authenticated:
+            self.group_name = f"user_{self.user.id}"
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+            print(f"✅ WebSocket connected: user_{self.user.id}")
+        else:
+            print("❌ Unauthorized WebSocket attempt")
+            await self.close()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive_json(self, content):
+        # Optional: Handle client messages (if needed)
+        pass
+
+    async def ride_accepted(self, event):
+        await self.send_json({
+            "type": "ride_accepted",
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "driver_name": event["driver_name"],
+            "driver_id": event["driver_id"],
+        })
