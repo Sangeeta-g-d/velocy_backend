@@ -46,9 +46,7 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         try:
-            self.user = self.scope.get("user", None) or AnonymousUser()
-
-            # Prevent crash if user is Anonymous
+            self.user = self.scope.get("user", AnonymousUser())
             user_id = self.user.id if self.user.is_authenticated else 'guest'
             self.group_name = f"user_{user_id}"
 
@@ -62,14 +60,12 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             traceback.print_exc()
             await self.close()
 
-      
-
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content):
-        # You can log or route messages from client here if needed
+        # Optional: receive messages from frontend if needed
         pass
 
     async def send_otp(self, event):
