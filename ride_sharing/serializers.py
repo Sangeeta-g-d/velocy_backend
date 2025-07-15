@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import RideShareVehicle,RideShareBooking
+from .models import RideShareVehicle,RideShareBooking,RideShareStop
 from ride_sharing.time_utils import convert_to_ist
 from pytz import timezone as pytz_timezone
 # from notifications.utils import send_fcm_notification
@@ -39,11 +39,12 @@ class RideShareVehicleSerializer(serializers.ModelSerializer):
 class RideShareBookingCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideShareBooking
-        exclude = ['user', 'status', 'created_at', 'distance_km', 'price']
+        exclude = ['user', 'status', 'created_at', 'price']  # keep price optional, distance required
 
     def validate(self, attrs):
         vehicle_id = self.initial_data.get('vehicle')
         passengers = attrs.get('passengers_count')
+        distance = attrs.get('distance_km')
 
         if vehicle_id and passengers:
             try:
@@ -53,9 +54,33 @@ class RideShareBookingCreateSerializer(serializers.ModelSerializer):
             except RideShareVehicle.DoesNotExist:
                 raise serializers.ValidationError("Vehicle does not exist.")
 
+        if not distance or distance <= 0:
+            raise serializers.ValidationError("Distance must be a positive number.")
+
         return attrs
 
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user  # Always use token-authenticated user
+        validated_data['user'] = self.context['request'].user
         validated_data['status'] = 'draft'
         return RideShareBooking.objects.create(**validated_data)
+
+
+# add stops
+class RideShareStopCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RideShareStop
+        fields = ['stop_location', 'stop_lat', 'stop_lng']
+
+    def validate(self, attrs):
+        lat = attrs.get('stop_lat')
+        lng = attrs.get('stop_lng')
+
+        if lat is None or lng is None:
+            raise serializers.ValidationError("Latitude and longitude are required.")
+
+        if not (-90 <= lat <= 90):
+            raise serializers.ValidationError("Latitude must be between -90 and 90 degrees.")
+        if not (-180 <= lng <= 180):
+            raise serializers.ValidationError("Longitude must be between -180 and 180 degrees.")
+
+        return attrs

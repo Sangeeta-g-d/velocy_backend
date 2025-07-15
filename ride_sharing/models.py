@@ -23,11 +23,11 @@ class RideShareVehicle(models.Model):
 
 
 class RideSharePriceSetting(models.Model):
-    price_per_km = models.DecimalField(max_digits=10, decimal_places=2)
-    effective_from = models.DateTimeField(default=timezone.now)
+    min_price_per_km = models.DecimalField(max_digits=10, decimal_places=2)
+    max_price_per_km = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
-        return f"₹{self.price_per_km}/km from {self.effective_from.strftime('%Y-%m-%d')}"
+        return f"₹{self.min_price_per_km} – ₹{self.max_price_per_km} per km"
 
 
 class RideShareBooking(models.Model):
@@ -75,6 +75,8 @@ class RideShareBooking(models.Model):
 class RideShareStop(models.Model):
     ride_booking = models.ForeignKey(RideShareBooking, on_delete=models.CASCADE, related_name='stops')
     stop_location = models.CharField(max_length=255)
+    stop_lat = models.FloatField(null=True, blank=True)
+    stop_lng = models.FloatField(null=True, blank=True)
 
     order = models.PositiveIntegerField(editable=False)
 
@@ -92,13 +94,11 @@ class RideShareStop(models.Model):
     def __str__(self):
         return f"Stop {self.order}: {self.stop_location}"
 
-
 # All possible segment combinations: A→C, A→D, C→D, etc.
 class RideShareRouteSegment(models.Model):
     ride_booking = models.ForeignKey(RideShareBooking, on_delete=models.CASCADE, related_name='route_segments')
     from_stop = models.CharField(max_length=255)
     to_stop = models.CharField(max_length=255)
-
     distance_km = models.DecimalField(max_digits=10, decimal_places=2)
     price = models.DecimalField(max_digits=10, decimal_places=2)
 

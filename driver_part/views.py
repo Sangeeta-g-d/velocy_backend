@@ -146,7 +146,7 @@ class DeclineRideAPIView(StandardResponseMixin,APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class AcceptRideAPIView(StandardResponseMixin,APIView):
+class AcceptRideAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -160,11 +160,26 @@ class AcceptRideAPIView(StandardResponseMixin,APIView):
         ride.save()
 
         serializer = RideAcceptedDetailSerializer(ride)
+
+        # Send WebSocket message to rider
+        channel_layer = get_channel_layer()
+        group_name = f"user_{ride.user.id}"
+
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "ride.accepted",
+                "ride_id": ride.id,
+                "message": "Your ride has been accepted by a driver.",
+                "driver_name": request.user.username,
+                "driver_id": request.user.id,
+            }
+        )
+
         return Response({
             "message": "Ride accepted and driver assigned successfully.",
             "ride_details": serializer.data
         }, status=status.HTTP_200_OK)
-
 
 class CancelRideAPIView(StandardResponseMixin,APIView):
     permission_classes = [IsAuthenticated]

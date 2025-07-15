@@ -7,4 +7,6 @@ urlpatterns = [
     path('add-vehicle/', AddRideShareVehicleAPIView.as_view(), name='add_ride_share_vehicle'),
     path('my-vehicles/', GetRideShareVehicleAPIView.as_view(), name='get_my_vehicles'),
     path('create-trip/<int:vehicle_id>/', CreateRideShareBookingAPIView.as_view(), name='create_rideshare_booking'),
+    path('add-stop/<int:booking_id>/', AddRideShareStopAPIView.as_view(), name='add_rideshare_stop'),
+    path('estimate-price-range/<int:booking_id>/', EstimateBookingPriceAPIView.as_view(), name='estimate_booking_price'),
 ]

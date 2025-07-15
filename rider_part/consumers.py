@@ -44,10 +44,9 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
 
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        # Comment out auth check for testing
         self.user = self.scope["user"]
         if self.user.is_authenticated:
-            self.group_name = "ride_user_test"
+            self.group_name = f"user_{self.user.id}"
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
         else:
@@ -58,7 +57,7 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content):
-        # Optional: Handle client messages
+        # You can log or route messages from client here if needed
         pass
 
     async def send_otp(self, event):
@@ -66,6 +65,16 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             "type": "otp",
             "otp": event["otp"]
         })
+
+    async def ride_accepted(self, event):
+        await self.send_json({
+            "type": "ride_accepted",
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "driver_name": event["driver_name"],
+            "driver_id": event["driver_id"],
+        })
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
