@@ -5,7 +5,6 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import asyncio
 import logging
-from django.contrib.auth.models import AnonymousUser
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from .models import RideMessage
@@ -45,19 +44,13 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
 
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        try:
-            self.user = self.scope.get("user", AnonymousUser())
-            user_id = self.user.id if self.user.is_authenticated else 'guest'
-            self.group_name = f"user_{user_id}"
-
+        # Comment out auth check for testing
+        self.user = self.scope["user"]
+        if self.user.is_authenticated:
+            self.group_name = "ride_user_test"
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
-
-            print("✅ WebSocket connection accepted:", self.group_name)
-        except Exception as e:
-            import traceback
-            print("❌ WebSocket connect error:", str(e))
-            traceback.print_exc()
+        else:
             await self.close()
 
     async def disconnect(self, close_code):
@@ -65,7 +58,7 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content):
-        # Optional: receive messages from frontend if needed
+        # Optional: Handle client messages
         pass
 
     async def send_otp(self, event):
@@ -73,16 +66,6 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             "type": "otp",
             "otp": event["otp"]
         })
-
-    async def ride_accepted(self, event):
-        await self.send_json({
-            "type": "ride_accepted",
-            "ride_id": event["ride_id"],
-            "message": event["message"],
-            "driver_name": event["driver_name"],
-            "driver_id": event["driver_id"],
-        })
-
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
