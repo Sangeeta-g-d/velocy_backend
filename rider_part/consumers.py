@@ -5,6 +5,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import asyncio
 import logging
+from django.contrib.auth.models import AnonymousUser
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from .models import RideMessage
@@ -45,15 +46,15 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         try:
-            self.user = self.scope["user"]
-    
+            self.user = self.scope.get("user", None) or AnonymousUser()
+
             # Prevent crash if user is Anonymous
             user_id = self.user.id if self.user.is_authenticated else 'guest'
             self.group_name = f"user_{user_id}"
-    
+
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
-    
+
             print("✅ WebSocket connection accepted:", self.group_name)
         except Exception as e:
             import traceback
