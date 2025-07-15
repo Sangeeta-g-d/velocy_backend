@@ -155,26 +155,35 @@ class AcceptRideAPIView(StandardResponseMixin, APIView):
         except RideRequest.DoesNotExist:
             return Response({"detail": "Ride not found or already accepted"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Assign the driver and update status
         ride.driver = request.user
         ride.status = 'accepted'
         ride.save()
 
         serializer = RideAcceptedDetailSerializer(ride)
 
-        # Send WebSocket message to rider
+        # 🔔 Prepare to send WebSocket notification
         channel_layer = get_channel_layer()
-        group_name = f"user_{ride.user.id}"
+        rider_id = ride.user.id
+        group_name = f"user_{rider_id}"
 
-        async_to_sync(channel_layer.group_send)(
-            group_name,
-            {
-                "type": "ride.accepted",
-                "ride_id": ride.id,
-                "message": "Your ride has been accepted by a driver.",
-                "driver_name": request.user.username,
-                "driver_id": request.user.id,
-            }
-        )
+        print(f"🔄 Ride accepted by driver {request.user.id} ({request.user.username})")
+        print(f"📡 Sending WebSocket message to group: {group_name}")
+
+        try:
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    "type": "ride.accepted",  # This maps to ride_accepted() in consumer
+                    "ride_id": ride.id,
+                    "message": "Your ride has been accepted by a driver.",
+                    "driver_name": request.user.username,
+                    "driver_id": request.user.id,
+                }
+            )
+            print("✅ WebSocket message sent successfully.")
+        except Exception as e:
+            print("❌ Error sending WebSocket message:", e)
 
         return Response({
             "message": "Ride accepted and driver assigned successfully.",

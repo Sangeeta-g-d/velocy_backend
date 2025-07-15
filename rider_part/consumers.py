@@ -44,11 +44,23 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
 
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope["user"]
-        
-        self.group_name = f"user_{self.user.id}"
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+        try:
+            self.user = self.scope["user"]
+    
+            # Prevent crash if user is Anonymous
+            user_id = self.user.id if self.user.is_authenticated else 'guest'
+            self.group_name = f"user_{user_id}"
+    
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+    
+            print("✅ WebSocket connection accepted:", self.group_name)
+        except Exception as e:
+            import traceback
+            print("❌ WebSocket connect error:", str(e))
+            traceback.print_exc()
+            await self.close()
+
       
 
     async def disconnect(self, close_code):
