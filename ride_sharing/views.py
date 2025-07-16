@@ -5,6 +5,7 @@ from .mixins import StandardResponseMixin
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from datetime import datetime, time
 from . models import *
+from rest_framework.status import HTTP_200_OK, HTTP_400_BAD_REQUEST
 from decimal import Decimal
 from pytz import timezone as pytz_timezone
 from django.utils import timezone
@@ -178,4 +179,117 @@ class EstimateBookingPriceAPIView(StandardResponseMixin, APIView):
             'distance_km': float(booking.distance_km),
             'estimated_min_price': float(min_price),
             'estimated_max_price': float(max_price)
+        })
+    
+
+class RideSegmentListAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, ride_id):
+        try:
+            booking = RideShareBooking.objects.get(id=ride_id, user=request.user)
+        except RideShareBooking.DoesNotExist:
+            return self.response({'error': 'Ride booking not found or access denied.'}, status_code=404)
+
+        segments = RideShareRouteSegment.objects.filter(ride_booking=booking)
+        serializer = RideShareRouteSegmentSerializer(segments, many=True)
+        return self.response(serializer.data)
+
+
+class BulkUpdateRideSegmentPricesAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, ride_id):
+        booking = get_object_or_404(RideShareBooking, id=ride_id, user=request.user)
+
+        serializer = RideShareRouteSegmentBulkPriceUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return self.response(serializer.errors, status_code=400)
+
+        updated = 0
+        not_found_ids = []
+
+        for seg_data in serializer.validated_data['segments']:
+            segment = RideShareRouteSegment.objects.filter(
+                ride_booking=booking,
+                id=seg_data['id']
+            ).first()
+
+            if segment:
+                segment.price = seg_data['price']
+                segment.save()
+                updated += 1
+            else:
+                not_found_ids.append(seg_data['id'])
+
+        return self.response({
+            "message": f"{updated} segment(s) updated.",
+            "not_found_ids": not_found_ids
+        }, status_code=200)
+    
+
+class RidePriceUpdateAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, ride_id):
+        ride = get_object_or_404(RideShareBooking, id=ride_id, user=request.user)
+
+        # Allow price update only if ride is still in draft
+        if ride.status != 'draft':
+            return self.response({
+                "error": "Only draft rides can have their price updated."
+            }, status_code=HTTP_400_BAD_REQUEST)
+
+        serializer = RidePriceUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return self.response(serializer.errors, status_code=HTTP_400_BAD_REQUEST)
+
+        ride.price = serializer.validated_data['price']
+        ride.save()
+
+        return self.response({
+            "message": "Ride price updated successfully.",
+            "ride_id": ride.id,
+            "updated_price": ride.price
+        }, status_code=HTTP_200_OK)
+    
+
+class UpdateReturnRideDetailsAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, ride_id):
+        booking = get_object_or_404(RideShareBooking, id=ride_id, user=request.user)
+        
+        serializer = RideReturnDetailsSerializer(instance=booking, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated_booking = serializer.save()
+            return self.response({
+                "message": "Return ride details updated successfully.",
+                "return_details": RideReturnDetailsSerializer(updated_booking).data
+            })
+        return self.response(serializer.errors, status_code=400)
+    
+class UserPublishedRidesAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        rides = RideShareBooking.objects.filter(user=request.user, status='published').order_by('-ride_date', '-ride_time')
+        serializer = RideShareBookingSerializer(rides, many=True)
+        return self.response(serializer.data)
+    
+class RideStopSegmentListAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, ride_id):
+        booking = get_object_or_404(RideShareBooking, id=ride_id, user=request.user)
+
+        stops = RideShareStop.objects.filter(ride_booking=booking).order_by('order')
+        segments = RideShareRouteSegment.objects.filter(ride_booking=booking)
+
+        stop_data = RideShareStopSerializer(stops, many=True).data
+        segment_data = RideShareSegmentPriceSerializer(segments, many=True).data
+
+        return self.response({
+            "stops": stop_data,
+            "segments": segment_data
         })

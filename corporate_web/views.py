@@ -354,7 +354,8 @@ def employee_details(request, employee_id):
 @login_required(login_url='/login/')
 def book_ride(request):
     context= {
-        "current_url_name": "book_ride"
+        "current_url_name": "book_ride",
+        "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY,
     }
     return render(request, 'book_ride.html', context)
         
