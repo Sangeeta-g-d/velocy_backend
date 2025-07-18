@@ -15,4 +15,11 @@ urlpatterns = [
     path('update-ride-price/<int:ride_id>/', RidePriceUpdateAPIView.as_view(), name='update_ride_price'),
     path('my-published-rides/', UserPublishedRidesAPIView.as_view(), name='my_published_rides'),
     path('ride-details/<int:ride_id>/', RideStopSegmentListAPIView.as_view(), name='ride_details'),
+    path("search/", RideShareSearchAPIView.as_view(), name="ride_share_search"),
+    path('ride-join-request/', RideJoinRequestAPIView.as_view(), name='ride-join-request'),
+    path('view-join-requests/<int:ride_id>/', RideJoinRequestsByRideView.as_view(), name='ride-join-requests'),
+    path('accept-ride-join-request/<int:ride_request_id>/', AcceptRideJoinRequestAPIView.as_view(), name='accept-ride-join-request'),
+    path('my-ride-join-requests/', MyRideJoinRequestsAPIView.as_view(), name='my_ride_join_requests'),
+    path('accepted-join-requests/<int:ride_id>/', AcceptedJoinRequestsAPIView.as_view(), name='accepted-join-requests'),
+    path('cancel-ride/<int:ride_id>/', CancelRideAPIView.as_view(), name='cancel-ride'),
 ]

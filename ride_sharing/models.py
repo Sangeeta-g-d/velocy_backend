@@ -49,9 +49,11 @@ class RideShareBooking(models.Model):
     to_location_lng = models.FloatField(null=True, blank=True)
     ride_date = models.DateField()
     ride_time = models.TimeField()
+    to_location_estimated_arrival_time = models.TimeField(null=True, blank=True)
     
     passengers_count = models.PositiveIntegerField()
     women_only = models.BooleanField(default=False)
+    seats_remaining = models.PositiveIntegerField(null=True, blank=True)
 
     distance_km = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -79,6 +81,7 @@ class RideShareStop(models.Model):
     stop_lng = models.FloatField(null=True, blank=True)
 
     order = models.PositiveIntegerField(editable=False)
+    estimated_arrival_time = models.TimeField(null=True, blank=True)  # ⏱️ new field
 
     class Meta:
         ordering = ['order']
@@ -104,3 +107,39 @@ class RideShareRouteSegment(models.Model):
 
     def __str__(self):
         return f"{self.from_stop} → {self.to_stop} (₹{self.price})"
+
+
+class RideJoinRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    ride = models.ForeignKey('RideShareBooking', on_delete=models.CASCADE, related_name='join_requests')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ride_join_requests')
+
+    # Optional if joining a direct ride (full ride from A to B)
+    segment = models.ForeignKey(
+        'RideShareRouteSegment',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='join_requests'
+        )
+
+
+    seats_requested = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    message = models.TextField(blank=True, help_text="Optional message from the passenger.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['ride', 'user', 'segment']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        if self.segment:
+            return f"{self.user.username} → Ride {self.ride.id} [{self.segment.from_stop} → {self.segment.to_stop}]"
+        return f"{self.user.username} → Ride {self.ride.id} (Direct Ride)"
