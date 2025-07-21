@@ -203,3 +203,48 @@ class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
             "driver_name": event["driver_name"],
             "driver_id": event["driver_id"],
         })
+
+
+# shared ride tracking consumer
+class SharedRideTrackingConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.ride_id = self.scope['url_route']['kwargs']['ride_id']
+        self.room_group_name = f'shared_ride_tracking_{self.ride_id}'
+
+        # Join group
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Leave group
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    # Receive message from WebSocket (driver sends location updates)
+    async def receive(self, text_data):
+        data = json.loads(text_data)
+        latitude = data['lat']
+        longitude = data['lng']
+
+        # Broadcast to group
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'send_location',
+                'lat': latitude,
+                'lng': longitude
+            }
+        )
+
+    # Send location to WebSocket group
+    async def send_location(self, event):
+        await self.send(text_data=json.dumps({
+            'lat': event['lat'],
+            'lng': event['lng']
+        }))

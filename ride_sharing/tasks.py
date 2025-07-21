@@ -1,6 +1,9 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
 from celery import shared_task
-from .models import RideShareBooking, RideShareRouteSegment, RideSharePriceSetting
+from django.utils import timezone
+
+from .models import RideShareBooking, RideShareRouteSegment, RideSharePriceSetting, RideShareStop
 from .utils.google_maps import get_route_segments_with_distance
 
 
@@ -12,7 +15,6 @@ def calculate_segments_and_eta(booking_id):
         print(f"[TASK] Booking ID {booking_id} not found.")
         return
 
-    # 1. Prepare list of all stops: origin, stops, destination
     stops = list(booking.stops.order_by('order'))
 
     points = [{
@@ -23,7 +25,8 @@ def calculate_segments_and_eta(booking_id):
     points += [{
         'name': stop.stop_location,
         'lat': stop.stop_lat,
-        'lng': stop.stop_lng
+        'lng': stop.stop_lng,
+        'stop_id': stop.id  # needed for ETA assignment
     } for stop in stops]
     points.append({
         'name': booking.to_location,
@@ -31,7 +34,6 @@ def calculate_segments_and_eta(booking_id):
         'lng': booking.to_location_lng
     })
 
-    # 2. Get route segments from Google Maps
     segments = get_route_segments_with_distance(
         from_lat=points[0]['lat'],
         from_lng=points[0]['lng'],
@@ -49,21 +51,29 @@ def calculate_segments_and_eta(booking_id):
         print("[TASK] No price setting found.")
         return
 
-    # 3. Compute cumulative distances
+    # Compute cumulative distances and durations
     cumulative_distances = [0]
-    total = 0
-    for seg in segments:
-        total += seg['distance_km']
-        cumulative_distances.append(total)
+    cumulative_durations = [0]
+    total_dist = 0
+    total_time = 0
 
-    # 4. Delete old segments
+    for seg in segments:
+        total_dist += seg['distance_km']
+        total_time += seg['duration_seconds']
+        cumulative_distances.append(total_dist)
+        cumulative_durations.append(total_time)
+
+    # Delete old segments
     booking.route_segments.all().delete()
 
-    # 5. Create segments i → j
     for i in range(len(points)):
         for j in range(i + 1, len(points)):
             from_stop = points[i]['name']
             to_stop = points[j]['name']
+
+            if from_stop == booking.from_location and to_stop == booking.to_location:
+                continue
+
             distance_km = round(cumulative_distances[j] - cumulative_distances[i], 2)
             price = round(Decimal(str(distance_km)) * price_setting.min_price_per_km, 2)
 
@@ -75,4 +85,13 @@ def calculate_segments_and_eta(booking_id):
                 price=price
             )
 
-    print(f"[TASK] All segments stored for booking {booking_id}")
+    # ETA CALCULATION
+    # Combine date with ride_time (which is a time object)
+    ride_start_time = datetime.combine(timezone.now().date(), booking.ride_time)
+
+    for index, stop in enumerate(stops):
+        eta_seconds = cumulative_durations[index + 1]  # index 0 is origin
+        stop.estimated_arrival_time = ride_start_time + timedelta(seconds=eta_seconds)
+        stop.save()
+
+    print(f"[TASK] Segments and ETA stored for booking {booking_id}")

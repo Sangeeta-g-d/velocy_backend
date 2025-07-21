@@ -19,7 +19,9 @@ urlpatterns = [
     path('ride-join-request/', RideJoinRequestAPIView.as_view(), name='ride-join-request'),
     path('view-join-requests/<int:ride_id>/', RideJoinRequestsByRideView.as_view(), name='ride-join-requests'),
     path('accept-ride-join-request/<int:ride_request_id>/', AcceptRideJoinRequestAPIView.as_view(), name='accept-ride-join-request'),
+    path('cancel-join-request/<int:join_request_id>/', CancelJoinRequestAPIView.as_view(), name='cancel-join-request'),
     path('my-ride-join-requests/', MyRideJoinRequestsAPIView.as_view(), name='my_ride_join_requests'),
     path('accepted-join-requests/<int:ride_id>/', AcceptedJoinRequestsAPIView.as_view(), name='accepted-join-requests'),
     path('cancel-ride/<int:ride_id>/', CancelRideAPIView.as_view(), name='cancel-ride'),
+    path('sharing-ride-details/', RideDetailsAPIView.as_view(), name='ride_share_booking_detail'),
 ]

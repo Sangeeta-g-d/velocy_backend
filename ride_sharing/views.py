@@ -9,6 +9,7 @@ from datetime import datetime, time
 from rest_framework.response import Response
 from auth_api.models import CustomUser,DriverVehicleInfo
 from rest_framework import status
+from auth_api.models import DriverRating
 from . models import *
 from rest_framework.status import HTTP_200_OK, HTTP_400_BAD_REQUEST
 from decimal import Decimal
@@ -16,7 +17,7 @@ from pytz import timezone as pytz_timezone
 from django.utils import timezone
 from decimal import Decimal
 from .utils.google_maps import get_route_segments_with_distance
-from django.db.models import Q
+from django.db.models import Q,Avg,Prefetch
 from django.shortcuts import get_object_or_404
 from datetime import date
 
@@ -281,14 +282,46 @@ class RideShareSearchAPIView(APIView):
 
         response_data = []
 
+        # Prefetch related data to optimize queries
+        prefetch_stops = Prefetch('stops', queryset=RideShareStop.objects.all())
+        prefetch_segments = Prefetch('route_segments', queryset=RideShareRouteSegment.objects.all())
+        prefetch_join_requests = Prefetch(
+            'join_requests', 
+            queryset=RideJoinRequest.objects.filter(status='accepted').select_related('user')
+        )
+
         # --- 1. Direct Rides ---
         direct_rides = RideShareBooking.objects.filter(
             booking_filters &
             Q(from_location__iexact=from_location) &
             Q(to_location__iexact=to_location)
-        ).select_related('user')
+        ).select_related('user').prefetch_related(
+            prefetch_stops,
+            prefetch_segments,
+            prefetch_join_requests
+        )
 
         for ride in direct_rides:
+            # Calculate average rating based on user role
+            if ride.user.role == 'rider':
+                avg_rating = RiderRating.objects.filter(
+                    rider=ride.user
+                ).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            else:  # driver
+                avg_rating = DriverRating.objects.filter(
+                    driver=ride.user
+                ).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            
+            # Get accepted join requests
+            accepted_requests = ride.join_requests.all()
+            
+            # Get profile images of joined users
+            joined_users_profiles = [
+                request.build_absolute_uri(req.user.profile.url) 
+                for req in accepted_requests 
+                if req.user.profile
+            ]
+            
             response_data.append({
                 "ride_id": ride.id,
                 "ride_date": ride.ride_date.strftime('%Y-%m-%d'),
@@ -300,18 +333,27 @@ class RideShareSearchAPIView(APIView):
                 "to_arrival_time": ride.to_location_estimated_arrival_time.strftime('%H:%M:%S') if ride.to_location_estimated_arrival_time else None,
                 "user_name": ride.user.username,
                 "user_profile": request.build_absolute_uri(ride.user.profile.url) if ride.user.profile else None,
+                "user_role": ride.user.role,
+                "avg_rating": float(avg_rating) if avg_rating else None,
+                "available_seats": ride.seats_remaining,
+                "joined_users_count": accepted_requests.count(),
+                "joined_users_profiles": joined_users_profiles,
                 "segment_id": None  # Explicitly show None for direct rides
             })
 
         # --- 2. Segment-Based Rides ---
         segment_qs = RideShareRouteSegment.objects.filter(
             Q(from_stop__iexact=from_location) & Q(to_stop__iexact=to_location)
-        )
+        ).select_related('ride_booking')
         segment_ride_ids = segment_qs.values_list('ride_booking_id', flat=True)
 
         segment_rides = RideShareBooking.objects.filter(
             booking_filters & Q(id__in=segment_ride_ids)
-        ).select_related('user')
+        ).select_related('user').prefetch_related(
+            prefetch_stops,
+            prefetch_segments,
+            prefetch_join_requests
+        )
 
         for ride in segment_rides:
             # Skip if already included as a direct ride
@@ -343,6 +385,26 @@ class RideShareSearchAPIView(APIView):
                 if to_stop_obj and to_stop_obj.estimated_arrival_time else None
             )
 
+            # Calculate average rating based on user role
+            if ride.user.role == 'rider':
+                avg_rating = RiderRating.objects.filter(
+                    rider=ride.user
+                ).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            else:  # driver
+                avg_rating = DriverRating.objects.filter(
+                    driver=ride.user
+                ).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            
+            # Get accepted join requests
+            accepted_requests = ride.join_requests.all()
+            
+            # Get profile images of joined users
+            joined_users_profiles = [
+                request.build_absolute_uri(req.user.profile.url) 
+                for req in accepted_requests 
+                if req.user.profile
+            ]
+
             response_data.append({
                 "ride_id": ride.id,
                 "ride_date": ride.ride_date.strftime('%Y-%m-%d'),
@@ -354,6 +416,11 @@ class RideShareSearchAPIView(APIView):
                 "to_arrival_time": to_arrival_time,
                 "user_name": ride.user.username,
                 "user_profile": request.build_absolute_uri(ride.user.profile.url) if ride.user.profile else None,
+                "user_role": ride.user.role,
+                "avg_rating": float(avg_rating) if avg_rating else None,
+                "available_seats": ride.seats_remaining,
+                "joined_users_count": accepted_requests.count(),
+                "joined_users_profiles": joined_users_profiles,
                 "segment_id": matching_segment.id  # Include segment ID
             })
 
@@ -429,8 +496,16 @@ class RideJoinRequestsByRideView(APIView):
                 'message': 'Ride not found or access denied.'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        join_requests = RideJoinRequest.objects.filter(ride=ride).select_related('user', 'segment')
-        serializer = RideJoinRequestViewSerializer(join_requests, many=True, context={'request': request})
+        join_requests = (
+            RideJoinRequest.objects
+            .filter(ride=ride)
+            .select_related('user', 'segment')
+        )
+        serializer = RideJoinRequestViewSerializer(
+            join_requests,
+            many=True,
+            context={'request': request, 'ride': ride}
+        )
 
         return Response({
             'status': True,
@@ -487,6 +562,27 @@ class AcceptRideJoinRequestAPIView(APIView):
         })
     
 
+class CancelJoinRequestAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, join_request_id):
+        try:
+            join_request = RideJoinRequest.objects.get(id=join_request_id)
+        except RideJoinRequest.DoesNotExist:
+            return Response({'error': 'Join request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if join_request.user != request.user:
+            return Response({'error': 'You are not authorized to cancel this join request.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if join_request.status in ['cancelled', 'rejected']:
+            return Response({'error': f'Join request is already {join_request.status}.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        join_request.status = 'cancelled'
+        join_request.save()
+
+        return Response({'message': 'Join request cancelled successfully.'}, status=status.HTTP_200_OK)
+
+
 class MyRideJoinRequestsAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -495,13 +591,12 @@ class MyRideJoinRequestsAPIView(StandardResponseMixin, APIView):
         serializer = RideJoinRequestDetailSerializer(join_requests, many=True)
         return self.response(serializer.data)
     
-
 class AcceptedJoinRequestsAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
         try:
-            ride = RideShareBooking.objects.get(id=ride_id)
+            ride = RideShareBooking.objects.prefetch_related('stops').get(id=ride_id)
         except RideShareBooking.DoesNotExist:
             return Response({'error': 'Ride not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -509,7 +604,7 @@ class AcceptedJoinRequestsAPIView(APIView):
             ride=ride, status='accepted'
         ).select_related('user', 'segment')
 
-        serializer = AcceptedJoinRequestSerializer(accepted_requests, many=True)
+        serializer = AcceptedJoinRequestSerializer(accepted_requests, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -534,3 +629,186 @@ class CancelRideAPIView(APIView):
         ride.save()
 
         return Response({"detail": "Ride has been successfully cancelled."}, status=status.HTTP_200_OK)
+    
+
+class RideDetailsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_duration_format(self, total_minutes):
+        hours = int(total_minutes // 60)
+        minutes = int(total_minutes % 60)
+        return {
+            'hours': hours,
+            'minutes': minutes,
+            'display': f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+        }
+
+    def get(self, request):
+        ride_id = request.query_params.get('ride_id')
+        segment_id = request.query_params.get('segment_id')
+
+        if not ride_id:
+            return Response({
+                "status": False,
+                "message": "ride_id is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            ride = RideShareBooking.objects.select_related(
+                'user', 'vehicle'
+            ).prefetch_related(
+                'route_segments', 'stops'
+            ).get(id=ride_id)
+        except RideShareBooking.DoesNotExist:
+            return Response({
+                "status": False,
+                "message": "Ride not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        response_data = {
+            "ride_date": ride.ride_date.strftime('%Y-%m-%d'),
+            "passenger_notes": ride.passenger_notes,
+            "cancellation_probability": float(ride.cancellation_probability) if ride.cancellation_probability else None,
+            "ride_creator": {},
+            "ride_details": {
+                "duration": None
+            },
+            "coordinates": {}
+        }
+
+        if segment_id:
+            try:
+                segment = RideShareRouteSegment.objects.get(id=segment_id, ride_booking=ride)
+
+                response_data["ride_details"].update({
+                    "from_location": segment.from_stop,
+                    "to_location": segment.to_stop,
+                    "distance_km": float(segment.distance_km),
+                    "price": float(segment.price),
+                    "total_price": float(segment.price)
+                })
+
+                # Coordinates and duration
+                if segment.from_stop.lower() == ride.from_location.lower():
+                    response_data["coordinates"].update({
+                        "from_lat": ride.from_location_lat,
+                        "from_lng": ride.from_location_lng
+                    })
+                    start_time = ride.ride_time
+                else:
+                    from_stop = RideShareStop.objects.filter(
+                        ride_booking=ride,
+                        stop_location__iexact=segment.from_stop
+                    ).first()
+                    if from_stop:
+                        response_data["coordinates"].update({
+                            "from_lat": from_stop.stop_lat,
+                            "from_lng": from_stop.stop_lng
+                        })
+                        start_time = from_stop.estimated_arrival_time
+
+                if segment.to_stop.lower() == ride.to_location.lower():
+                    response_data["coordinates"].update({
+                        "to_lat": ride.to_location_lat,
+                        "to_lng": ride.to_location_lng
+                    })
+                    end_time = ride.to_location_estimated_arrival_time
+                else:
+                    to_stop = RideShareStop.objects.filter(
+                        ride_booking=ride,
+                        stop_location__iexact=segment.to_stop
+                    ).first()
+                    if to_stop:
+                        response_data["coordinates"].update({
+                            "to_lat": to_stop.stop_lat,
+                            "to_lng": to_stop.stop_lng
+                        })
+                        end_time = to_stop.estimated_arrival_time
+
+                if start_time and end_time:
+                    if isinstance(start_time, time) and isinstance(end_time, time):
+                        start_datetime = datetime.combine(ride.ride_date, start_time)
+                        end_datetime = datetime.combine(ride.ride_date, end_time)
+                        duration = end_datetime - start_datetime
+                        total_minutes = duration.total_seconds() / 60
+                        response_data["ride_details"]["duration"] = self.get_duration_format(total_minutes)
+
+            except RideShareRouteSegment.DoesNotExist:
+                return Response({
+                    "status": False,
+                    "message": "Segment not found for this ride."
+                }, status=status.HTTP_404_NOT_FOUND)
+
+        else:
+            # ✅ Fetch price from model directly
+            ride_price = float(ride.price) if ride.price is not None else 0.0
+
+            response_data["ride_details"].update({
+                "from_location": ride.from_location,
+                "to_location": ride.to_location,
+                "distance_km": float(ride.distance_km) if ride.distance_km is not None else None,
+                "price": ride_price,
+                "total_price": ride_price
+            })
+
+            response_data["coordinates"].update({
+                "from_lat": ride.from_location_lat,
+                "from_lng": ride.from_location_lng,
+                "to_lat": ride.to_location_lat,
+                "to_lng": ride.to_location_lng
+            })
+
+            if ride.ride_time and ride.to_location_estimated_arrival_time:
+                start_datetime = datetime.combine(ride.ride_date, ride.ride_time)
+                end_datetime = datetime.combine(ride.ride_date, ride.to_location_estimated_arrival_time)
+                duration = end_datetime - start_datetime
+                total_minutes = duration.total_seconds() / 60
+                response_data["ride_details"]["duration"] = self.get_duration_format(total_minutes)
+
+        # 🚘 Ride creator info
+        creator = ride.user
+        avg_rating = None
+        vehicle_name = None
+
+        if creator.role == 'rider':
+            avg_rating = RiderRating.objects.filter(rider=creator).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            if ride.vehicle:
+                vehicle_name = ride.vehicle.model_name
+        else:
+            try:
+                vehicle_info = DriverVehicleInfo.objects.get(user=creator)
+                vehicle_name = f"{vehicle_info.car_company} {vehicle_info.car_model}"
+            except DriverVehicleInfo.DoesNotExist:
+                pass
+
+        response_data["ride_creator"].update({
+            "username": creator.username,
+            "phone_number": creator.phone_number,
+            "profile_image": request.build_absolute_uri(creator.profile.url) if creator.profile else None,
+            "avg_rating": float(avg_rating) if avg_rating is not None else None,
+            "vehicle_name": vehicle_name
+        })
+
+        # 👥 Add accepted passengers' details
+        passengers = []
+        accepted_requests = ride.join_requests.filter(status='accepted').select_related('user', 'segment')
+
+        for req in accepted_requests:
+            if req.user == ride.user:
+                continue  # Skip ride creator
+
+            passenger_data = {
+                "username": req.user.username,
+                "profile_image": request.build_absolute_uri(req.user.profile.url) if req.user.profile else None,
+                "from_location": req.segment.from_stop if req.segment else ride.from_location,
+                "to_location": req.segment.to_stop if req.segment else ride.to_location
+            }
+            passengers.append(passenger_data)
+
+        response_data["other_passengers"] = passengers
+
+        return Response({
+            "status": True,
+            "message": "Ride details fetched successfully.",
+            "data": response_data
+        }, status=status.HTTP_200_OK)

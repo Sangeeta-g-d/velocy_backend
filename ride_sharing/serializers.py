@@ -5,6 +5,7 @@ from pytz import timezone as pytz_timezone
 from datetime import datetime, timedelta
 from auth_api.models import CustomUser
 from django.utils import timezone
+from .utils.travel import calculate_eta
 # from notifications.utils import send_fcm_notification
 from datetime import datetime
 
@@ -200,14 +201,60 @@ class RidePriceUpdateSerializer(serializers.Serializer):
 class RideShareBookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideShareBooking
-        fields = [
-            'id', 'from_location', 'to_location',
-            'ride_date', 'ride_time',
-            'passengers_count', 'women_only',
-            'distance_km', 'price',
-            'is_return_ride', 'return_date', 'return_time', 'return_price',
-            'status'
-        ]
+        exclude = ['user', 'status', 'created_at', 'price']
+
+    def validate(self, attrs):
+        distance = attrs.get('distance_km')
+
+        if not distance or distance <= 0:
+            raise serializers.ValidationError("Distance must be a positive number.")
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context['request']
+        user = request.user
+        vehicle_id = self.initial_data.get('vehicle')
+        passengers = validated_data.get('passengers_count')
+
+        # Fetch vehicle object
+        try:
+            vehicle_obj = RideShareVehicle.objects.get(id=vehicle_id)
+        except RideShareVehicle.DoesNotExist:
+            raise serializers.ValidationError("Vehicle does not exist.")
+
+        if user.role == 'rider':
+            validated_data['passengers_count'] = vehicle_obj.seat_capacity
+        else:
+            if not passengers:
+                raise serializers.ValidationError("passengers_count is required for drivers.")
+            if passengers > vehicle_obj.seat_capacity:
+                raise serializers.ValidationError("Passenger count exceeds seat capacity.")
+
+        validated_data['user'] = user
+        validated_data['status'] = 'draft'
+        validated_data['seats_remaining'] = validated_data['passengers_count']
+
+        distance_km = validated_data.get('distance_km')
+        ride_time = validated_data.get('ride_time')  # time object
+
+        # Estimate arrival time if distance and time are provided
+        if distance_km and ride_time:
+            try:
+                AVG_SPEED_KMPH = 40
+                travel_hours = float(distance_km) / AVG_SPEED_KMPH
+
+                # Combine today’s date with ride_time to form datetime
+                today = datetime.today().date()
+                ride_datetime = datetime.combine(today, ride_time)
+
+                eta_datetime = ride_datetime + timedelta(hours=travel_hours)
+                validated_data['to_location_estimated_arrival_time'] = eta_datetime.time()
+            except Exception as e:
+                print(f"[ETA ERROR] Failed to calculate ETA: {e}")
+
+        return RideShareBooking.objects.create(**validated_data)
+    
 
 class RideShareStopSerializer(serializers.ModelSerializer):
     class Meta:
@@ -230,33 +277,112 @@ class RideJoinRequestViewSerializer(serializers.ModelSerializer):
     profile_url = serializers.SerializerMethodField()
     from_location = serializers.SerializerMethodField()
     to_location = serializers.SerializerMethodField()
+    from_time = serializers.SerializerMethodField()
+    to_time = serializers.SerializerMethodField()
+    from_lat = serializers.SerializerMethodField()
+    from_lng = serializers.SerializerMethodField()
+    to_lat = serializers.SerializerMethodField()
+    to_lng = serializers.SerializerMethodField()
     created_at_ist = serializers.SerializerMethodField()
 
     class Meta:
         model = RideJoinRequest
         fields = [
-            'id', 'username', 'profile_url', 'seats_requested',
-            'status', 'message', 'created_at_ist',
+            'id', 'username', 'profile_url',
+            'seats_requested', 'status', 'message',
+            'created_at_ist',
             'from_location', 'to_location',
+            'from_time', 'to_time',
+            'from_lat', 'from_lng',
+            'to_lat', 'to_lng',
         ]
 
     def get_profile_url(self, obj):
+        request = self.context.get('request')
         if obj.user.profile and hasattr(obj.user.profile, 'url'):
-            return obj.user.profile.url
+            return request.build_absolute_uri(obj.user.profile.url)
         return None
 
     def get_from_location(self, obj):
-        if obj.segment:
-            return obj.segment.from_stop
-        return obj.ride.from_location
+        return obj.segment.from_stop if obj.segment else obj.ride.from_location
 
     def get_to_location(self, obj):
+        return obj.segment.to_stop if obj.segment else obj.ride.to_location
+
+    def get_from_time(self, obj):
+        ride = self.context.get('ride')
         if obj.segment:
-            return obj.segment.to_stop
-        return obj.ride.to_location
+            # find stop object with same location
+            stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__iexact=obj.segment.from_stop
+            ).first()
+            if stop and stop.estimated_arrival_time:
+                return stop.estimated_arrival_time.strftime('%H:%M:%S')
+        # fallback to ride start time
+        return ride.ride_time.strftime('%H:%M:%S')
+
+    def get_to_time(self, obj):
+        ride = self.context.get('ride')
+        if obj.segment:
+            stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__iexact=obj.segment.to_stop
+            ).first()
+            if stop and stop.estimated_arrival_time:
+                return stop.estimated_arrival_time.strftime('%H:%M:%S')
+            # if destination of ride
+            if obj.segment.to_stop.lower() == ride.to_location.lower() and ride.to_location_estimated_arrival_time:
+                return ride.to_location_estimated_arrival_time.strftime('%H:%M:%S')
+        # fallback to ride destination arrival
+        return ride.to_location_estimated_arrival_time.strftime('%H:%M:%S') if ride.to_location_estimated_arrival_time else None
+
+    def get_from_lat(self, obj):
+        ride = self.context.get('ride')
+        if obj.segment:
+            stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__iexact=obj.segment.from_stop
+            ).first()
+            if stop:
+                return stop.stop_lat
+        # fallback to main ride start
+        return ride.from_location_lat
+
+    def get_from_lng(self, obj):
+        ride = self.context.get('ride')
+        if obj.segment:
+            stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__iexact=obj.segment.from_stop
+            ).first()
+            if stop:
+                return stop.stop_lng
+        return ride.from_location_lng
+
+    def get_to_lat(self, obj):
+        ride = self.context.get('ride')
+        if obj.segment:
+            stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__iexact=obj.segment.to_stop
+            ).first()
+            if stop:
+                return stop.stop_lat
+        return ride.to_location_lat
+
+    def get_to_lng(self, obj):
+        ride = self.context.get('ride')
+        if obj.segment:
+            stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__iexact=obj.segment.to_stop
+            ).first()
+            if stop:
+                return stop.stop_lng
+        return ride.to_location_lng
 
     def get_created_at_ist(self, obj):
-    
         return convert_to_ist(obj.created_at)
     
 
@@ -319,40 +445,86 @@ class RideJoinRequestDetailSerializer(serializers.ModelSerializer):
         return ride.status  # fallback
 
 class AcceptedJoinRequestSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username')
+    request_id = serializers.SerializerMethodField()
+    username = serializers.SerializerMethodField()
+    phone_number = serializers.SerializerMethodField()
     profile = serializers.SerializerMethodField()
     requested_at_ist = serializers.SerializerMethodField()
-    total_price = serializers.SerializerMethodField()
     from_stop = serializers.SerializerMethodField()
     to_stop = serializers.SerializerMethodField()
+    from_lat = serializers.SerializerMethodField()
+    from_lng = serializers.SerializerMethodField()
+    to_lat = serializers.SerializerMethodField()
+    to_lng = serializers.SerializerMethodField()
+    total_price = serializers.SerializerMethodField()
 
     class Meta:
         model = RideJoinRequest
         fields = [
-            'username', 'profile', 'requested_at_ist',
+            'request_id', 'username', 'phone_number', 'profile', 'requested_at_ist',
             'seats_requested', 'status', 'total_price',
-            'from_stop', 'to_stop',
+            'from_stop', 'to_stop', 'from_lat', 'from_lng', 'to_lat', 'to_lng'
         ]
 
+    def get_request_id(self, obj):
+        return obj.id
+
+    def get_username(self, obj):
+        return obj.user.username
+
+    def get_phone_number(self, obj):
+        return obj.user.phone_number
+
     def get_profile(self, obj):
-        return obj.user.profile.url if obj.user.profile else None
+        request = self.context.get('request')
+        if obj.user.profile and hasattr(obj.user.profile, 'url'):
+            return request.build_absolute_uri(obj.user.profile.url)
+        return None
 
     def get_requested_at_ist(self, obj):
-        return convert_to_ist(obj.created_at)
-
-    def get_total_price(self, obj):
-        if obj.segment:
-            return float(obj.segment.price) * obj.seats_requested
-        elif obj.ride.price:
-            return float(obj.ride.price) * obj.seats_requested
-        return 0.0
+        return obj.created_at.astimezone().strftime("%Y-%m-%d %I:%M %p")
 
     def get_from_stop(self, obj):
-        if obj.segment:
-            return obj.segment.from_stop
-        return obj.ride.from_location
+        return obj.segment.from_stop if obj.segment else obj.ride.from_location
 
     def get_to_stop(self, obj):
+        return obj.segment.to_stop if obj.segment else obj.ride.to_location
+
+    def get_from_lat(self, obj):
         if obj.segment:
-            return obj.segment.to_stop
-        return obj.ride.to_location
+            stop_name = obj.segment.from_stop
+            if stop_name == obj.ride.from_location:
+                return obj.ride.from_location_lat
+            stop = obj.ride.stops.filter(stop_location=stop_name).first()
+            return stop.stop_lat if stop else None
+        return obj.ride.from_location_lat
+
+    def get_from_lng(self, obj):
+        if obj.segment:
+            stop_name = obj.segment.from_stop
+            if stop_name == obj.ride.from_location:
+                return obj.ride.from_location_lng
+            stop = obj.ride.stops.filter(stop_location=stop_name).first()
+            return stop.stop_lng if stop else None
+        return obj.ride.from_location_lng
+
+    def get_to_lat(self, obj):
+        if obj.segment:
+            stop_name = obj.segment.to_stop
+            if stop_name == obj.ride.to_location:
+                return obj.ride.to_location_lat
+            stop = obj.ride.stops.filter(stop_location=stop_name).first()
+            return stop.stop_lat if stop else None
+        return obj.ride.to_location_lat
+
+    def get_to_lng(self, obj):
+        if obj.segment:
+            stop_name = obj.segment.to_stop
+            if stop_name == obj.ride.to_location:
+                return obj.ride.to_location_lng
+            stop = obj.ride.stops.filter(stop_location=stop_name).first()
+            return stop.stop_lng if stop else None
+        return obj.ride.to_location_lng
+
+    def get_total_price(self, obj):
+        return obj.segment.price if obj.segment else obj.ride.price
