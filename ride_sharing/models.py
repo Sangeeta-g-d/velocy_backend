@@ -2,6 +2,7 @@ from django.db import models
 from auth_api.models import CustomUser
 from django.conf import settings
 from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
 # Create your models here.
 
 class RideShareVehicle(models.Model):
@@ -39,7 +40,8 @@ class RideShareBooking(models.Model):
     ('cancelled', 'Cancelled'),
     ]
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ride_share_bookings')
-    vehicle = models.ForeignKey('RideShareVehicle', on_delete=models.CASCADE, related_name='bookings')
+    vehicle = models.ForeignKey('RideShareVehicle', on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
+
 
     from_location = models.CharField(max_length=255)
     to_location = models.CharField(max_length=255)
@@ -70,8 +72,10 @@ class RideShareBooking(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
 
+    cancellation_probability = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+
     def __str__(self):
-        return f"Ride by {self.user.name} on {self.ride_date} from {self.from_location} to {self.to_location}"
+        return f"Ride by {self.user.username} on {self.ride_date} from {self.from_location} to {self.to_location}"
 
 # Each intermediate stop: C, D, etc.
 class RideShareStop(models.Model):
@@ -143,3 +147,18 @@ class RideJoinRequest(models.Model):
         if self.segment:
             return f"{self.user.username} → Ride {self.ride.id} [{self.segment.from_stop} → {self.segment.to_stop}]"
         return f"{self.user.username} → Ride {self.ride.id} (Direct Ride)"
+
+
+class RiderRating(models.Model):
+    ride_sharing = models.ForeignKey('ride_sharing.RideShareBooking', on_delete=models.CASCADE, related_name='rider_ratings')
+    rider = models.ForeignKey('auth_api.CustomUser', on_delete=models.CASCADE, related_name='rider_ratings_received', limit_choices_to={'role': 'rider'})
+    rated_by = models.ForeignKey('auth_api.CustomUser', on_delete=models.CASCADE, related_name='rider_ratings_given', limit_choices_to={'role': 'driver'})
+    rating = models.DecimalField(max_digits=2, decimal_places=1, validators=[MinValueValidator(1.0), MaxValueValidator(5.0)])
+    review = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('ride_sharing', 'rider', 'rated_by')
+
+    def __str__(self):
+        return f"{self.rated_by} rated {self.rider} - {self.rating}/5"

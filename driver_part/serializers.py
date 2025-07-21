@@ -32,17 +32,26 @@ class RideStopSerializer(serializers.ModelSerializer):
         fields = ['id', 'location', 'latitude', 'longitude', 'order']
 
 class RideRequestDetailSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
+    user = serializers.SerializerMethodField()
     city = serializers.StringRelatedField()
     vehicle_type = serializers.StringRelatedField()
     ride_stops = RideStopSerializer(many=True, read_only=True)
     created_at = serializers.SerializerMethodField()
+
     class Meta:
         model = RideRequest
         fields = '__all__'
-        
+
+    def get_user(self, obj):
+        request = self.context.get("request")
+        return {
+            "id": obj.user.id,
+            "phone_number": obj.user.phone_number,
+            "username": obj.user.username,
+            "profile": request.build_absolute_uri(obj.user.profile.url) if obj.user.profile else None
+        }
+
     def get_created_at(self, obj):
-        # Convert to Indian time
         india_tz = pytz.timezone("Asia/Kolkata")
         local_dt = localtime(obj.created_at, india_tz)
         return local_dt.strftime('%d-%m-%Y %I:%M %p')

@@ -1,11 +1,13 @@
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from .serializers import *
+from .tasks import calculate_segments_and_eta
 from .mixins import StandardResponseMixin
 from datetime import datetime, timedelta
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from datetime import datetime, time
 from rest_framework.response import Response
+from auth_api.models import CustomUser,DriverVehicleInfo
 from rest_framework import status
 from . models import *
 from rest_framework.status import HTTP_200_OK, HTTP_400_BAD_REQUEST
@@ -13,7 +15,7 @@ from decimal import Decimal
 from pytz import timezone as pytz_timezone
 from django.utils import timezone
 from decimal import Decimal
-from .utils.google_maps import get_driving_distance_km
+from .utils.google_maps import get_route_segments_with_distance
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from datetime import date
@@ -43,17 +45,37 @@ class GetRideShareVehicleAPIView(StandardResponseMixin, APIView):
 class CreateRideShareBookingAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, vehicle_id):
-        try:
-            vehicle = RideShareVehicle.objects.get(id=vehicle_id)
-        except RideShareVehicle.DoesNotExist:
-            return self.response({"error": "Vehicle not found."}, status_code=404)
-
-        if not vehicle.approved:
-            return self.response({"error": "Vehicle is not approved yet."}, status_code=400)
-
+    def post(self, request):
+        user = request.user
         data = request.data.copy()
-        data['vehicle'] = vehicle.id  # Inject vehicle ID into serializer data
+
+        if user.role == 'driver':
+            try:
+                vehicle_info = DriverVehicleInfo.objects.get(user=user)
+            except DriverVehicleInfo.DoesNotExist:
+                return self.response({"error": "Driver vehicle info not found."}, status_code=404)
+
+            data['vehicle_number'] = vehicle_info.vehicle_number
+            data['model_name'] = vehicle_info.car_model
+            data['seat_capacity'] = 4  # Optional: fetch from vehicle_info if available
+
+        else:
+            vehicle_id = data.get('vehicle')
+            if not vehicle_id:
+                return self.response({"error": "Vehicle ID is required for rider."}, status_code=400)
+
+            try:
+                vehicle = RideShareVehicle.objects.get(id=vehicle_id, owner=user)
+            except RideShareVehicle.DoesNotExist:
+                return self.response({"error": "Vehicle not found or access denied."}, status_code=404)
+
+            if not vehicle.approved:
+                return self.response({"error": "Vehicle is not approved yet."}, status_code=400)
+
+            data['vehicle'] = vehicle.id
+            data['vehicle_number'] = vehicle.vehicle_number
+            data['model_name'] = vehicle.model_name
+            data['seat_capacity'] = vehicle.seat_capacity
 
         serializer = RideShareBookingCreateSerializer(data=data, context={'request': request})
         if serializer.is_valid():
@@ -65,7 +87,6 @@ class CreateRideShareBookingAPIView(StandardResponseMixin, APIView):
             }, status_code=201)
 
         return self.response(serializer.errors, status_code=400)
-    
 
 class AddRideShareStopAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
@@ -81,114 +102,15 @@ class AddRideShareStopAPIView(StandardResponseMixin, APIView):
             return self.response(serializer.errors, status_code=400)
 
         stop = serializer.save(ride_booking=booking)
-        print(f"[DEBUG] Stop '{stop.stop_location}' added with order {stop.order} for booking {booking.id}")
 
-        # Fetch price setting
-        price_setting = RideSharePriceSetting.objects.first()
-        if not price_setting:
-            print("[DEBUG] No price setting found.")
-            return self.response({'error': 'Price settings not configured.'}, status_code=500)
-
-        # Prepare full route with from_location, stops, to_location
-        stops = list(booking.stops.order_by('order'))
-        print(f"[DEBUG] Total stops after save: {len(stops)}")
-
-        virtual_stops = [{
-            'location': booking.from_location,
-            'lat': booking.from_location_lat,
-            'lng': booking.from_location_lng
-        }]
-        for s in stops:
-            virtual_stops.append({
-                'location': s.stop_location,
-                'lat': s.stop_lat,
-                'lng': s.stop_lng
-            })
-        virtual_stops.append({
-            'location': booking.to_location,
-            'lat': booking.to_location_lat,
-            'lng': booking.to_location_lng
-        })
-
-        created_count = 0
-        skipped_count = 0
-
-        for i in range(len(virtual_stops)):
-            for j in range(i + 1, len(virtual_stops)):
-                from_stop = virtual_stops[i]
-                to_stop = virtual_stops[j]
-
-                if (from_stop['location'] == booking.from_location and
-                    to_stop['location'] == booking.to_location):
-                    continue  # Skip full A→B path
-
-                print(f"[DEBUG] Processing segment: {from_stop['location']} → {to_stop['location']}")
-
-                distance = get_driving_distance_km(
-                    from_stop['lat'], from_stop['lng'],
-                    to_stop['lat'], to_stop['lng']
-                )
-
-                if distance is not None:
-                    distance_decimal = Decimal(str(distance))
-                    price = distance_decimal * price_setting.min_price_per_km
-
-                    RideShareRouteSegment.objects.update_or_create(
-                        ride_booking=booking,
-                        from_stop=from_stop['location'],
-                        to_stop=to_stop['location'],
-                        defaults={
-                            'distance_km': round(distance_decimal, 2),
-                            'price': round(price, 2)
-                        }
-                    )
-                    print(f"[DEBUG] Created segment {from_stop['location']} → {to_stop['location']} | Distance: {distance_decimal} km | Price: ₹{price}")
-                    created_count += 1
-                else:
-                    print(f"[DEBUG] Skipped segment {from_stop['location']} → {to_stop['location']} (distance=None)")
-                    skipped_count += 1
-
-        # === Estimate Arrival Times ===
-        AVG_SPEED_KMPH = 40  # Configurable default
-
-        current_time = datetime.combine(datetime.today(), booking.ride_time)
-        stop_times = []
-
-        for i in range(len(virtual_stops)):
-            from_stop = virtual_stops[i]
-
-            if i == 0:
-                arrival_time = current_time.time()
-            else:
-                prev_stop = virtual_stops[i - 1]
-                dist = get_driving_distance_km(
-                    prev_stop['lat'], prev_stop['lng'],
-                    from_stop['lat'], from_stop['lng']
-                )
-                if dist is not None:
-                    travel_hours = dist / AVG_SPEED_KMPH
-                    delta = timedelta(hours=travel_hours)
-                    current_time += delta
-                arrival_time = current_time.time()
-
-            stop_times.append(arrival_time)
-
-        # Save arrival times to RideShareStop
-        for stop_obj, arrival_time in zip(stops, stop_times[1:-1]):  # Skip 'from' and 'to'
-            stop_obj.estimated_arrival_time = arrival_time
-            stop_obj.save()
-
-        # Save final destination arrival time
-        booking.to_location_estimated_arrival_time = stop_times[-1]
-        booking.save()
-
-        print(f"[DEBUG] Total segments created: {created_count}, skipped: {skipped_count}")
-        print(f"[DEBUG] Arrival at final destination: {booking.to_location_estimated_arrival_time}")
+        # 🚀 Offload route & ETA calculation to Celery
+        calculate_segments_and_eta.delay(booking.id)
 
         return self.response({
-            'message': 'Stop added and route segments & arrival times updated successfully.',
+            'message': 'Stop added. Route and arrival time will be updated shortly.',
             'stop': serializer.data
         }, status_code=201)
+
 
 class EstimateBookingPriceAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]

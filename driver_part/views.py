@@ -126,7 +126,7 @@ class RideRequestDetailAPIView(StandardResponseMixin,APIView):
         except RideRequest.DoesNotExist:
             return Response({"error": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = RideRequestDetailSerializer(ride)
+        serializer = RideRequestDetailSerializer(ride, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
