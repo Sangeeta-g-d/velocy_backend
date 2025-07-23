@@ -74,6 +74,10 @@ class RideShareBooking(models.Model):
 
     cancellation_probability = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
+    ride_start_datetime = models.DateTimeField(null=True, blank=True)
+    ride_end_datetime = models.DateTimeField(null=True, blank=True)
+    
+    reached_destination = models.BooleanField(default=False)
     def __str__(self):
         return f"Ride by {self.user.username} on {self.ride_date} from {self.from_location} to {self.to_location}"
 
@@ -147,6 +151,18 @@ class RideJoinRequest(models.Model):
         if self.segment:
             return f"{self.user.username} → Ride {self.ride.id} [{self.segment.from_stop} → {self.segment.to_stop}]"
         return f"{self.user.username} → Ride {self.ride.id} (Direct Ride)"
+
+
+class DriverUPIPayment(models.Model):
+    driver = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'role': 'driver'})
+    ride = models.ForeignKey(RideShareBooking, on_delete=models.CASCADE)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    transaction_id = models.CharField(max_length=100, unique=True)
+    payment_time = models.DateTimeField(auto_now_add=True)
+    is_verified = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"UPI Payment of ₹{self.amount_paid} by {self.driver.username} for Ride {self.ride.id}"
 
 
 class RiderRating(models.Model):

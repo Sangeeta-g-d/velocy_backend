@@ -41,7 +41,59 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
             'longitude': event['longitude'],
         }))
 
+# driver arrival notification consumer
+class RideRequestConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.ride_id = self.scope['url_route']['kwargs']['ride_id']
+        self.room_group_name = f'ride_request_{self.ride_id}'
 
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    async def receive_json(self, content):
+        message_type = content.get('type')
+
+        if message_type == 'notify_arrival':
+            ride_id = content.get('ride_id')
+            msg = content.get('message')
+
+            # Optional: Validate the ride or driver
+            ride = await self.get_ride(ride_id)
+            if ride:
+                # Send notification to group
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'arrival_notification',
+                        'message': msg,
+                        'ride_id': ride_id
+                    }
+                )
+
+    async def arrival_notification(self, event):
+        await self.send_json({
+            'type': 'notify_arrival',
+            'ride_id': event['ride_id'],
+            'message': event['message']
+        })
+
+    @database_sync_to_async
+    def get_ride(self, ride_id):
+        try:
+            return RideRequest.objects.get(id=ride_id)
+        except RideRequest.DoesNotExist:
+            return None
+
+# OTP consumer for ride notifications
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         print("Connected:", self.scope["path"])  # Debug print
@@ -247,4 +299,28 @@ class SharedRideTrackingConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'lat': event['lat'],
             'lng': event['lng']
+        }))
+
+
+
+class SharedRideNotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        user = self.scope["user"]
+        if user.is_authenticated:
+            self.group_name = f"shared_ride_user_{user.id}"  # ✅ Updated group name
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+        else:
+            await self.close()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def shared_ride_destination_reached(self, event):  # ✅ Updated method name
+        await self.send(text_data=json.dumps({
+            "type": "shared_ride_destination_reached",  # ✅ Updated event type
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "timestamp": event["timestamp"],
         }))

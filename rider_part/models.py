@@ -125,6 +125,7 @@ class DriverWalletTransaction(models.Model):
         ('bonus', 'Bonus'),
         ('penalty', 'Penalty'),
         ('refund', 'Refund'),
+        ('Car pooling', 'Car pooling'),
     ]
 
     driver = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'driver'})

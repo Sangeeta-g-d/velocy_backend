@@ -4,6 +4,8 @@ from .serializers import *
 from .tasks import calculate_segments_and_eta
 from .mixins import StandardResponseMixin
 from datetime import datetime, timedelta
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from datetime import datetime, time
 from rest_framework.response import Response
@@ -48,25 +50,35 @@ class CreateRideShareBookingAPIView(StandardResponseMixin, APIView):
 
     def post(self, request):
         user = request.user
+        print("[DEBUG] Requesting user:", user, "| Role:", user.role)
         data = request.data.copy()
+        print("[DEBUG] Incoming POST data:", data)
 
         if user.role == 'driver':
             try:
                 vehicle_info = DriverVehicleInfo.objects.get(user=user)
+                print("[DEBUG] Driver vehicle info found:", vehicle_info)
             except DriverVehicleInfo.DoesNotExist:
                 return self.response({"error": "Driver vehicle info not found."}, status_code=404)
 
             data['vehicle_number'] = vehicle_info.vehicle_number
             data['model_name'] = vehicle_info.car_model
-            data['seat_capacity'] = 4  # Optional: fetch from vehicle_info if available
+            data['seat_capacity'] = 4  # You can update to dynamic if needed
+            print("[DEBUG] Populated driver vehicle data:", {
+                "vehicle_number": data['vehicle_number'],
+                "model_name": data['model_name'],
+                "seat_capacity": data['seat_capacity'],
+            })
 
         else:
             vehicle_id = data.get('vehicle')
+            print("[DEBUG] Rider submitted vehicle ID:", vehicle_id)
             if not vehicle_id:
                 return self.response({"error": "Vehicle ID is required for rider."}, status_code=400)
 
             try:
                 vehicle = RideShareVehicle.objects.get(id=vehicle_id, owner=user)
+                print("[DEBUG] Vehicle found and owned by user:", vehicle)
             except RideShareVehicle.DoesNotExist:
                 return self.response({"error": "Vehicle not found or access denied."}, status_code=404)
 
@@ -77,17 +89,26 @@ class CreateRideShareBookingAPIView(StandardResponseMixin, APIView):
             data['vehicle_number'] = vehicle.vehicle_number
             data['model_name'] = vehicle.model_name
             data['seat_capacity'] = vehicle.seat_capacity
+            print("[DEBUG] Populated rider vehicle data:", {
+                "vehicle": vehicle.id,
+                "vehicle_number": vehicle.vehicle_number,
+                "model_name": vehicle.model_name,
+                "seat_capacity": vehicle.seat_capacity,
+            })
 
         serializer = RideShareBookingCreateSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             booking = serializer.save()
+            print("[DEBUG] Booking created successfully:", booking)
             return self.response({
                 'booking_id': booking.id,
                 'status': booking.status,
                 'message': 'Ride booking created in draft status.'
             }, status_code=201)
 
+        print("[ERROR] Serializer errors:", serializer.errors)
         return self.response(serializer.errors, status_code=400)
+
 
 class AddRideShareStopAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
@@ -293,8 +314,8 @@ class RideShareSearchAPIView(APIView):
         # --- 1. Direct Rides ---
         direct_rides = RideShareBooking.objects.filter(
             booking_filters &
-            Q(from_location__iexact=from_location) &
-            Q(to_location__iexact=to_location)
+            Q(from_location__icontains=from_location) &
+            Q(to_location__icontains=to_location)
         ).select_related('user').prefetch_related(
             prefetch_stops,
             prefetch_segments,
@@ -334,7 +355,7 @@ class RideShareSearchAPIView(APIView):
                 "user_name": ride.user.username,
                 "user_profile": request.build_absolute_uri(ride.user.profile.url) if ride.user.profile else None,
                 "user_role": ride.user.role,
-                "avg_rating": float(avg_rating) if avg_rating else None,
+                "avg_rating": round(avg_rating, 1) if avg_rating is not None else None,
                 "available_seats": ride.seats_remaining,
                 "joined_users_count": accepted_requests.count(),
                 "joined_users_profiles": joined_users_profiles,
@@ -811,4 +832,84 @@ class RideDetailsAPIView(APIView):
             "status": True,
             "message": "Ride details fetched successfully.",
             "data": response_data
+        }, status=status.HTTP_200_OK)
+    
+
+class RideStartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_id):
+        try:
+            booking = RideShareBooking.objects.get(id=ride_id, user=request.user)
+        except RideShareBooking.DoesNotExist:
+            return Response({"detail": "Ride not found or unauthorized."}, status=status.HTTP_404_NOT_FOUND)
+
+        if booking.status != 'published':
+            return Response({"detail": "Ride cannot be started in current status."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set start datetime and update status
+        booking.ride_start_datetime = timezone.now()
+        booking.status = 'in_progress'
+        booking.save()
+
+        return Response({
+            "detail": "Ride started successfully.",
+            "ride_start_datetime": convert_to_ist(booking.ride_start_datetime),
+            "status": booking.status,
+            "ride_creator_role":request.user.role,
+        }, status=status.HTTP_200_OK)
+
+
+class MarkReachedDestinationAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_id):
+        try:
+            ride = RideShareBooking.objects.get(id=ride_id)
+        except RideShareBooking.DoesNotExist:
+            return Response({"error": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if ride.user != request.user and not request.user.is_staff:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        ride.reached_destination = True
+        ride.ride_end_datetime = timezone.now()
+        ride.save()
+
+        # ✅ Send WebSocket message to passenger
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"user_{ride.user.id}",  # Group name based on passenger user ID
+            {
+                "type": "ride.destination_reached",
+                "ride_id": ride.id,
+                "message": "Driver has reached the destination.",
+                "timestamp": str(ride.ride_end_datetime),
+            }
+        )
+
+        return Response({"success": True, "message": "Destination marked and notification sent."})
+
+
+class RideEndAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_id):
+        try:
+            booking = RideShareBooking.objects.get(id=ride_id, user=request.user)
+        except RideShareBooking.DoesNotExist:
+            return Response({"detail": "Ride not found or unauthorized."}, status=status.HTTP_404_NOT_FOUND)
+
+        if booking.status != 'in_progress':
+            return Response({"detail": "Ride cannot be ended in current status."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set end datetime and update status
+        booking.ride_end_datetime = timezone.now()
+        booking.status = 'completed'
+        booking.save()
+
+        return Response({
+            "detail": "Ride ended successfully.",
+            "ride_end_datetime": convert_to_ist(booking.ride_end_datetime),
+            "status": booking.status
         }, status=status.HTTP_200_OK)

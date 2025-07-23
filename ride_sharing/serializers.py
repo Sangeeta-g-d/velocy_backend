@@ -48,10 +48,10 @@ class RideShareBookingCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         distance = attrs.get('distance_km')
+        print("[DEBUG] Distance received for validation:", distance)
 
         if not distance or distance <= 0:
             raise serializers.ValidationError("Distance must be a positive number.")
-
         return attrs
 
     def create(self, validated_data):
@@ -59,30 +59,36 @@ class RideShareBookingCreateSerializer(serializers.ModelSerializer):
         user = request.user
         vehicle_id = self.initial_data.get('vehicle')
         passengers = validated_data.get('passengers_count')
-
-        # Fetch vehicle object
-        try:
-            vehicle_obj = RideShareVehicle.objects.get(id=vehicle_id)
-        except RideShareVehicle.DoesNotExist:
-            raise serializers.ValidationError("Vehicle does not exist.")
-
+    
+        print(f"[DEBUG] Creating booking for user: {user} | Role: {user.role}")
+        print(f"[DEBUG] Vehicle ID from initial data: {vehicle_id}")
+        print(f"[DEBUG] Passengers count: {passengers}")
+    
         if user.role == 'rider':
+            try:
+                vehicle_obj = RideShareVehicle.objects.get(id=vehicle_id)
+            except RideShareVehicle.DoesNotExist:
+                raise serializers.ValidationError("Vehicle does not exist.")
+    
             validated_data['passengers_count'] = vehicle_obj.seat_capacity
-        else:
+            validated_data['seats_remaining'] = vehicle_obj.seat_capacity
+    
+        else:  # driver
             if not passengers:
                 raise serializers.ValidationError("passengers_count is required for drivers.")
-            if passengers > vehicle_obj.seat_capacity:
+            seat_capacity = validated_data.get('seat_capacity')
+            if seat_capacity and passengers > seat_capacity:
                 raise serializers.ValidationError("Passenger count exceeds seat capacity.")
-
+            validated_data['seats_remaining'] = passengers
+    
         validated_data['user'] = user
         validated_data['status'] = 'draft'
-        validated_data['seats_remaining'] = validated_data['passengers_count']
-
+    
+        # ETA calculation
         distance_km = validated_data.get('distance_km')
         ride_time = validated_data.get('ride_time')
-
         AVG_SPEED_KMPH = 40
-
+    
         if distance_km and ride_time:
             try:
                 travel_hours = float(distance_km) / AVG_SPEED_KMPH
@@ -91,7 +97,7 @@ class RideShareBookingCreateSerializer(serializers.ModelSerializer):
                 validated_data['to_location_estimated_arrival_time'] = estimated_arrival.time()
             except Exception as e:
                 print(f"[ERROR] Failed to calculate ETA: {e}")
-
+    
         return RideShareBooking.objects.create(**validated_data)
 
 

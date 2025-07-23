@@ -24,4 +24,6 @@ urlpatterns = [
     path('accepted-join-requests/<int:ride_id>/', AcceptedJoinRequestsAPIView.as_view(), name='accepted-join-requests'),
     path('cancel-ride/<int:ride_id>/', CancelRideAPIView.as_view(), name='cancel-ride'),
     path('sharing-ride-details/', RideDetailsAPIView.as_view(), name='ride_share_booking_detail'),
+    path('sharing-ride-start/<int:ride_id>/', RideStartAPIView.as_view(), name='ride-share-start'),
+    path('sharing-ride-end/<int:ride_id>/', RideEndAPIView.as_view(), name='ride-share-end'),
 ]
