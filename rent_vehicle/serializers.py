@@ -24,7 +24,7 @@ class RentedVehicleCreateSerializer(serializers.ModelSerializer):
             'seating_capacity', 'fuel_type', 'transmission', 'security_deposite', # Added comma here
             'rental_price_per_hour', 'available_from_date', 'available_to_date',
             'pickup_location', 'vehicle_papers_document', 'confirmation_checked',
-            'vehicle_color', 'is_ac', 'is_available', 'images'
+            'vehicle_color', 'is_ac', 'is_available', 'images','bag_capacity'
         ]
 
     def create(self, validated_data):
@@ -92,11 +92,13 @@ class RentedVehicleHomeScreenListSerializer(serializers.ModelSerializer):
             'rental_price_per_hour',
             'is_available',
             'images',
+            'bag_capacity',
         ]
 
     def get_images(self, obj):
         return [img.image.url for img in obj.images.all()]
     
+
 
 # rental car details
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -145,14 +147,24 @@ class RentedVehicleOwnerDetailSerializer(serializers.ModelSerializer):
     def get_images(self, obj):
         return [img.image.url for img in obj.images.all()]
     
-
 class RentalRequestCreateSerializer(serializers.ModelSerializer):
-    lessor_id = serializers.IntegerField(write_only=True)  # <-- Add this
-
     class Meta:
         model = RentalRequest
-        fields = ['pickup_datetime', 'dropoff_datetime', 'license_document', 'lessor_id']
+        fields = ['pickup_datetime', 'dropoff_datetime', 'license_document']
 
+    def create(self, validated_data):
+        request = self.context['request']
+        vehicle = self.context['vehicle']
+        user = request.user
+        lessor = vehicle.user
+
+        # Now safely create the RentalRequest
+        return RentalRequest.objects.create(
+            user=user,
+            vehicle=vehicle,
+            lessor=lessor,
+            **validated_data
+        )
 
 class RentalRequestListSerializer(serializers.ModelSerializer):
     lessor_username = serializers.CharField(source='lessor.username', read_only=True)

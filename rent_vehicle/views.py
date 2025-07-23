@@ -98,12 +98,19 @@ class ApprovedVehiclesListAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        vehicles = RentedVehicle.objects.filter(
-            is_approved=True
-        ).exclude(user=request.user)
+        vehicle_type = request.query_params.get('vehicle_type')  # Get vehicle type from query params
+
+        # Base queryset
+        vehicles = RentedVehicle.objects.filter(is_approved=True).exclude(user=request.user)
+
+        # Apply filter if vehicle_type is provided and valid
+        if vehicle_type in dict(RentedVehicle.VEHICLE_TYPE_CHOICES).keys():
+            vehicles = vehicles.filter(vehicle_type=vehicle_type)
 
         serializer = RentedVehicleHomeScreenListSerializer(vehicles, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
     
 # vehicle details
 class RentedVehicleDetailAPIView(APIView):
@@ -139,18 +146,13 @@ class CreateRentalRequestAPIView(APIView):
         except RentedVehicle.DoesNotExist:
             return Response({"error": "Vehicle not available or not approved."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = RentalRequestCreateSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                lessor = CustomUser.objects.get(id=serializer.validated_data['lessor_id'])
-            except CustomUser.DoesNotExist:
-                return Response({"error": "Lessor not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = RentalRequestCreateSerializer(
+            data=request.data,
+            context={'request': request, 'vehicle': vehicle}
+        )
 
-            rental_request = serializer.save(
-                user=request.user,
-                vehicle=vehicle,
-                lessor=lessor
-            )
+        if serializer.is_valid():
+            rental_request = serializer.save()
             return Response({
                 "message": "Rental request created successfully.",
                 "data": {

@@ -6,28 +6,35 @@ from auth_api.models import CustomUser
 
 class RentedVehicle(models.Model):
     FUEL_TYPE_CHOICES = (
-        ('petrol', 'Petrol'),
-        ('diesel', 'Diesel'),
-        ('electric', 'Electric'),
-        ('hybrid', 'Hybrid'),
+        ('Petrol', 'Petrol'),
+        ('Diesel', 'Diesel'),
+        ('Electric', 'Electric'),
+        ('Hybrid', 'Hybrid'),
     )
 
     TRANSMISSION_CHOICES = (
-        ('manual', 'Manual'),
-        ('automatic', 'Automatic'),
+        ('Manual', 'Manual'),
+        ('Automatic', 'Automatic'),
+    )
+
+    VEHICLE_TYPE_CHOICES = (
+        ('SUV', 'SUV'),
+        ('Hatchback', 'Hatchback'),
+        ('Sedan', 'Sedan'),
     )
 
     vehicle_name = models.CharField(max_length=100)
-    vehicle_type = models.CharField(max_length=100)  # You can make this a ForeignKey if you have a separate VehicleType model
+    vehicle_type = models.CharField(max_length=100, choices=VEHICLE_TYPE_CHOICES)  # ✅ updated with choices
     registration_number = models.CharField(max_length=20, unique=True)
     seating_capacity = models.PositiveIntegerField()
+    bag_capacity = models.PositiveIntegerField(default=0)  # ✅ already added
     fuel_type = models.CharField(max_length=20, choices=FUEL_TYPE_CHOICES)
     transmission = models.CharField(max_length=20, choices=TRANSMISSION_CHOICES)
     rental_price_per_hour = models.DecimalField(max_digits=10, decimal_places=2)
     available_from_date = models.DateField()
     available_to_date = models.DateField()
     pickup_location = models.CharField(max_length=255)
-    security_deposite = models.DecimalField(max_digits=10,decimal_places=2, default=0)
+    security_deposite = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     vehicle_papers_document = models.FileField(upload_to='vehicle_documents/')
     confirmation_checked = models.BooleanField(default=False)
     vehicle_color = models.CharField(max_length=30)
@@ -40,6 +47,7 @@ class RentedVehicle(models.Model):
 
     def __str__(self):
         return f"{self.vehicle_name} - {self.registration_number}"
+
 
 
 class RentedVehicleImage(models.Model):
