@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from .serializers import *
 from .tasks import calculate_segments_and_eta
 from .mixins import StandardResponseMixin
+from django.db import transaction
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -45,93 +46,59 @@ class GetRideShareVehicleAPIView(StandardResponseMixin, APIView):
         serializer = RideShareVehicleSerializer(vehicles, many=True, context={'request': request})
         return self.response(data=serializer.data, status_code=200)
     
-class CreateRideShareBookingAPIView(StandardResponseMixin, APIView):
+class CreateRideShareCompleteAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         user = request.user
-        print("[DEBUG] Requesting user:", user, "| Role:", user.role)
         data = request.data.copy()
-        print("[DEBUG] Incoming POST data:", data)
+        stops_data = data.pop('stops', [])
+        
+        with transaction.atomic():
+            # Handle vehicle logic
+            if user.role == 'driver':
+                try:
+                    vehicle_info = DriverVehicleInfo.objects.get(user=user)
+                except DriverVehicleInfo.DoesNotExist:
+                    return Response({"error": "Driver vehicle info not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if user.role == 'driver':
-            try:
-                vehicle_info = DriverVehicleInfo.objects.get(user=user)
-                print("[DEBUG] Driver vehicle info found:", vehicle_info)
-            except DriverVehicleInfo.DoesNotExist:
-                return self.response({"error": "Driver vehicle info not found."}, status_code=404)
+                data['vehicle_number'] = vehicle_info.vehicle_number
+                data['model_name'] = vehicle_info.car_model
+                data['seat_capacity'] = 4
+            else:
+                vehicle_id = data.get('vehicle')
+                if not vehicle_id:
+                    return Response({"error": "Vehicle ID is required for rider."}, status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    vehicle = RideShareVehicle.objects.get(id=vehicle_id, owner=user)
+                except RideShareVehicle.DoesNotExist:
+                    return Response({"error": "Vehicle not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+                if not vehicle.approved:
+                    return Response({"error": "Vehicle is not approved yet."}, status=status.HTTP_400_BAD_REQUEST)
 
-            data['vehicle_number'] = vehicle_info.vehicle_number
-            data['model_name'] = vehicle_info.car_model
-            data['seat_capacity'] = 4  # You can update to dynamic if needed
-            print("[DEBUG] Populated driver vehicle data:", {
-                "vehicle_number": data['vehicle_number'],
-                "model_name": data['model_name'],
-                "seat_capacity": data['seat_capacity'],
-            })
+                data['vehicle'] = vehicle.id
+                data['vehicle_number'] = vehicle.vehicle_number
+                data['model_name'] = vehicle.model_name
+                data['seat_capacity'] = vehicle.seat_capacity
 
-        else:
-            vehicle_id = data.get('vehicle')
-            print("[DEBUG] Rider submitted vehicle ID:", vehicle_id)
-            if not vehicle_id:
-                return self.response({"error": "Vehicle ID is required for rider."}, status_code=400)
+            # Create the ride
+            booking_serializer = RideShareBookingCreateSerializer(data=data, context={'request': request})
+            booking_serializer.is_valid(raise_exception=True)
+            booking = booking_serializer.save()
 
-            try:
-                vehicle = RideShareVehicle.objects.get(id=vehicle_id, owner=user)
-                print("[DEBUG] Vehicle found and owned by user:", vehicle)
-            except RideShareVehicle.DoesNotExist:
-                return self.response({"error": "Vehicle not found or access denied."}, status_code=404)
+            # Add stops
+            for stop_data in stops_data:
+                stop_serializer = RideShareStopCreateSerializer(data=stop_data)
+                stop_serializer.is_valid(raise_exception=True)
+                stop_serializer.save(ride_booking=booking)
 
-            if not vehicle.approved:
-                return self.response({"error": "Vehicle is not approved yet."}, status_code=400)
+            # Trigger Celery task
+            calculate_segments_and_eta.delay(booking.id)
 
-            data['vehicle'] = vehicle.id
-            data['vehicle_number'] = vehicle.vehicle_number
-            data['model_name'] = vehicle.model_name
-            data['seat_capacity'] = vehicle.seat_capacity
-            print("[DEBUG] Populated rider vehicle data:", {
-                "vehicle": vehicle.id,
-                "vehicle_number": vehicle.vehicle_number,
-                "model_name": vehicle.model_name,
-                "seat_capacity": vehicle.seat_capacity,
-            })
-
-        serializer = RideShareBookingCreateSerializer(data=data, context={'request': request})
-        if serializer.is_valid():
-            booking = serializer.save()
-            print("[DEBUG] Booking created successfully:", booking)
-            return self.response({
-                'booking_id': booking.id,
-                'status': booking.status,
-                'message': 'Ride booking created in draft status.'
-            }, status_code=201)
-
-        print("[ERROR] Serializer errors:", serializer.errors)
-        return self.response(serializer.errors, status_code=400)
-
-
-class AddRideShareStopAPIView(StandardResponseMixin, APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, booking_id):
-        try:
-            booking = RideShareBooking.objects.get(id=booking_id, user=request.user)
-        except RideShareBooking.DoesNotExist:
-            return self.response({'error': 'Ride booking not found or access denied.'}, status_code=404)
-
-        serializer = RideShareStopCreateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return self.response(serializer.errors, status_code=400)
-
-        stop = serializer.save(ride_booking=booking)
-
-        # 🚀 Offload route & ETA calculation to Celery
-        calculate_segments_and_eta.delay(booking.id)
-
-        return self.response({
-            'message': 'Stop added. Route and arrival time will be updated shortly.',
-            'stop': serializer.data
-        }, status_code=201)
+            return Response({
+                "booking_id": booking.id,
+                "message": "Ride and stops created successfully. Route will be processed."
+            }, status=status.HTTP_201_CREATED)
 
 
 class EstimateBookingPriceAPIView(StandardResponseMixin, APIView):
