@@ -8,7 +8,7 @@ websocket_urlpatterns = [
     re_path(r'ws/driver_arrival/(?P<ride_id>\d+)/$', RideRequestConsumer.as_asgi()),
     re_path(r'ws/rider/otp/$', RideNotificationConsumer.as_asgi()),
     re_path(r'ws/chat/(?P<ride_id>\w+)/$', ChatConsumer.as_asgi()),
-    re_path(r'ws/payment/status/(?P<ride_id>\d+)/$', RidePaymentStatusConsumer.as_asgi()),
+    re_path(r'ws/payment/status/(?P<ride_type>normal|shared)/(?P<ride_id>\d+)/$', RidePaymentStatusConsumer.as_asgi()),
     re_path(r'^ws/rider/notifications/$', RideAcceptanceConsumer.as_asgi()),
 
     # shared live tracking for both rider and driver

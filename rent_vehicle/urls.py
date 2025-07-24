@@ -1,10 +1,7 @@
 from django.urls import path
 from .views import *
 
-rented_vehicle_edit_view = RentedVehicleEditViewSet.as_view({
-    'get': 'retrieve',
-    'put': 'update',
-})
+
 
 
 urlpatterns = [
@@ -13,7 +10,7 @@ urlpatterns = [
     path('delete-rented-vehicle/<int:vehicle_id>/', DeleteRentedVehicleAPIView.as_view(), name='delete-rented-vehicle'),
 
     # user
-    path('vehicles-details-edit/<int:pk>/', rented_vehicle_edit_view, name='rented-vehicle-detail'),
+    path('vehicles-details-edit/<int:pk>/', RentedVehicleUpdateAPIView.as_view(), name='rented-vehicle-detail'),
     path('car-rental-home-screen/', ApprovedVehiclesListAPIView.as_view(), name='approved-vehicles-list'),
     path('rental-vehicle-details/<int:vehicle_id>/', RentedVehicleDetailAPIView.as_view(), name='vehicle-detail'),
     path('lessor-documents/<int:vehicle_id>/', RentedVehicleOwnerInfoAPIView.as_view(), name='lessor-documents'),
@@ -29,5 +26,7 @@ urlpatterns = [
     path('vehicle-handover/<int:rental_request_id>/', HandoverChecklistAPIView.as_view(), name='handover-checklist'),
     path('approved-rental-request/<int:rental_request_id>/', RentalHandoverDetailAPIView.as_view(), name='rental-handover-details'),
     path('handover-details/<int:rental_request_id>/', RentalHandoverDetailAPIView.as_view(), name='rental-handover-details'),
+
+    path('toggle-availability/<int:pk>/', ToggleVehicleAvailabilityAPIView.as_view(), name='toggle-vehicle-availability'),
     
 ]  

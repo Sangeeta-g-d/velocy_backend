@@ -191,7 +191,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
 class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
-        self.group_name = f'payment_ride_{self.ride_id}'
+        self.ride_type = self.scope['url_route']['kwargs']['ride_type']  # 'normal' or 'shared'
+
+        # Use unique group name based on ride type
+        self.group_name = f'payment_{self.ride_type}_ride_{self.ride_id}'
 
         self.user = self.scope['user']
         if not self.user.is_authenticated:
@@ -205,13 +208,14 @@ class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive(self, text_data):
-        # This consumer is push-only; clients don't need to send messages here.
+        # No messages expected from clients
         pass
 
     async def payment_status_update(self, event):
         await self.send(text_data=json.dumps({
             'type': 'payment_status_update',
             'ride_id': self.ride_id,
+            'ride_type': self.ride_type,
             'payment_status': event['payment_status'],
             'message': event['message'],
         }))

@@ -47,13 +47,35 @@ class RentedVehicleCreateSerializer(serializers.ModelSerializer):
 
         return rented_vehicle
 
+class RentedVehicleImageUpdateSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField()  # Required to identify the image being updated
+
+    class Meta:
+        model = RentedVehicleImage
+        fields = ['id', 'image']
+
+class RentedVehicleUpdateSerializer(serializers.ModelSerializer):
+    update_images = RentedVehicleImageUpdateSerializer(many=True, write_only=True, required=False)
+    images = RentedVehicleImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = RentedVehicle
+        fields = [
+            'vehicle_name', 'vehicle_type', 'registration_number',
+            'seating_capacity', 'fuel_type', 'transmission', 'security_deposite',
+            'rental_price_per_hour', 'available_from_date', 'available_to_date',
+            'pickup_location', 'vehicle_papers_document', 'confirmation_checked',
+            'vehicle_color', 'is_ac', 'is_available', 'bag_capacity', 'is_approved',
+            'images', 'update_images'
+        ]
+
 
 class UserRentedVehicleListSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
 
     class Meta:
         model = RentedVehicle
-        fields = ['id', 'vehicle_name', 'registration_number', 'vehicle_color', 'is_approved', 'images']
+        fields = ['id', 'vehicle_name', 'registration_number', 'vehicle_color', 'is_approved', 'images','is_available']
 
     def get_images(self, obj):
         return [image.image.url for image in obj.images.all()]

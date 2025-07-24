@@ -76,8 +76,7 @@ class RideShareBooking(models.Model):
 
     ride_start_datetime = models.DateTimeField(null=True, blank=True)
     ride_end_datetime = models.DateTimeField(null=True, blank=True)
-    
-    reached_destination = models.BooleanField(default=False)
+
     def __str__(self):
         return f"Ride by {self.user.username} on {self.ride_date} from {self.from_location} to {self.to_location}"
 
@@ -88,7 +87,7 @@ class RideShareStop(models.Model):
     stop_lat = models.FloatField(null=True, blank=True)
     stop_lng = models.FloatField(null=True, blank=True)
 
-    order = models.PositiveIntegerField(editable=False)
+    order = models.PositiveIntegerField()
     estimated_arrival_time = models.TimeField(null=True, blank=True)  # ⏱️ new field
 
     class Meta:
@@ -153,7 +152,7 @@ class RideJoinRequest(models.Model):
         return f"{self.user.username} → Ride {self.ride.id} (Direct Ride)"
 
 
-class DriverUPIPayment(models.Model):
+class SharedRideUPIPayment(models.Model):
     driver = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'role': 'driver'})
     ride = models.ForeignKey(RideShareBooking, on_delete=models.CASCADE)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)

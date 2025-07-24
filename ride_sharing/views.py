@@ -4,6 +4,7 @@ from .serializers import *
 from .tasks import calculate_segments_and_eta
 from .mixins import StandardResponseMixin
 from django.db import transaction
+import re
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -331,7 +332,7 @@ class RideShareSearchAPIView(APIView):
 
         # --- 2. Segment-Based Rides ---
         segment_qs = RideShareRouteSegment.objects.filter(
-            Q(from_stop__iexact=from_location) & Q(to_stop__iexact=to_location)
+            Q(from_stop__icontains=from_location) & Q(to_stop__icontains=to_location)
         ).select_related('ride_booking')
         segment_ride_ids = segment_qs.values_list('ride_booking_id', flat=True)
 
@@ -357,7 +358,7 @@ class RideShareSearchAPIView(APIView):
                 from_arrival_time = ride.ride_time.strftime('%H:%M:%S')
             else:
                 from_stop_obj = RideShareStop.objects.filter(
-                    ride_booking=ride, stop_location__iexact=matching_segment.from_stop
+                    ride_booking=ride, stop_location__icontains=matching_segment.from_stop
                 ).first()
                 from_arrival_time = (
                     from_stop_obj.estimated_arrival_time.strftime('%H:%M:%S')
@@ -366,7 +367,7 @@ class RideShareSearchAPIView(APIView):
 
             # Get to_arrival_time
             to_stop_obj = RideShareStop.objects.filter(
-                ride_booking=ride, stop_location__iexact=matching_segment.to_stop
+                ride_booking=ride, stop_location__icontains=matching_segment.to_stop
             ).first()
             to_arrival_time = (
                 to_stop_obj.estimated_arrival_time.strftime('%H:%M:%S')
@@ -405,7 +406,7 @@ class RideShareSearchAPIView(APIView):
                 "user_name": ride.user.username,
                 "user_profile": request.build_absolute_uri(ride.user.profile.url) if ride.user.profile else None,
                 "user_role": ride.user.role,
-                "avg_rating": float(avg_rating) if avg_rating else None,
+                "avg_rating": round(float(avg_rating), 1) if avg_rating else None,
                 "available_seats": ride.seats_remaining,
                 "joined_users_count": accepted_requests.count(),
                 "joined_users_profiles": joined_users_profiles,
@@ -686,7 +687,7 @@ class RideDetailsAPIView(APIView):
                 else:
                     from_stop = RideShareStop.objects.filter(
                         ride_booking=ride,
-                        stop_location__iexact=segment.from_stop
+                        stop_location__icontains=segment.from_stop
                     ).first()
                     if from_stop:
                         response_data["coordinates"].update({
@@ -704,7 +705,7 @@ class RideDetailsAPIView(APIView):
                 else:
                     to_stop = RideShareStop.objects.filter(
                         ride_booking=ride,
-                        stop_location__iexact=segment.to_stop
+                        stop_location__icontains=segment.to_stop
                     ).first()
                     if to_stop:
                         response_data["coordinates"].update({
@@ -766,6 +767,7 @@ class RideDetailsAPIView(APIView):
             try:
                 vehicle_info = DriverVehicleInfo.objects.get(user=creator)
                 vehicle_name = f"{vehicle_info.car_company} {vehicle_info.car_model}"
+                avg_rating = DriverRating.objects.filter(driver=creator).aggregate(avg_rating=Avg('rating'))['avg_rating']
             except DriverVehicleInfo.DoesNotExist:
                 pass
 
@@ -773,7 +775,7 @@ class RideDetailsAPIView(APIView):
             "username": creator.username,
             "phone_number": creator.phone_number,
             "profile_image": request.build_absolute_uri(creator.profile.url) if creator.profile else None,
-            "avg_rating": float(avg_rating) if avg_rating is not None else None,
+            "avg_rating": round(float(avg_rating), 1) if avg_rating is not None else None,
             "vehicle_name": vehicle_name
         })
 
@@ -879,4 +881,47 @@ class RideEndAPIView(APIView):
             "detail": "Ride ended successfully.",
             "ride_end_datetime": convert_to_ist(booking.ride_end_datetime),
             "status": booking.status
+        }, status=status.HTTP_200_OK)
+
+
+
+class RidePaymentSummaryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, join_request_id):
+        try:
+            join_request = RideJoinRequest.objects.select_related('ride', 'segment', 'user').get(id=join_request_id, user=request.user)
+        except RideJoinRequest.DoesNotExist:
+            return Response({"status": False, "message": "Join request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        ride = join_request.ride
+        seats = join_request.seats_requested
+
+        # Get price from segment or full ride
+        if join_request.segment:
+            price_per_seat = float(join_request.segment.price)
+            from_location = join_request.segment.from_stop
+            to_location = join_request.segment.to_stop
+        else:
+            price_per_seat = float(ride.price) if ride.price else 0.0
+            from_location = ride.from_location
+            to_location = ride.to_location
+
+        total_price = round(seats * price_per_seat, 2)
+
+        return Response({
+            "status": True,
+            "message": "Payment summary fetched successfully.",
+            "data": {
+                "ride_id": ride.id,
+                "from": from_location,
+                "to": to_location,
+                "ride_date": ride.ride_date.strftime('%Y-%m-%d'),
+                "ride_time": ride.ride_time.strftime('%H:%M:%S'),
+                "driver_name": ride.user.username,
+                "seats_requested": seats,
+                "price_per_seat": round(price_per_seat, 2),
+                "total_amount": total_price,
+                "segment_id": join_request.segment.id if join_request.segment else None
+            }
         }, status=status.HTTP_200_OK)

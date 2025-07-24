@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import status
 from . models import *
@@ -50,48 +51,36 @@ class DeleteRentedVehicleAPIView(APIView):
     
 
 # edit
-class RentedVehicleEditViewSet(viewsets.ViewSet):
+class RentedVehicleUpdateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
 
-    def get_object(self, vehicle_id, user):
-        try:
-            return RentedVehicle.objects.get(id=vehicle_id, user=user)
-        except RentedVehicle.DoesNotExist:
-            return None
+    def put(self, request, pk):
+        vehicle = get_object_or_404(RentedVehicle, pk=pk, user=request.user)
+        serializer = RentedVehicleUpdateSerializer(vehicle, data=request.data, partial=True)
 
-    def retrieve(self, request, pk=None):
-        vehicle = self.get_object(pk, request.user)
-        if not vehicle:
-            return Response({"error": "Vehicle not found."}, status=status.HTTP_404_NOT_FOUND)
+        if serializer.is_valid():
+            serializer.save()
 
-        serializer = RentedVehicleEditSerializer(vehicle)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            # ✅ Handle image updates
+            image_updates = request.data.getlist('update_images')  # JSON strings
+            for image_json in image_updates:
+                try:
+                    image_dict = json.loads(image_json)
+                    image_id = image_dict.get('id')
+                    image_file = request.FILES.get(str(image_id))
+                    if image_id and image_file:
+                        img_obj = RentedVehicleImage.objects.get(id=image_id, vehicle=vehicle)
+                        img_obj.image = image_file
+                        img_obj.save()
+                except Exception as e:
+                    continue  # optionally log
 
-    def update(self, request, pk=None):
-        vehicle = self.get_object(pk, request.user)
-        if not vehicle:
-            return Response({"error": "Vehicle not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                "message": "Vehicle and selected images updated successfully",
+                "vehicle": RentedVehicleUpdateSerializer(vehicle).data
+            }, status=status.HTTP_200_OK)
 
-        serializer = RentedVehicleEditSerializer(vehicle, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        # Handle new image uploads
-        new_images = request.FILES.getlist('new_images')
-        for img in new_images:
-            RentedVehicleImage.objects.create(vehicle=vehicle, image=img)
-
-        # Handle image deletions
-        delete_image_ids = request.data.getlist('delete_images')
-        if delete_image_ids:
-            RentedVehicleImage.objects.filter(id__in=delete_image_ids, vehicle=vehicle).delete()
-
-        return Response({
-        "message": "Vehicle updated successfully.",
-        "data": RentedVehicleEditSerializer(vehicle).data
-        }, status=status.HTTP_200_OK)
-    
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # rented vehicle home screen 
 class ApprovedVehiclesListAPIView(APIView):
@@ -295,3 +284,19 @@ class RentalHandoverDetailAPIView(APIView):
 
         serializer = RentalHandoverDetailSerializer(rental_request)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ToggleVehicleAvailabilityAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        vehicle = get_object_or_404(RentedVehicle, pk=pk, user=request.user)
+
+        # Toggle availability
+        vehicle.is_available = not vehicle.is_available
+        vehicle.save()
+
+        return Response({
+            "message": f"Vehicle availability toggled to {'available' if vehicle.is_available else 'unavailable'}",
+            "is_available": vehicle.is_available
+        }, status=status.HTTP_200_OK)

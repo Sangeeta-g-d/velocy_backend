@@ -26,4 +26,5 @@ urlpatterns = [
     path('sharing-ride-details/', RideDetailsAPIView.as_view(), name='ride_share_booking_detail'),
     path('sharing-ride-start/<int:ride_id>/', RideStartAPIView.as_view(), name='ride-share-start'),
     path('sharing-ride-end/<int:ride_id>/', RideEndAPIView.as_view(), name='ride-share-end'),
+    path('payment-summary/<int:join_request_id>/', RidePaymentSummaryAPIView.as_view(), name='ride-payment-summary'),
 ]
