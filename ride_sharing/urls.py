@@ -27,5 +27,7 @@ urlpatterns = [
     path('sharing-ride-start/<int:ride_id>/', RideStartAPIView.as_view(), name='ride-share-start'),
     path('sharing-ride-end/<int:ride_id>/', RideEndAPIView.as_view(), name='ride-share-end'),
     path('payment-summary/<int:join_request_id>/', RidePaymentSummaryAPIView.as_view(), name='ride-payment-summary'),
-    path('driver-payment-summary/<int:ride_id>/', SharedRideUPIPaymentSummaryAPIView.as_view(), name='shared-ride-payment-summary'),
+    path('driver-payment-summary/<int:join_request_id>/', DriverRidePaymentAPIView.as_view(), name='shared-ride-payment-summary'),
+    path('complete-shared-ride/<int:ride_id>/', CompleteRideShareBookingAPIView.as_view(), name='complete-ride-share'),
+    path('rate-ride/<int:ride_join_request_id>/', RateRideAPIView.as_view(), name='rate-ride'),
 ]

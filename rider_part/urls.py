@@ -37,5 +37,12 @@ urlpatterns = [
     # corporate url
     path('corporate-user-payment/<int:ride_id>/', RideCorporatePaymentSummaryAPIView.as_view(), name='ride_payment_summary'),
     path('corporate-confirm-payment/<int:ride_id>/', RideCorporateConfirmAPIView.as_view(), name='ride_confirm'),
+
+    # reporting
+    path('report-types/', RideReportListAPIView.as_view(), name='ride-reports'),
+    path('submit-ride-report/', SubmitRideReportAPIView.as_view(), name='submit-ride-report'),
+
+    # favorite locations
+    path('add-favorite-to-location/', AddFavoriteToLocationAPIView.as_view(), name='add_favorite_to_location'),
     
 ]

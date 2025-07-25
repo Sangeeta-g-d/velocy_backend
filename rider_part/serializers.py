@@ -5,6 +5,7 @@ from admin_part.models import City
 from django.utils.timezone import localtime
 import pytz
 from auth_api.models import DriverVehicleInfo, CustomUser
+from admin_part.models import RideReport
 
 
 class VehicleTypeSerializer(serializers.ModelSerializer):
@@ -275,3 +276,22 @@ class RiderProfileSerializer(serializers.ModelSerializer):
         if obj.profile and request:
             return request.build_absolute_uri(obj.profile.url)
         return None
+    
+
+class RideReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RideReport
+        fields = '__all__'
+
+
+class RideReportSubmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RideReportSubmission
+        fields = ['id', 'ride', 'report_type', 'message', 'submitted_at']
+        read_only_fields = ['id', 'submitted_at']
+
+
+class FavoriteToLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FavoriteToLocation
+        fields = ['id', 'name', 'to_location', 'to_latitude', 'to_longitude']

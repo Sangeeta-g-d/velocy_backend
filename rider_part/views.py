@@ -564,18 +564,20 @@ class RiderScheduledRidesAPIView(APIView):
 
 
 # promo codes
-class ActivePromoCodesAPIView(StandardResponseMixin,APIView):
+class ActivePromoCodesAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         now = timezone.now()
+
+        # Get active promo codes
         active_promos = PromoCode.objects.filter(
             is_active=True,
             valid_from__lte=now,
             valid_to__gte=now
         )
 
-        data = [
+        promo_data = [
             {
                 "code": promo.code,
                 "description": promo.description
@@ -583,7 +585,20 @@ class ActivePromoCodesAPIView(StandardResponseMixin,APIView):
             for promo in active_promos
         ]
 
-        return Response(data, status=status.HTTP_200_OK)
+        # Get user's favorite to-locations
+        favorite_locations = FavoriteToLocation.objects.filter(user=request.user)
+
+        if favorite_locations.exists():
+            from .serializers import FavoriteToLocationSerializer
+            favorites_data = FavoriteToLocationSerializer(favorite_locations, many=True).data
+        else:
+            favorites_data = "No favorite locations found."
+
+        return Response({
+            "active_promos": promo_data,
+            "favorite_to_locations": favorites_data
+        }, status=status.HTTP_200_OK)
+
     
 
 # corporate ride payment summary
@@ -711,3 +726,31 @@ class RiderProfileView(APIView):
 
         serializer = RiderProfileSerializer(user, context={'request': request})
         return Response(serializer.data)
+
+
+class RideReportListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        reports = RideReport.objects.all().order_by('-created_at')
+        serializer = RideReportSerializer(reports, many=True)
+        return Response({"status": True, "data": serializer.data}, status=status.HTTP_200_OK)
+    
+class SubmitRideReportAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = RideReportSubmissionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()  # Assumes ride/report_type are passed as valid IDs
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class AddFavoriteToLocationAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = FavoriteToLocationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)  # attach current user
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

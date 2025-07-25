@@ -4,6 +4,7 @@ from ride_sharing.time_utils import convert_to_ist
 from pytz import timezone as pytz_timezone
 from datetime import datetime, timedelta
 from auth_api.models import CustomUser
+from decimal import Decimal
 from django.utils import timezone
 from .utils.travel import calculate_eta
 # from notifications.utils import send_fcm_notification
@@ -534,3 +535,11 @@ class AcceptedJoinRequestSerializer(serializers.ModelSerializer):
 
     def get_total_price(self, obj):
         return obj.segment.price if obj.segment else obj.ride.price
+
+class RatingSerializer(serializers.Serializer):
+    rating = serializers.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        min_value=Decimal('0.0'),  
+        max_value=Decimal('5.0')   
+    )

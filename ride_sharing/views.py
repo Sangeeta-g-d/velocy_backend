@@ -8,6 +8,7 @@ from admin_part.models import PlatformSetting
 from django.db.models import Sum
 from django.db import transaction
 import re
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -887,13 +888,14 @@ class RideEndAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-
 class RidePaymentSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, join_request_id):
         try:
-            join_request = RideJoinRequest.objects.select_related('ride', 'segment', 'user').get(id=join_request_id, user=request.user)
+            join_request = RideJoinRequest.objects.select_related('ride', 'segment', 'user').get(
+                id=join_request_id, user=request.user
+            )
         except RideJoinRequest.DoesNotExist:
             return Response({"status": False, "message": "Join request not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -910,7 +912,9 @@ class RidePaymentSummaryAPIView(APIView):
             from_location = ride.from_location
             to_location = ride.to_location
 
-        total_price = round(seats * price_per_seat, 2)
+        # Round off price and total
+        price_per_seat_rounded = int(round(price_per_seat))
+        total_price = int(round(seats * price_per_seat))
 
         return Response({
             "status": True,
@@ -923,73 +927,183 @@ class RidePaymentSummaryAPIView(APIView):
                 "ride_time": ride.ride_time.strftime('%H:%M:%S'),
                 "driver_name": ride.user.username,
                 "seats_requested": seats,
-                "price_per_seat": round(price_per_seat, 2),
+                "price_per_seat": price_per_seat_rounded,
                 "total_amount": total_price,
                 "segment_id": join_request.segment.id if join_request.segment else None
             }
         }, status=status.HTTP_200_OK)
 
-class SharedRideUPIPaymentSummaryAPIView(APIView):
+
+class DriverRidePaymentAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, join_request_id):
+        try:
+            join_request = RideJoinRequest.objects.select_related('ride', 'segment', 'ride__user').get(id=join_request_id)
+        except RideJoinRequest.DoesNotExist:
+            return Response({"status": False, "message": "Join request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        ride = join_request.ride
+        driver = ride.user
+
+        if not driver or driver.role != 'driver':
+            return Response({"status": False, "message": "Invalid driver information."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Determine pricing
+        if join_request.segment:
+            price_per_seat = Decimal(join_request.segment.price)
+            from_location = join_request.segment.from_stop
+            to_location = join_request.segment.to_stop
+        else:
+            price_per_seat = Decimal(ride.price or 0)
+            from_location = ride.from_location
+            to_location = ride.to_location
+
+        seats = join_request.seats_requested or 1
+        total_price = (price_per_seat * seats).quantize(Decimal('1.'), rounding=ROUND_HALF_UP)
+
+        amount_paid = Decimal(request.data.get('amount_paid'))
+        transaction_id = request.data.get('transaction_id')
+        is_verified = request.data.get('is_verified', False)
+        payment_time = request.data.get('payment_time', timezone.now())
+
+        # Check transaction ID uniqueness
+        if SharedRideUPIPayment.objects.filter(transaction_id=transaction_id).exists():
+            return Response({"status": False, "message": "Transaction ID already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Platform fee
+        platform_setting = PlatformSetting.objects.filter(is_active=True).first()
+        if platform_setting:
+            if platform_setting.fee_type == 'percentage':
+                platform_fee = (amount_paid * platform_setting.fee_value / 100).quantize(Decimal('1.00'))
+            else:
+                platform_fee = platform_setting.fee_value
+        else:
+            platform_fee = Decimal('0.00')
+
+        driver_earning = (amount_paid - platform_fee).quantize(Decimal('1.00'))
+
+        try:
+            with transaction.atomic():
+                # Create UPI payment
+                SharedRideUPIPayment.objects.create(
+                    driver=driver,
+                    ride=ride,
+                    amount_paid=amount_paid,
+                    transaction_id=transaction_id,
+                    payment_time=payment_time,
+                    is_verified=is_verified
+                )
+
+                # Create wallet transaction
+                DriverWalletTransaction.objects.create(
+                driver=driver,
+                shared_join_ride=join_request,  # ✅ assign here
+                amount=driver_earning,
+                transaction_type='Car pooling',
+                description=f"Earning from carpool ride from {from_location} to {to_location} for {seats} seat(s)"
+            )
+        except Exception as e:
+            return Response({"status": False, "message": f"Transaction failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            "status": True,
+            "message": "Driver payment recorded successfully.",
+            "data": {
+                "ride_id": ride.id,
+                "from": from_location,
+                "to": to_location,
+                "seats_requested": seats,
+                "price_per_seat": int(round(price_per_seat)),
+                "total_price": int(round(total_price)),
+                "amount_paid": float(amount_paid),
+                "platform_fee": float(platform_fee),
+                "driver_earning": float(driver_earning),
+                "transaction_id": transaction_id,
+                "is_verified": is_verified
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class CompleteRideShareBookingAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
         try:
             ride = RideShareBooking.objects.get(id=ride_id)
         except RideShareBooking.DoesNotExist:
-            return Response({"error": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Ride not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Get all successful UPI payments for this ride
-        payments = SharedRideUPIPayment.objects.filter(ride=ride, is_verified=True)
+        # Only the ride creator or staff can mark as completed
+        if request.user != ride.user and not request.user.is_staff:
+            return Response({'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
-        if not payments.exists():
-            return Response({
-                "ride_id": ride.id,
-                "from_location": ride.from_location,
-                "to_location": ride.to_location,
-                "rider_name": None,
-                "rider_profile": None,
-                "total_amount_paid": 0.0,
-                "platform_fee": 0.0,
-                "credited_to_driver": 0.0
-            })
+        if ride.status == 'completed':
+            return Response({'message': 'Ride is already completed.'}, status=status.HTTP_200_OK)
 
-        # For now, return details based on the **first rider who paid**
-        first_payment = payments.first()
-        rider = first_payment.driver  # The rider who paid is stored in driver field
+        # Update status and end time
+        ride.status = 'completed'
+        ride.ride_end_datetime = timezone.now()
+        ride.save()
 
-        total_paid = sum(p.amount_paid for p in payments)
+        return Response({'message': 'Ride marked as completed successfully.'}, status=status.HTTP_200_OK)
+    
 
-        # Fetch platform fee % from PlatformSetting
+class RateRideAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_join_request_id):
+        serializer = RatingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        rating = serializer.validated_data['rating']
+        review = serializer.validated_data.get('review', '')
+
+        user = request.user
+
         try:
-            platform_fee_percentage = PlatformSetting.objects.first().platform_fee_percentage
-        except:
-            platform_fee_percentage = 0  # fallback
+            join_request = RideJoinRequest.objects.get(id=ride_join_request_id)
 
-        platform_fee = round(total_paid * (platform_fee_percentage / 100), 2)
-        credited_amount = round(total_paid - platform_fee, 2)
+            if join_request.status != 'accepted':
+                return Response({"error": "Only accepted rides can be rated."}, status=400)
 
-        # Create DriverWalletTransaction if not already recorded
-        if not DriverWalletTransaction.objects.filter(
-            driver=ride.created_by,
-            ride=None,
-            amount=credited_amount,
-            transaction_type='Car pooling'
-        ).exists():
-            DriverWalletTransaction.objects.create(
-                driver=ride.created_by,
-                ride=None,
-                amount=credited_amount,
-                transaction_type='Car pooling',
-                description=f'Car pooling earnings for Ride ID {ride.id}'
-            )
+            ride = join_request.ride  # RideShareBooking
+            publisher = ride.user     # Ride creator
 
-        return Response({
-            "ride_id": ride.id,
-            "from_location": ride.from_location,
-            "to_location": ride.to_location,
-            "rider_name": rider.username,
-            "rider_profile": request.build_absolute_uri(rider.profile_image.url) if rider.profile_image else None,
-            "total_amount_paid": float(f"{total_paid:.1f}"),
-            "platform_fee": float(f"{platform_fee:.1f}"),
-            "credited_to_driver": float(f"{credited_amount:.1f}")
-        })
+            if publisher == user:
+                return Response({"error": "You cannot rate your own ride."}, status=403)
+
+            if ride.status != 'completed':
+                return Response({"error": "Cannot rate an incomplete ride."}, status=400)
+
+            if publisher.role == 'driver':
+                # Prevent duplicate rating
+                if DriverRating.objects.filter(ride_sharing=join_request, driver=publisher, rated_by=user).exists():
+                    return Response({"error": "You have already rated this driver."}, status=400)
+
+                DriverRating.objects.create(
+                    ride_sharing=join_request,
+                    driver=publisher,
+                    rated_by=user,
+                    rating=rating,
+                    review=review
+                )
+                return Response({"message": "Driver rated successfully."})
+
+            elif publisher.role == 'rider':
+                if RiderRating.objects.filter(ride_sharing=join_request, rider=publisher, rated_by=user).exists():
+                    return Response({"error": "You have already rated this rider."}, status=400)
+
+                RiderRating.objects.create(
+                    ride_sharing=join_request,
+                    rider=publisher,
+                    rated_by=user,
+                    rating=rating,
+                    review=review
+                )
+                return Response({"message": "Rider rated successfully."})
+
+            return Response({"error": "Invalid publisher role."}, status=400)
+
+        except RideJoinRequest.DoesNotExist:
+            return Response({"error": "RideJoinRequest not found."}, status=404)

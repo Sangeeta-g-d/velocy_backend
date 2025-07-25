@@ -165,7 +165,7 @@ class SharedRideUPIPayment(models.Model):
 
 
 class RiderRating(models.Model):
-    ride_sharing = models.ForeignKey('ride_sharing.RideShareBooking', on_delete=models.CASCADE, related_name='rider_ratings')
+    ride_sharing = models.ForeignKey('ride_sharing.RideJoinRequest', on_delete=models.CASCADE, related_name='rider_ratings')
     rider = models.ForeignKey('auth_api.CustomUser', on_delete=models.CASCADE, related_name='rider_ratings_received', limit_choices_to={'role': 'rider'})
     rated_by = models.ForeignKey('auth_api.CustomUser', on_delete=models.CASCADE, related_name='rider_ratings_given', limit_choices_to={'role': 'driver'})
     rating = models.DecimalField(max_digits=2, decimal_places=1, validators=[MinValueValidator(1.0), MaxValueValidator(5.0)])

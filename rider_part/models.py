@@ -5,6 +5,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 import random
 from django.utils import timezone
 from datetime import timedelta
+from ride_sharing.models import RideJoinRequest
 
 # Create your models here.
 User = get_user_model()
@@ -129,7 +130,13 @@ class DriverWalletTransaction(models.Model):
     ]
 
     driver = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'driver'})
+
+    # Original ride FK (for RideRequest)
     ride = models.ForeignKey(RideRequest, on_delete=models.SET_NULL, null=True, blank=True)
+
+    # ✅ New FK to RideShareBooking
+    shared_join_ride = models.ForeignKey(RideJoinRequest, on_delete=models.SET_NULL, null=True, blank=True)
+
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
     description = models.TextField(blank=True, null=True)
@@ -142,8 +149,39 @@ class DriverWalletTransaction(models.Model):
         return f"{self.driver} - {self.transaction_type} - {self.amount}"
 
 
+
 class RideMessage(models.Model):
     ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE)
     sender = models.ForeignKey(User, on_delete=models.CASCADE)
     message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+class RideReportSubmission(models.Model):
+    ride = models.ForeignKey(
+        RideRequest,
+        on_delete=models.CASCADE,
+        related_name='report_submissions'
+    )
+    report_type = models.ForeignKey(
+        'admin_part.RideReport',
+        on_delete=models.CASCADE,
+        related_name='report_submissions'
+    )
+    message = models.TextField()
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Report on Ride #{self.ride.id} - {self.report_type.report_name}"
+
+
+class FavoriteToLocation(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorite_to_locations')
+    name = models.CharField(max_length=100, help_text="Custom name for this location")
+    to_location = models.CharField(max_length=255)
+    to_latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    to_longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
