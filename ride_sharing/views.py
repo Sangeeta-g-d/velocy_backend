@@ -3,6 +3,9 @@ from rest_framework.views import APIView
 from .serializers import *
 from .tasks import calculate_segments_and_eta
 from .mixins import StandardResponseMixin
+from rider_part.models import DriverWalletTransaction
+from admin_part.models import PlatformSetting
+from django.db.models import Sum
 from django.db import transaction
 import re
 from datetime import datetime, timedelta
@@ -925,3 +928,68 @@ class RidePaymentSummaryAPIView(APIView):
                 "segment_id": join_request.segment.id if join_request.segment else None
             }
         }, status=status.HTTP_200_OK)
+
+class SharedRideUPIPaymentSummaryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_id):
+        try:
+            ride = RideShareBooking.objects.get(id=ride_id)
+        except RideShareBooking.DoesNotExist:
+            return Response({"error": "Ride not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get all successful UPI payments for this ride
+        payments = SharedRideUPIPayment.objects.filter(ride=ride, is_verified=True)
+
+        if not payments.exists():
+            return Response({
+                "ride_id": ride.id,
+                "from_location": ride.from_location,
+                "to_location": ride.to_location,
+                "rider_name": None,
+                "rider_profile": None,
+                "total_amount_paid": 0.0,
+                "platform_fee": 0.0,
+                "credited_to_driver": 0.0
+            })
+
+        # For now, return details based on the **first rider who paid**
+        first_payment = payments.first()
+        rider = first_payment.driver  # The rider who paid is stored in driver field
+
+        total_paid = sum(p.amount_paid for p in payments)
+
+        # Fetch platform fee % from PlatformSetting
+        try:
+            platform_fee_percentage = PlatformSetting.objects.first().platform_fee_percentage
+        except:
+            platform_fee_percentage = 0  # fallback
+
+        platform_fee = round(total_paid * (platform_fee_percentage / 100), 2)
+        credited_amount = round(total_paid - platform_fee, 2)
+
+        # Create DriverWalletTransaction if not already recorded
+        if not DriverWalletTransaction.objects.filter(
+            driver=ride.created_by,
+            ride=None,
+            amount=credited_amount,
+            transaction_type='Car pooling'
+        ).exists():
+            DriverWalletTransaction.objects.create(
+                driver=ride.created_by,
+                ride=None,
+                amount=credited_amount,
+                transaction_type='Car pooling',
+                description=f'Car pooling earnings for Ride ID {ride.id}'
+            )
+
+        return Response({
+            "ride_id": ride.id,
+            "from_location": ride.from_location,
+            "to_location": ride.to_location,
+            "rider_name": rider.username,
+            "rider_profile": request.build_absolute_uri(rider.profile_image.url) if rider.profile_image else None,
+            "total_amount_paid": float(f"{total_paid:.1f}"),
+            "platform_fee": float(f"{platform_fee:.1f}"),
+            "credited_to_driver": float(f"{credited_amount:.1f}")
+        })

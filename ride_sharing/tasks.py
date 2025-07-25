@@ -2,7 +2,6 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from celery import shared_task
 from django.utils import timezone
-
 from .models import RideShareBooking, RideShareRouteSegment, RideSharePriceSetting, RideShareStop
 from .utils.google_maps import get_route_segments_with_distance
 
@@ -26,13 +25,25 @@ def calculate_segments_and_eta(booking_id):
         'name': stop.stop_location,
         'lat': stop.stop_lat,
         'lng': stop.stop_lng,
-        'stop_id': stop.id  # needed for ETA assignment
+        'stop_id': stop.id  # for ETA use
     } for stop in stops]
     points.append({
         'name': booking.to_location,
         'lat': booking.to_location_lat,
         'lng': booking.to_location_lng
     })
+
+    print(f"[TASK] Booking {booking_id} - Points:")
+    for p in points:
+        print(f" - {p['name']} | lat: {p['lat']} | lng: {p['lng']}")
+
+    if any(p['lat'] is None or p['lng'] is None for p in points):
+        print("[TASK] Error: One or more points have invalid coordinates.")
+        return
+
+    if len(points) > 25:
+        print("[TASK] Error: Too many points. Google Directions API supports only 25 total.")
+        return
 
     segments = get_route_segments_with_distance(
         from_lat=points[0]['lat'],
@@ -51,7 +62,6 @@ def calculate_segments_and_eta(booking_id):
         print("[TASK] No price setting found.")
         return
 
-    # Compute cumulative distances and durations
     cumulative_distances = [0]
     cumulative_durations = [0]
     total_dist = 0
@@ -63,7 +73,6 @@ def calculate_segments_and_eta(booking_id):
         cumulative_distances.append(total_dist)
         cumulative_durations.append(total_time)
 
-    # Delete old segments
     booking.route_segments.all().delete()
 
     for i in range(len(points)):
@@ -85,8 +94,6 @@ def calculate_segments_and_eta(booking_id):
                 price=price
             )
 
-    # ETA CALCULATION
-    # Combine date with ride_time (which is a time object)
     ride_start_time = datetime.combine(timezone.now().date(), booking.ride_time)
 
     for index, stop in enumerate(stops):
