@@ -7,6 +7,8 @@ from rest_framework import generics, permissions
 from django.db.models import Avg
 from decimal import Decimal
 from auth_api.models import DriverRating
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from corporate_web.models import CompanyPrepaidPlan
 from django.db import transaction
 from corporate_web.models import EmployeeCredit
@@ -754,3 +756,47 @@ class AddFavoriteToLocationAPIView(APIView):
             serializer.save(user=request.user)  # attach current user
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class EmployeeDashboardAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user  # 1️⃣ Get from token
+
+        # 2️⃣ Ensure user is an employee
+        if employee.role != "employee":
+            return Response({"detail": "Only employees can access this dashboard."}, status=403)
+
+        # 3️⃣ Credits
+        credit = getattr(employee, "credit", None)
+        total_credits = credit.total_credits if credit else 0
+        available_credits = credit.available_credits() if credit else 0
+
+        # 4️⃣ Upcoming ride
+        now = timezone.now()
+        upcoming_ride = (
+            RideRequest.objects.filter(
+                Q(user=employee) | Q(employees=employee),
+                status__in=["pending", "accepted", "scheduled", "draft"],
+            )
+            .filter(
+                Q(ride_type="now", start_time__isnull=True)
+                | Q(ride_type="scheduled", scheduled_time__gt=now)
+            )
+            .order_by("scheduled_time", "created_at")
+            .first()
+        )
+        ride_data = RideRequestMiniSerializer(upcoming_ride).data if upcoming_ride else None
+
+        # 5️⃣ Favorites
+        fav_qs = FavoriteToLocation.objects.filter(user=employee)
+        fav_data = FavoriteToLocationSerializer(fav_qs, many=True).data
+
+        return Response({
+            "employee_id": employee.id,
+            "total_credits": str(total_credits),
+            "available_credits": str(available_credits),
+            "upcoming_ride": ride_data,
+            "favorite_places": fav_data,
+        })

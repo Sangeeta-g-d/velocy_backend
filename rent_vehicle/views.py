@@ -51,6 +51,16 @@ class DeleteRentedVehicleAPIView(APIView):
     
 
 # edit
+# fetch
+class RentedVehicleDetailForEditAPIView(APIView):
+  
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, vehicle_id):
+        rented_vehicle = get_object_or_404(RentedVehicle, id=vehicle_id)
+        serializer = RentedVehicleUpdateSerializer(rented_vehicle)
+        return Response(serializer.data)
+    
 class RentedVehicleUpdateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

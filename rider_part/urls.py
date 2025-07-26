@@ -35,6 +35,7 @@ urlpatterns = [
     path('active-promos/', ActivePromoCodesAPIView.as_view(), name='active-promo-codes'),
 
     # corporate url
+    path('corporate-home-screen/', EmployeeDashboardAPIView.as_view(), name='corporate_ride_request'),
     path('corporate-user-payment/<int:ride_id>/', RideCorporatePaymentSummaryAPIView.as_view(), name='ride_payment_summary'),
     path('corporate-confirm-payment/<int:ride_id>/', RideCorporateConfirmAPIView.as_view(), name='ride_confirm'),
 

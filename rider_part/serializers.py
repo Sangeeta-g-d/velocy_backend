@@ -295,3 +295,29 @@ class FavoriteToLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = FavoriteToLocation
         fields = ['id', 'name', 'to_location', 'to_latitude', 'to_longitude']
+
+# corporate employee dashboard serializers
+class RideRequestMiniSerializer(serializers.ModelSerializer):
+    """Just enough fields for a quick dashboard preview."""
+    class Meta:
+        model = RideRequest
+        fields = [
+            "id",
+            "ride_type",
+            "scheduled_time",
+            "from_location",
+            "to_location",
+            "status",
+        ]
+
+
+class FavoriteToLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FavoriteToLocation
+        fields = [
+            "id",
+            "name",
+            "to_location",
+            "to_latitude",
+            "to_longitude",
+        ]

@@ -130,8 +130,5 @@ class CompanyPrepaidPlan(models.Model):
 
         return total_reclaimed
 
-
-
-
     def __str__(self):
         return f"{self.company.company_name} - {self.plan.name} ({self.payment_status})"

@@ -10,6 +10,7 @@ urlpatterns = [
     path('delete-rented-vehicle/<int:vehicle_id>/', DeleteRentedVehicleAPIView.as_view(), name='delete-rented-vehicle'),
 
     # user
+    path('rented-vehicles-for-editing/<int:vehicle_id>/', RentedVehicleDetailForEditAPIView.as_view(), name='rented-vehicle-detail'),
     path('vehicles-details-edit/<int:pk>/', RentedVehicleUpdateAPIView.as_view(), name='rented-vehicle-detail'),
     path('car-rental-home-screen/', ApprovedVehiclesListAPIView.as_view(), name='approved-vehicles-list'),
     path('rental-vehicle-details/<int:vehicle_id>/', RentedVehicleDetailAPIView.as_view(), name='vehicle-detail'),
