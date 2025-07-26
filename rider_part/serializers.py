@@ -154,16 +154,24 @@ class RideStopSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['order']
 
+
 class RideRouteSerializer(serializers.ModelSerializer):
     stops = RideStopSerializer(source='ride_stops', many=True)
+    driver_completed_trips = serializers.SerializerMethodField()
 
     class Meta:
         model = RideRequest
         fields = [
             'from_location', 'from_latitude', 'from_longitude',
             'to_location', 'to_latitude', 'to_longitude',
-            'stops','ride_purpose'
+            'stops', 'ride_purpose', 'driver_completed_trips'
         ]
+
+    def get_driver_completed_trips(self, obj):
+        if obj.driver:
+            return RideRequest.objects.filter(driver=obj.driver, status='completed').count()
+        return 0
+
 
 class RideSummaryFormattedSerializer(serializers.ModelSerializer):
     price = serializers.SerializerMethodField()
