@@ -800,3 +800,45 @@ class EmployeeDashboardAPIView(APIView):
             "upcoming_ride": ride_data,
             "favorite_places": fav_data,
         })
+
+
+class CancelRideByUserAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_id):
+        try:
+            ride = RideRequest.objects.get(id=ride_id)
+        except RideRequest.DoesNotExist:
+            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if ride.user != request.user:
+            return Response({"detail": "You are not allowed to cancel this ride."}, status=403)
+
+        if ride.status in ['completed', 'cancelled']:
+            return Response({"detail": "Cannot cancel a completed or already cancelled ride."}, status=400)
+
+        ride.status = 'cancelled'
+        ride.save()
+
+        # ✅ Notify driver (if assigned)
+        channel_layer = get_channel_layer()
+        if ride.driver:
+            driver_id = ride.driver.id
+            group_name = f"user_{driver_id}"
+
+            try:
+                async_to_sync(channel_layer.group_send)(
+                    group_name,
+                    {
+                        "type": "ride.cancelled_by_user",
+                        "ride_id": ride.id,
+                        "message": "Ride was cancelled by the rider.",
+                        "user_name": request.user.username,
+                        "user_id": request.user.id,
+                    }
+                )
+                print("✅ Cancellation WebSocket sent to driver group:", group_name)
+            except Exception as e:
+                print("❌ Error sending cancellation message:", e)
+
+        return Response({"message": "Ride cancelled successfully."}, status=200)

@@ -45,5 +45,7 @@ urlpatterns = [
 
     # favorite locations
     path('add-favorite-to-location/', AddFavoriteToLocationAPIView.as_view(), name='add_favorite_to_location'),
+
+    path('cancel-by-user/<int:ride_id>/', CancelRideByUserAPIView.as_view(), name='cancel-ride-by-user'),
     
 ]

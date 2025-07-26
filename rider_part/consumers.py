@@ -259,6 +259,14 @@ class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
             "driver_name": event["driver_name"],
             "driver_id": event["driver_id"],
         })
+    async def ride_cancelled_by_user(self, event):
+        await self.send_json({
+            "type": "ride_cancelled_by_user",
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "user_name": event["user_name"],
+            "user_id": event["user_id"],
+        })
 
 
 # shared ride tracking consumer
