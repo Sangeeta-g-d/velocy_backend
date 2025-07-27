@@ -49,6 +49,9 @@
   <li class="{% if current_url_name == 'prepaid' %}active{% endif %}">
     <a href="{% url 'prepaid_plans' %}"><i class="fas fa-coins"></i> Prepaid Plans</a>
   </li>
+  <li class="{% if current_url_name == 'reports' %}active{% endif %}">
+    <a href="{% url 'reported_drivers' %}"><i class="fas fa-coins"></i>Reports</a>
+  </li>
 </ul>
 
 </div>

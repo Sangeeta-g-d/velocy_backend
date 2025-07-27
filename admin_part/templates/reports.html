@@ -1,0 +1,65 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+    <h2 style="margin-bottom: 15px;">Ride Report Submissions</h2>
+
+    <!-- Search Input -->
+    <input type="text" id="searchInput" class="form-group-input search-bar" placeholder="Search by Reported By or Reported To">
+
+    {% if report_submissions %}
+    <!-- Table -->
+    <div class="table-container">
+        <table class="styled-table" id="reportTable" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>Ride ID</th>
+                    <th>Report Type</th>
+                    <th>Reported By</th>
+                    <th>Reported To</th>
+                    <th>Message</th>
+                    <th>Submitted At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for submission in report_submissions %}
+                <tr>
+                    <td>{{ submission.ride.id }}</td>
+                    <td>{{ submission.report_type.report_name }}</td>
+                    <td>{{ submission.ride.user.get_full_name|default:submission.ride.user.username }}</td>
+                    <td>
+                        {% if submission.ride.driver %}
+                            {{ submission.ride.driver.get_full_name|default:submission.ride.driver.username }}
+                        {% else %}
+                            <span class="text-danger">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ submission.message|truncatechars:50 }}</td>
+                    <td>{{ submission.submitted_at|date:"d M Y, h:i A" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination-container">
+        <ul id="pagination" class="pagination"></ul>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeTablePagination({
+                tableId: "reportTable",
+                searchInputId: "searchInput",
+                paginationId: "pagination",
+                rowsPerPage: 10
+            });
+        });
+    </script>
+    {% else %}
+        <div class="no-data-message text-center mt-4">
+            <h4>No reports submitted yet.</h4>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

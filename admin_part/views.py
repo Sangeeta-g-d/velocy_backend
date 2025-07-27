@@ -12,7 +12,7 @@ from auth_api.models import DriverRating
 from django.utils.timezone import localtime
 from corporate_web.models import CompanyAccount
 from django.db.models import Avg
-from rider_part.models import RideRequest, DriverWalletTransaction
+from rider_part.models import RideRequest, DriverWalletTransaction,RideReportSubmission
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -692,3 +692,15 @@ def delete_prepaid_plan(request, plan_id):
         except PrepaidPlan.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Plan not found'})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+def reports(request):
+    report_submissions = RideReportSubmission.objects.select_related(
+        'ride__user', 'ride__driver', 'report_type'
+    ).order_by('-submitted_at')
+
+    context = {
+        'report_submissions': report_submissions,
+        'current_url_name': 'reports'
+    }
+    return render(request, 'reports.html', context)

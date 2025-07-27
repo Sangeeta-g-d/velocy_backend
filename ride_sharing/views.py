@@ -254,7 +254,7 @@ class RideShareSearchAPIView(APIView):
         from_location = request.query_params.get('from')
         to_location = request.query_params.get('to')
         date = request.query_params.get('date')
-        time = request.query_params.get('time')
+        time_str = request.query_params.get('time')
         seats_required = int(request.query_params.get('seats', 1))
 
         if not from_location or not to_location:
@@ -262,7 +262,15 @@ class RideShareSearchAPIView(APIView):
                 "status": False,
                 "message": "Both 'from' and 'to' locations are required."
             }, status=status.HTTP_400_BAD_REQUEST)
-
+        ride_time_obj = None
+        if time_str:
+            try:
+                ride_time_obj = datetime.strptime(time_str, '%H:%M').time()
+            except ValueError:
+                return Response({
+                    "status": False,
+                    "message": "Invalid time format. Use HH:MM (e.g., 08:30)."
+                }, status=status.HTTP_400_BAD_REQUEST)
         booking_filters = (
             Q(status="published") &
             Q(seats_remaining__gte=seats_required) &
@@ -270,8 +278,8 @@ class RideShareSearchAPIView(APIView):
         )
         if date:
             booking_filters &= Q(ride_date=date)
-        if time:
-            booking_filters &= Q(ride_time__gte=time)
+        if ride_time_obj:
+            booking_filters &= Q(ride_time__gte=ride_time_obj)
 
         response_data = []
 
@@ -581,7 +589,7 @@ class MyRideJoinRequestsAPIView(StandardResponseMixin, APIView):
 
     def get(self, request):
         join_requests = RideJoinRequest.objects.filter(user=request.user).order_by('-created_at')
-        serializer = RideJoinRequestDetailSerializer(join_requests, many=True)
+        serializer = RideJoinRequestDetailSerializer(join_requests, many=True, context={"request": request})
         return self.response(serializer.data)
     
 class AcceptedJoinRequestsAPIView(APIView):
@@ -662,12 +670,17 @@ class RideDetailsAPIView(APIView):
             "ride_date": ride.ride_date.strftime('%Y-%m-%d'),
             "passenger_notes": ride.passenger_notes,
             "cancellation_probability": float(ride.cancellation_probability) if ride.cancellation_probability else None,
+            "passenger_notes": ride.passenger_notes,
             "ride_creator": {},
             "ride_details": {
-                "duration": None
+                "duration": None,
+                "start_time": None,
+                "end_time": None
             },
             "coordinates": {}
         }
+
+        start_time, end_time = None, None
 
         if segment_id:
             try:
@@ -681,7 +694,6 @@ class RideDetailsAPIView(APIView):
                     "total_price": float(segment.price)
                 })
 
-                # Coordinates and duration
                 if segment.from_stop.lower() == ride.from_location.lower():
                     response_data["coordinates"].update({
                         "from_lat": ride.from_location_lat,
@@ -718,30 +730,20 @@ class RideDetailsAPIView(APIView):
                         })
                         end_time = to_stop.estimated_arrival_time
 
-                if start_time and end_time:
-                    if isinstance(start_time, time) and isinstance(end_time, time):
-                        start_datetime = datetime.combine(ride.ride_date, start_time)
-                        end_datetime = datetime.combine(ride.ride_date, end_time)
-                        duration = end_datetime - start_datetime
-                        total_minutes = duration.total_seconds() / 60
-                        response_data["ride_details"]["duration"] = self.get_duration_format(total_minutes)
-
             except RideShareRouteSegment.DoesNotExist:
                 return Response({
                     "status": False,
                     "message": "Segment not found for this ride."
                 }, status=status.HTTP_404_NOT_FOUND)
-
         else:
-            # ✅ Fetch price from model directly
             ride_price = float(ride.price) if ride.price is not None else 0.0
-
             response_data["ride_details"].update({
                 "from_location": ride.from_location,
                 "to_location": ride.to_location,
                 "distance_km": float(ride.distance_km) if ride.distance_km is not None else None,
                 "price": ride_price,
-                "total_price": ride_price
+                "total_price": ride_price,
+                
             })
 
             response_data["coordinates"].update({
@@ -751,20 +753,33 @@ class RideDetailsAPIView(APIView):
                 "to_lng": ride.to_location_lng
             })
 
-            if ride.ride_time and ride.to_location_estimated_arrival_time:
-                start_datetime = datetime.combine(ride.ride_date, ride.ride_time)
-                end_datetime = datetime.combine(ride.ride_date, ride.to_location_estimated_arrival_time)
+            start_time = ride.ride_time
+            end_time = ride.to_location_estimated_arrival_time
+
+        # Handle start and end time display
+        if start_time:
+            response_data["ride_details"]["start_time"] = start_time.strftime('%H:%M:%S')
+        if end_time:
+            response_data["ride_details"]["end_time"] = end_time.strftime('%H:%M:%S')
+
+        if start_time and end_time:
+            if isinstance(start_time, time) and isinstance(end_time, time):
+                start_datetime = datetime.combine(ride.ride_date, start_time)
+                end_datetime = datetime.combine(ride.ride_date, end_time)
                 duration = end_datetime - start_datetime
                 total_minutes = duration.total_seconds() / 60
                 response_data["ride_details"]["duration"] = self.get_duration_format(total_minutes)
 
-        # 🚘 Ride creator info
         creator = ride.user
         avg_rating = None
         vehicle_name = None
+        rating_user_count = 0 
 
         if creator.role == 'rider':
             avg_rating = RiderRating.objects.filter(rider=creator).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            rating_user_count = RiderRating.objects.filter(
+                rider=creator
+            ).values('rated_by').distinct().count()
             if ride.vehicle:
                 vehicle_name = ride.vehicle.model_name
         else:
@@ -772,6 +787,9 @@ class RideDetailsAPIView(APIView):
                 vehicle_info = DriverVehicleInfo.objects.get(user=creator)
                 vehicle_name = f"{vehicle_info.car_company} {vehicle_info.car_model}"
                 avg_rating = DriverRating.objects.filter(driver=creator).aggregate(avg_rating=Avg('rating'))['avg_rating']
+                rating_user_count = DriverRating.objects.filter(
+                    driver=creator
+                    ).values('rated_by').distinct().count()
             except DriverVehicleInfo.DoesNotExist:
                 pass
 
@@ -780,16 +798,16 @@ class RideDetailsAPIView(APIView):
             "phone_number": creator.phone_number,
             "profile_image": request.build_absolute_uri(creator.profile.url) if creator.profile else None,
             "avg_rating": round(float(avg_rating), 1) if avg_rating is not None else None,
-            "vehicle_name": vehicle_name
+            "vehicle_name": vehicle_name,
+            "rating_user_count": rating_user_count
         })
 
-        # 👥 Add accepted passengers' details
         passengers = []
         accepted_requests = ride.join_requests.filter(status='accepted').select_related('user', 'segment')
 
         for req in accepted_requests:
             if req.user == ride.user:
-                continue  # Skip ride creator
+                continue
 
             passenger_data = {
                 "username": req.user.username,
@@ -806,6 +824,7 @@ class RideDetailsAPIView(APIView):
             "message": "Ride details fetched successfully.",
             "data": response_data
         }, status=status.HTTP_200_OK)
+
     
 
 class RideStartAPIView(APIView):
@@ -1107,3 +1126,21 @@ class RateRideAPIView(APIView):
 
         except RideJoinRequest.DoesNotExist:
             return Response({"error": "RideJoinRequest not found."}, status=404)
+
+
+class CancelRideJoinRequestAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            join_request = RideJoinRequest.objects.get(pk=pk, user=request.user)
+        except RideJoinRequest.DoesNotExist:
+            return Response({"status": False, "message": "Join request not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+
+        if join_request.status not in ['pending', 'accepted']:
+            return Response({"status": False, "message": f"Cannot cancel a '{join_request.status}' request."}, status=status.HTTP_400_BAD_REQUEST)
+
+        join_request.status = 'cancelled'
+        join_request.save()
+
+        return Response({"status": True, "message": "Join request cancelled successfully."}, status=status.HTTP_200_OK)

@@ -3,6 +3,7 @@ from .models import RideShareVehicle,RideShareBooking,RideShareStop,RideShareRou
 from ride_sharing.time_utils import convert_to_ist
 from pytz import timezone as pytz_timezone
 from datetime import datetime, timedelta
+from auth_api.models import DriverVehicleInfo
 from auth_api.models import CustomUser
 from decimal import Decimal
 from django.utils import timezone
@@ -400,11 +401,15 @@ class RiderProfileSerializer(serializers.ModelSerializer):
 
 class RideJoinRequestDetailSerializer(serializers.ModelSerializer):
     rider = RiderProfileSerializer(source='ride.user', read_only=True)
-    vehicle_name = serializers.CharField(source='ride.vehicle.model_name', read_only=True)
+    vehicle_name = serializers.SerializerMethodField()
     from_location = serializers.SerializerMethodField()
     to_location = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
-    ride_status = serializers.SerializerMethodField()  # ✅ Add this field
+    ride_status = serializers.SerializerMethodField()
+    start_time = serializers.SerializerMethodField()
+    end_time = serializers.SerializerMethodField()
+    duration = serializers.SerializerMethodField()
+    vehicle_info = serializers.SerializerMethodField()
 
     class Meta:
         model = RideJoinRequest
@@ -414,11 +419,15 @@ class RideJoinRequestDetailSerializer(serializers.ModelSerializer):
             'to_location',
             'rider',
             'vehicle_name',
+            'vehicle_info',
             'seats_requested',
             'status',
             'message',
             'created_at',
-            'ride_status',  # ✅ Include in output
+            'ride_status',
+            'start_time',
+            'end_time',
+            'duration',
         ]
 
     def get_from_location(self, obj):
@@ -436,7 +445,6 @@ class RideJoinRequestDetailSerializer(serializers.ModelSerializer):
         ride_datetime = datetime.combine(ride.ride_date, ride.ride_time)
         ride_datetime = timezone.make_aware(ride_datetime, timezone.get_current_timezone())
 
-        # Priority check
         if ride.status == 'cancelled':
             return 'cancelled'
         elif ride.status == 'completed':
@@ -449,7 +457,83 @@ class RideJoinRequestDetailSerializer(serializers.ModelSerializer):
             elif ride_datetime <= now:
                 return 'in_progress'
 
-        return ride.status  # fallback
+        return ride.status
+
+    def get_vehicle_name(self, obj):
+        ride = obj.ride
+        creator = ride.user
+
+        if creator.role == 'rider' and ride.vehicle:
+            return ride.vehicle.model_name
+        elif creator.role == 'driver':
+            try:
+                vehicle_info = creator.vehicle_info
+                return f"{vehicle_info.car_company} {vehicle_info.car_model}"
+            except DriverVehicleInfo.DoesNotExist:
+                return None
+        return None
+
+    def get_vehicle_info(self, obj):
+        ride = obj.ride
+        creator = ride.user
+
+        if creator.role == 'rider' and ride.vehicle:
+            return {
+                "model_name": ride.vehicle.model_name,
+                "vehicle_number": ride.vehicle.vehicle_number,
+                "seat_capacity": ride.vehicle.seat_capacity,
+            }
+        elif creator.role == 'driver':
+            try:
+                vehicle_info = creator.vehicle_info
+                return {
+                    "car_company": vehicle_info.car_company,
+                    "car_model": vehicle_info.car_model,
+                    "vehicle_number": vehicle_info.vehicle_number,
+                    "vehicle_type": vehicle_info.vehicle_type,
+                    "year": vehicle_info.year,
+                }
+            except DriverVehicleInfo.DoesNotExist:
+                return None
+        return None
+
+    def get_start_time(self, obj):
+        ride = obj.ride
+        if obj.segment:
+            from_stop = RideShareStop.objects.filter(ride_booking=ride, stop_location__icontains=obj.segment.from_stop).first()
+            if from_stop:
+                return from_stop.estimated_arrival_time.strftime('%H:%M:%S') if from_stop.estimated_arrival_time else None
+        return ride.ride_time.strftime('%H:%M:%S') if ride.ride_time else None
+
+    def get_end_time(self, obj):
+        ride = obj.ride
+        if obj.segment:
+            to_stop = RideShareStop.objects.filter(ride_booking=ride, stop_location__icontains=obj.segment.to_stop).first()
+            if to_stop:
+                return to_stop.estimated_arrival_time.strftime('%H:%M:%S') if to_stop.estimated_arrival_time else None
+        return ride.to_location_estimated_arrival_time.strftime('%H:%M:%S') if ride.to_location_estimated_arrival_time else None
+
+    def get_duration(self, obj):
+        from datetime import datetime, timedelta
+        start_str = self.get_start_time(obj)
+        end_str = self.get_end_time(obj)
+
+        if start_str and end_str:
+            fmt = '%H:%M:%S'
+            try:
+                start_dt = datetime.strptime(start_str, fmt)
+                end_dt = datetime.strptime(end_str, fmt)
+                if end_dt < start_dt:
+                    end_dt += timedelta(days=1)
+                duration = end_dt - start_dt
+                total_minutes = duration.total_seconds() // 60
+                hours = int(total_minutes // 60)
+                minutes = int(total_minutes % 60)
+                return f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+            except:
+                return None
+        return None
+
 
 class AcceptedJoinRequestSerializer(serializers.ModelSerializer):
     request_id = serializers.SerializerMethodField()
