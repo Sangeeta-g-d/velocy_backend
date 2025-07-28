@@ -102,3 +102,8 @@ def calculate_segments_and_eta(booking_id):
         stop.save()
 
     print(f"[TASK] Segments and ETA stored for booking {booking_id}")
+
+@shared_task
+def test_task():
+    print("Test task executed.")
+    return "Done"
