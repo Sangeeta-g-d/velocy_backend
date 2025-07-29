@@ -251,7 +251,7 @@ class RideJoinRequestViewSerializer(serializers.ModelSerializer):
             'created_at_ist',
             'from_location', 'to_location',
             'from_time', 'to_time',
-            'from_lat', 'from_lng','aadhar_card_url'
+            'from_lat', 'from_lng','aadhar_card_url',
             'to_lat', 'to_lng',
         ]
 
