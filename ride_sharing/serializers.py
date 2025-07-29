@@ -247,7 +247,7 @@ class RideJoinRequestViewSerializer(serializers.ModelSerializer):
         model = RideJoinRequest
         fields = [
             'id', 'username', 'profile_url',
-            'seats_requested', 'status', 'message',
+            'seats_requested', 'status',
             'created_at_ist',
             'from_location', 'to_location',
             'from_time', 'to_time',

@@ -145,7 +145,6 @@ class RideJoinRequest(models.Model):
 
     seats_requested = models.PositiveIntegerField(default=1)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    message = models.TextField(blank=True, help_text="Optional message from the passenger.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
