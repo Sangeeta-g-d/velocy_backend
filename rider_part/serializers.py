@@ -295,8 +295,22 @@ class RideReportSerializer(serializers.ModelSerializer):
 class RideReportSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideReportSubmission
-        fields = ['id', 'ride', 'report_type', 'message', 'submitted_at']
+        fields = [
+            'id',
+            'ride',
+            'ride_share_booking',
+            'report_type',
+            'message',
+            'submitted_at'
+        ]
         read_only_fields = ['id', 'submitted_at']
+
+    def validate(self, attrs):
+        if not attrs.get('ride') and not attrs.get('ride_share_booking'):
+            raise serializers.ValidationError("You must provide either a ride or a ride_share_booking.")
+        if attrs.get('ride') and attrs.get('ride_share_booking'):
+            raise serializers.ValidationError("You can only report on either a ride OR a ride_share_booking, not both.")
+        return attrs
 
 
 class FavoriteToLocationSerializer(serializers.ModelSerializer):

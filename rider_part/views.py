@@ -743,9 +743,13 @@ class SubmitRideReportAPIView(APIView):
     def post(self, request):
         serializer = RideReportSubmissionSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()  # Assumes ride/report_type are passed as valid IDs
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            serializer.save()
+            return Response(
+                {"detail": "Report submitted successfully.", "data": serializer.data},
+                status=status.HTTP_201_CREATED
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     
 class AddFavoriteToLocationAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -842,3 +846,18 @@ class CancelRideByUserAPIView(StandardResponseMixin, APIView):
                 print("❌ Error sending cancellation message:", e)
 
         return Response({"message": "Ride cancelled successfully."}, status=200)
+
+class DeleteFavoriteToLocationAPIView(generics.DestroyAPIView):
+    queryset = FavoriteToLocation.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        favorite = super().get_object()
+        if favorite.user != self.request.user:
+            raise PermissionDenied("You don't have permission to delete this favorite location.")
+        return favorite
+
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"detail": "Favorite location deleted successfully."}, status=status.HTTP_200_OK)

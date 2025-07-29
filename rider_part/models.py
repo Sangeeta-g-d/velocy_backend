@@ -149,19 +149,24 @@ class DriverWalletTransaction(models.Model):
         return f"{self.driver} - {self.transaction_type} - {self.amount}"
 
 
-
 class RideMessage(models.Model):
     ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE)
     sender = models.ForeignKey(User, on_delete=models.CASCADE)
     message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
-
 class RideReportSubmission(models.Model):
     ride = models.ForeignKey(
         RideRequest,
         on_delete=models.CASCADE,
-        related_name='report_submissions'
+        related_name='report_submissions',
+        null=True, blank=True
+    )
+    ride_share_booking = models.ForeignKey(
+        'ride_sharing.RideShareBooking',
+        on_delete=models.CASCADE,
+        related_name='report_submissions',
+        null=True, blank=True
     )
     report_type = models.ForeignKey(
         'admin_part.RideReport',
@@ -172,7 +177,12 @@ class RideReportSubmission(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Report on Ride #{self.ride.id} - {self.report_type.report_name}"
+        if self.ride:
+            return f"Report on Ride #{self.ride.id} - {self.report_type.report_name}"
+        elif self.ride_share_booking:
+            return f"Report on RideShare #{self.ride_share_booking.id} - {self.report_type.report_name}"
+        return f"Report - {self.report_type.report_name}"
+
 
 
 class FavoriteToLocation(models.Model):

@@ -669,7 +669,6 @@ class RideDetailsAPIView(APIView):
         response_data = {
             "ride_date": ride.ride_date.strftime('%Y-%m-%d'),
             "passenger_notes": ride.passenger_notes,
-            "cancellation_probability": float(ride.cancellation_probability) if ride.cancellation_probability else None,
             "passenger_notes": ride.passenger_notes,
             "ride_creator": {},
             "ride_details": {
@@ -792,14 +791,23 @@ class RideDetailsAPIView(APIView):
                     ).values('rated_by').distinct().count()
             except DriverVehicleInfo.DoesNotExist:
                 pass
-
+        cancellation_count = RideShareBooking.objects.filter(
+            user=creator, status="cancelled"
+            ).count()
+        if cancellation_count == 0:
+            cancellation_message = "No cancellation record."
+        elif cancellation_count <= 10:
+            cancellation_message = f"Rarely cancels rides"
+        else:
+            cancellation_message = f"High cancellation history"
         response_data["ride_creator"].update({
             "username": creator.username,
             "phone_number": creator.phone_number,
             "profile_image": request.build_absolute_uri(creator.profile.url) if creator.profile else None,
             "avg_rating": round(float(avg_rating), 1) if avg_rating is not None else None,
             "vehicle_name": vehicle_name,
-            "rating_user_count": rating_user_count
+            "rating_user_count": rating_user_count,
+            "cancellation_probability": cancellation_message
         })
 
         passengers = []

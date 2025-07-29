@@ -30,18 +30,27 @@ class RideSharePriceSetting(models.Model):
     def __str__(self):
         return f"₹{self.min_price_per_km} – ₹{self.max_price_per_km} per km"
 
-
 class RideShareBooking(models.Model):
     STATUS_CHOICES = [
-    ('draft', 'Draft'),
-    ('published', 'Published'),
-    ('in_progress', 'In Progress'),
-    ('completed', 'Completed'),
-    ('cancelled', 'Cancelled'),
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
     ]
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ride_share_bookings')
-    vehicle = models.ForeignKey('RideShareVehicle', on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
 
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='ride_share_bookings'
+    )
+    vehicle = models.ForeignKey(
+        'RideShareVehicle',
+        on_delete=models.CASCADE,
+        related_name='bookings',
+        null=True,
+        blank=True
+    )
 
     from_location = models.CharField(max_length=255)
     to_location = models.CharField(max_length=255)
@@ -49,10 +58,11 @@ class RideShareBooking(models.Model):
     from_location_lng = models.FloatField(null=True, blank=True)
     to_location_lat = models.FloatField(null=True, blank=True)
     to_location_lng = models.FloatField(null=True, blank=True)
+
     ride_date = models.DateField()
     ride_time = models.TimeField()
     to_location_estimated_arrival_time = models.TimeField(null=True, blank=True)
-    
+
     passengers_count = models.PositiveIntegerField()
     women_only = models.BooleanField(default=False)
     seats_remaining = models.PositiveIntegerField(null=True, blank=True)
@@ -60,13 +70,7 @@ class RideShareBooking(models.Model):
     distance_km = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
-    # Optional return trip
-    is_return_ride = models.BooleanField(default=False)
-    return_date = models.DateField(null=True, blank=True)
-    return_time = models.TimeField(null=True, blank=True)
-    return_distance_km = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    return_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-
+    # ✅ Keep only passenger notes
     passenger_notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -79,6 +83,9 @@ class RideShareBooking(models.Model):
 
     def __str__(self):
         return f"Ride by {self.user.username} on {self.ride_date} from {self.from_location} to {self.to_location}"
+    def cancellation_count(self):
+        """Return how many rides this user has cancelled."""
+        return RideShareBooking.objects.filter(user=self.user, status="cancelled").count()
 
 # Each intermediate stop: C, D, etc.
 class RideShareStop(models.Model):

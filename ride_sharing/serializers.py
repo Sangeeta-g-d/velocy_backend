@@ -291,6 +291,7 @@ class RideJoinRequestViewSerializer(serializers.ModelSerializer):
     from_lng = serializers.SerializerMethodField()
     to_lat = serializers.SerializerMethodField()
     to_lng = serializers.SerializerMethodField()
+    aadhar_card_url = serializers.SerializerMethodField()
     created_at_ist = serializers.SerializerMethodField()
 
     class Meta:
@@ -301,7 +302,7 @@ class RideJoinRequestViewSerializer(serializers.ModelSerializer):
             'created_at_ist',
             'from_location', 'to_location',
             'from_time', 'to_time',
-            'from_lat', 'from_lng',
+            'from_lat', 'from_lng','aadhar_card_url'
             'to_lat', 'to_lng',
         ]
 
@@ -309,6 +310,12 @@ class RideJoinRequestViewSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if obj.user.profile and hasattr(obj.user.profile, 'url'):
             return request.build_absolute_uri(obj.user.profile.url)
+        return None
+
+    def get_aadhar_card_url(self, obj):
+        request = self.context.get('request')
+        if obj.user.aadhar_card:
+            return request.build_absolute_uri(obj.user.aadhar_card.url)
         return None
 
     def get_from_location(self, obj):
