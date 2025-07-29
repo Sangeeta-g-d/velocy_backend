@@ -180,7 +180,6 @@ class BulkUpdateRideSegmentPricesAPIView(StandardResponseMixin, APIView):
             "not_found_ids": not_found_ids
         }, status_code=200)
     
-
 class RidePriceUpdateAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -197,30 +196,19 @@ class RidePriceUpdateAPIView(StandardResponseMixin, APIView):
         if not serializer.is_valid():
             return self.response(serializer.errors, status_code=HTTP_400_BAD_REQUEST)
 
+        # Update price and change status to published
         ride.price = serializer.validated_data['price']
+        ride.status = 'published'
         ride.save()
 
         return self.response({
-            "message": "Ride price updated successfully.",
+            "message": "Ride price updated and ride published successfully.",
             "ride_id": ride.id,
-            "updated_price": ride.price
+            "updated_price": ride.price,
+            "new_status": ride.status
         }, status_code=HTTP_200_OK)
+
     
-
-class UpdateReturnRideDetailsAPIView(StandardResponseMixin, APIView):
-    permission_classes = [IsAuthenticated]
-
-    def put(self, request, ride_id):
-        booking = get_object_or_404(RideShareBooking, id=ride_id, user=request.user)
-        
-        serializer = RideReturnDetailsSerializer(instance=booking, data=request.data, partial=True)
-        if serializer.is_valid():
-            updated_booking = serializer.save()
-            return self.response({
-                "message": "Return ride details updated successfully.",
-                "return_details": RideReturnDetailsSerializer(updated_booking).data
-            })
-        return self.response(serializer.errors, status_code=400)
     
 class UserPublishedRidesAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]

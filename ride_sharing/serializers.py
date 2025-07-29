@@ -147,57 +147,6 @@ class RideShareRouteSegmentBulkPriceUpdateSerializer(serializers.Serializer):
     segments = RideShareRouteSegmentPriceUpdateSerializer(many=True)
 
 
-class RideReturnDetailsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RideShareBooking
-        fields = [
-            'is_return_ride',
-            'return_date',
-            'return_time',
-            'return_price',
-            'return_distance_km',
-            'passenger_notes'
-        ]
-        read_only_fields = ['return_distance_km']  # calculated in `update`
-
-    def validate(self, attrs):
-        is_return = attrs.get('is_return_ride')
-
-        if is_return:
-            missing_fields = []
-            for field in ['return_date', 'return_time', 'return_price']:
-                if not attrs.get(field):
-                    missing_fields.append(field)
-
-            if missing_fields:
-                raise serializers.ValidationError({
-                    field: 'This field is required for return ride.' for field in missing_fields
-                })
-
-        return attrs
-
-    def update(self, instance, validated_data):
-        is_return = validated_data.get('is_return_ride', instance.is_return_ride)
-
-        instance.is_return_ride = is_return
-        instance.passenger_notes = validated_data.get('passenger_notes', instance.passenger_notes)
-
-        if is_return:
-            instance.return_date = validated_data.get('return_date')
-            instance.return_time = validated_data.get('return_time')
-            instance.return_price = validated_data.get('return_price')
-            instance.return_distance_km = instance.distance_km  # auto copy
-        else:
-            instance.return_date = None
-            instance.return_time = None
-            instance.return_price = None
-            instance.return_distance_km = None
-        instance.status = 'published'
-
-        instance.save()
-        return instance
-    
-
 class RidePriceUpdateSerializer(serializers.Serializer):
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
 
