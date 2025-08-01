@@ -916,8 +916,7 @@ class CorporateAvailableRidesAPIView(APIView):
                 status='pending',
                 city=city,
                 company__isnull=False,
-                ride_purpose="official"
-            )
+            ).filter(Q(ride_purpose="official") | Q(ride_purpose="corporate_admin"))
         else:
             # Assigned companies only
             assigned_companies = user.corporate_companies.all()
@@ -929,8 +928,7 @@ class CorporateAvailableRidesAPIView(APIView):
                 status='pending',
                 city=city,
                 company__in=assigned_companies,
-                ride_purpose="official"
-            )
+            ).filter(Q(ride_purpose="official") | Q(ride_purpose="corporate_admin"))
 
         if not rides.exists():
             return Response({"status": True, "message": "No corporate rides available.", "data": []}, status=status.HTTP_200_OK)

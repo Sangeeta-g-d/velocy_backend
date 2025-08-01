@@ -1,5 +1,40 @@
 {% extends 'admin_base.html' %}
+{% load static %}
 {% block content %}
+<style>
+.city-search-container {
+  position: relative;
+}
+
+.city-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  z-index: 1000;
+  display: none;
+}
+
+.city-suggestion {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.city-suggestion:hover {
+  background-color: #f5f5f5;
+}
+
+.highlight {
+  background-color: #e3f2fd;
+  font-weight: bold;
+}
+</style>
 <div class="container">
   <div class="top-controls">
     <a href="{% url 'fare_management' %}" class="btn btn-primary">Manage Fare</a>
@@ -95,19 +130,22 @@
   </div>
 </div>
 
-
-<!-- modal code for adding city -->
- <div class="modal-overlay" id="addCityModal">
+<!-- add city modal -->
+<div class="modal-overlay" id="addCityModal">
   <div class="modal">
     <div class="modal-header">
       <h2>Add City</h2>
-      <button class="close-btn">&times;</button>
+      <button class="close-btn" onclick="closeModal(document.getElementById('addCityModal'))">&times;</button>
     </div>
     <div class="modal-content">
       <form id="addCityForm">
         <div class="form-group">
-          <label for="cityName" class="form-group label">City Name</label>
-          <input type="text" class="form-control" id="cityName" required>
+          <label class="form-group label">Search Indian City</label>
+          <div class="city-search-container">
+            <input type="text" class="form-control" id="citySearch" placeholder="Start typing city name..." autocomplete="off">
+            <div class="city-suggestions" id="citySuggestions"></div>
+            <input type="hidden" id="selectedCity" name="name">
+          </div>
         </div>
         <button type="submit" class="btn btn-primary w-100 mt-2">Add City</button>
       </form>
@@ -172,85 +210,80 @@
   </div>
 </div>
 
-<!-- Modal CSS -->
-<style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0,0,0,0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-    z-index: 1000;
-  }
-
-  .modal-overlay.active {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .modal {
-    background-color: white;
-    border-radius: 10px;
-    padding: 20px 30px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    transform: translateY(-50px);
-    transition: transform 0.3s ease;
-    display: block;
-  }
-
-  .modal-overlay.active .modal {
-    transform: translateY(0);
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-  }
-
-  .modal-header h2 {
-    font-size: 22px;
-    margin: 0;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #666;
-  }
-
-  .close-btn:hover {
-    color: #000;
-  }
-
-  .modal-content {
-    font-size: 16px;
-    color: #333;
-  }
-</style>
 <!-- add city script -->
 <script>
-  document.getElementById("addCityForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    const cityName = document.getElementById("cityName").value.trim();
+ let indianCities = [];
 
+// Fetch cities from JSON file
+fetch("{% static 'assets/cities.json' %}")
+  .then(response => response.json())
+  .then(data => {
+    indianCities = data;
+  })
+  .catch(error => {
+    console.error('Error loading cities:', error);
+    showToast("Failed to load city data", "error");
+  });
+
+// Setup city search functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const citySearch = document.getElementById('citySearch');
+  const citySuggestions = document.getElementById('citySuggestions');
+  const selectedCity = document.getElementById('selectedCity');
+  
+  citySearch.addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase().trim();
+    citySuggestions.innerHTML = '';
+    citySuggestions.style.display = 'none';
+    
+    if (searchTerm.length < 2) return;
+    
+    const filteredCities = indianCities.filter(city => 
+      city.toLowerCase().includes(searchTerm)
+    ).slice(0, 10); // FIXED misplaced parenthesis
+    
+    if (filteredCities.length > 0) {
+      citySuggestions.innerHTML = filteredCities.map(city => {
+        const matchIndex = city.toLowerCase().indexOf(searchTerm);
+        if (matchIndex >= 0) {
+          const before = city.substring(0, matchIndex);
+          const match = city.substring(matchIndex, matchIndex + searchTerm.length);
+          const after = city.substring(matchIndex + searchTerm.length);
+          return `<div class="city-suggestion">${before}<span class="highlight">${match}</span>${after}</div>`;
+        }
+        return `<div class="city-suggestion">${city}</div>`;
+      }).join('');
+      citySuggestions.style.display = 'block';
+    }
+  });
+  
+  // Handle city selection
+  citySuggestions.addEventListener('click', function(e) {
+    if (e.target.classList.contains('city-suggestion')) {
+      const cityName = e.target.textContent;
+      citySearch.value = cityName;
+      selectedCity.value = cityName;
+      citySuggestions.style.display = 'none';
+    }
+  });
+  
+  // Close suggestions when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!citySearch.contains(e.target) && !citySuggestions.contains(e.target)) {
+      citySuggestions.style.display = 'none';
+    }
+  });
+  
+  // Form submission
+  document.getElementById('addCityForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const cityName = selectedCity.value.trim();
+    
     if (!cityName) {
-      showToast("City name is required", "error");
+      showToast("Please select a city from the list", "error");
       return;
     }
-
+    
     fetch("{% url 'add_city' %}", {
       method: "POST",
       headers: {
@@ -266,7 +299,7 @@
         document.getElementById("addCityForm").reset();
         closeModal(document.getElementById("addCityModal"));
         setTimeout(() => {
-          location.reload(); // Reload page after 3 seconds
+          location.reload();
         }, 3000);
       } else {
         showToast(data.error || "Something went wrong", "error");
@@ -277,8 +310,8 @@
       showToast("Network error", "error");
     });
   });
+});
 </script>
-
 
 <!-- vehicle type -->
 <script>
@@ -316,7 +349,6 @@
     });
   });
 </script>
-
 
 <!-- script for editing vehicle details -->
  <script>
@@ -420,7 +452,6 @@
     }
   }
 </script>
-
 
 <!-- delete vehicle price -->
  <script>

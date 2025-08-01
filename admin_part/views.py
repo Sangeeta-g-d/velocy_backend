@@ -4,6 +4,10 @@ from auth_api.models import CustomUser,DriverDocumentInfo
 from .models import *
 from driver_part.models import CashOutRequest
 import json
+import os
+from django.conf import settings
+from django.http import JsonResponse
+import json
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -241,6 +245,16 @@ def block_driver(request, driver_id):
             return JsonResponse({"status": "success"})
         except CustomUser.DoesNotExist:
             return JsonResponse({"status": "error", "message": "User not found"}, status=404)
+
+def get_indian_cities(request):
+    try:
+        # Load from static file
+        file_path = os.path.join(settings.STATIC_ROOT, 'indian_cities.json')
+        with open(file_path, 'r') as f:
+            cities = json.load(f)
+        return JsonResponse({'cities': cities})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 def add_city(request):
     if request.method == "POST":

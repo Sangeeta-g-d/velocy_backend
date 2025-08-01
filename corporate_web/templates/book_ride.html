@@ -1,123 +1,146 @@
 {% extends 'company_base.html' %}
 {% block content %}
+<link rel="stylesheet" href="/static/assets/css/corporate_booking.css">
 <div class="container">
   <div class="top-controls">
     <a href="{% url 'company_dashboard' %}" class="back-arrow" title="Back">
       <i class="fas fa-arrow-left"></i> Back
     </a>
   </div>
-
+  
+  <div id="loadingIndicator" class="loading-container">
+    <div class="loading-spinner"></div>
+    <p>Checking service availability...</p>
+  </div>
+  
   <h2 class="section-title center-heading">Book Corporate Ride</h2>
-  <div class="form-container">
-    <form method="POST" class="promo-form">
+  
+  <div id="serviceAlert" class="alert alert-warning" style="display: none;">
+    <strong>Service not available!</strong> We currently don't operate in <span id="currentCityDisplay"></span>. 
+    Please contact admin to request service in your area.
+  </div>
+  
+  <div class="form-container" style="display: none;">
+    <form method="POST" class="promo-form" id="rideForm">
       {% csrf_token %}
       <div class="form-grid form-grid-2col">
 
         <!-- Ride type -->
         <div class="form-group">
           <label for="ride_type">Ride Type</label>
-          <select name="ride_type" id="ride_type" required class="select-style">
+          <select name="ride_type" id="ride_type" required class="select-style" onchange="toggleScheduledTime()">
             <option value="now">Book Now</option>
             <option value="scheduled">Scheduled</option>
           </select>
         </div>
 
-        <!-- Scheduled time -->
+        <!-- Scheduled time (will be shown only when scheduled is selected) -->
         <div class="form-group" id="scheduled-time-group" style="display:none;">
           <label for="scheduled_time">Scheduled Time</label>
           <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="input-style">
         </div>
 
-        <!-- Vehicle Type -->
+        <!-- City Dropdown -->
         <div class="form-group">
-          <label>Vehicle Type</label>
-          <div class="vehicle-type-selector">
-            {% for vt in vehicle_types %}
-              <div class="vehicle-option" data-value="{{ vt.id }}">
-                <img src="{{ vt.image.url }}" alt="{{ vt.name }}">
-                <div class="vehicle-info">
-                  <span class="vehicle-name">{{ vt.name }}</span>
-                  <span class="vehicle-price">₹{{ vt.base_price }}+</span>
-                </div>
-                <input type="radio" name="vehicle_type" id="vehicle_type_{{ vt.id }}" value="{{ vt.id }}" {% if forloop.first %}checked{% endif %}>
-              </div>
+          <label for="city">Select City</label>
+          <select name="city" id="city" required class="select-style">
+            {% for city in available_cities %}
+              <option value="{{ city.name }}" 
+                      data-lat="{{ city.latitude|default:28.6139 }}" 
+                      data-lng="{{ city.longitude|default:77.2090 }}">
+                {{ city.name }}
+              </option>
             {% endfor %}
-          </div>
+          </select>
         </div>
 
-        <!-- City -->
+        <!-- Location Fields Side by Side -->
         <div class="form-group">
-          <label for="city">Detected City</label>
-          <input type="text" name="city" id="city" readonly class="input-style">
-        </div>
-
-        <!-- From Location -->
-        <div class="form-group location-group">
           <label for="from_location">From Location</label>
           <div class="location-input-container">
-            <input type="text" name="from_location" id="from_location" placeholder="Enter pickup location" required class="input-style location-input">
-            <div class="map-container" id="from_map" style="height:200px;"></div>
+            <input type="text" name="from_location" id="from_location" placeholder="Enter pickup location" required class="input-style location-input" readonly>
+            <button type="button" class="btn-select-location" onclick="openLocationModal('from')">
+              <i class="fas fa-map-marker-alt"></i> Select Location
+            </button>
           </div>
           <input type="hidden" name="from_latitude" id="from_latitude">
           <input type="hidden" name="from_longitude" id="from_longitude">
         </div>
 
-        <!-- To Location -->
-        <div class="form-group location-group">
+        <div class="form-group">
           <label for="to_location">To Location</label>
           <div class="location-input-container">
-            <input type="text" name="to_location" id="to_location" placeholder="Enter drop location" required class="input-style location-input">
-            <div class="map-container" id="to_map" style="height:200px;"></div>
+            <input type="text" name="to_location" id="to_location" placeholder="Enter drop location" required class="input-style location-input" readonly>
+            <button type="button" class="btn-select-location" onclick="openLocationModal('to')">
+              <i class="fas fa-map-marker-alt"></i> Select Location
+            </button>
           </div>
           <input type="hidden" name="to_latitude" id="to_latitude">
           <input type="hidden" name="to_longitude" id="to_longitude">
         </div>
 
-        <!-- Distance and Price -->
+        <!-- Intermediate Stops -->
+        <div class="form-group" id="stops-container">
+          <label>Intermediate Stops (Optional)</label>
+          <div id="stops-list"></div>
+          <button type="button" class="btn btn-secondary" onclick="addStop()">
+            <i class="fas fa-plus"></i> Add Stop
+          </button>
+        </div>
+
+        <!-- Combined Map Display -->
+        <div class="form-group location-group">
+          <label>Route Preview</label>
+          <div class="map-container" id="route_map" style="height:300px;"></div>
+        </div>
+
+        <!-- Vehicle Type Selection -->
+        <div class="form-group">
+          <label for="vehicle_type">Vehicle Type</label>
+          <select name="vehicle_type" id="vehicle_type" required class="select-style" onchange="updatePrice()">
+            {% for vt in vehicle_types %}
+              <option value="{{ vt.id }}" data-price-per-km="{{ vt.price_per_km|default:10 }}">
+                {{ vt.name }} (₹{{ vt.price_per_km|default:10 }}/km)
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Distance and Price (auto-filled) -->
         <div class="form-group">
           <label for="distance_km">Distance (km)</label>
-          <input type="number" step="0.01" name="distance_km" id="distance_km" required class="input-style">
+          <input type="number" step="0.01" name="distance_km" id="distance_km" readonly class="input-style">
         </div>
 
         <div class="form-group">
           <label for="estimated_price">Estimated Price</label>
           <div class="price-display">
-            <span class="currency">₹</span>
-            <input type="number" step="0.01" name="estimated_price" id="estimated_price" required class="input-style">
+            <input type="number" step="0.01" name="estimated_price" id="estimated_price" readonly class="input-style">
           </div>
         </div>
 
+        <!-- Employees selection -->
         <div class="form-group">
-          <label for="offered_price">Offered Price (optional)</label>
-          <div class="price-display">
-            <span class="currency">₹</span>
-            <input type="number" step="0.01" name="offered_price" id="offered_price" class="input-style">
-          </div>
-        </div>
-
-        <!-- Ride Purpose -->
-        <div class="form-group">
-          <label for="ride_purpose">Ride Purpose</label>
-          <select name="ride_purpose" id="ride_purpose" required class="select-style">
-            <option value="corporate_admin">Corporate Admin Booking</option>
-          </select>
-        </div>
-
-        <!-- Employees -->
-        <div class="form-group">
-          <label for="employees">Select Employees (optional)</label>
-          <select name="employees" id="employees" multiple class="select-style multi-select">
+          <label for="employees">Select Employees</label>
+          <div class="employee-selection-container">
             {% for emp in employees %}
-              <option value="{{ emp.id }}">{{ emp.username }} ({{ emp.phone_number }})</option>
+              <div class="employee-option">
+                <input type="checkbox" name="employees" id="emp_{{ emp.id }}" value="{{ emp.id }}">
+                <label for="emp_{{ emp.id }}">
+                  <div class="employee-avatar">
+                    {% if emp.profile %}
+                      <img src="{{ emp.profile.url }}" alt="{{ emp.username }}">
+                    {% else %}
+                      <div class="default-avatar">{{ emp.username|first|upper }}</div>
+                    {% endif %}
+                  </div>
+                  <div class="employee-info">
+                    <span class="employee-name">{{ emp.username }}</span>
+                    <span class="employee-phone">{{ emp.phone_number }}</span>
+                  </div>
+                </label>
+              </div>
             {% endfor %}
-          </select>
-        </div>
-
-        <!-- Women Only -->
-        <div class="form-group checkbox-group">
-          <div class="checkbox-container">
-            <input type="checkbox" name="women_only" id="women_only" class="checkbox-input">
-            <label for="women_only" class="checkbox-label">Women Only Ride</label>
           </div>
         </div>
       </div>
@@ -129,191 +152,65 @@
   </div>
 </div>
 
+<!-- Location Selection Modal -->
+<div class="modal-overlay" id="locationModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Select Location</h2>
+      <button class="close-btn" onclick="closeLocationModal()">&times;</button>
+    </div>
+    <div class="modal-content">
+      <div class="form-group">
+        <label for="modalLocationSearch">Search Location</label>
+        <input type="text" id="modalLocationSearch" class="form-control" placeholder="Enter location...">
+      </div>
+      <div class="map-container" id="modalMap" style="height:400px;"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-cancel" onclick="closeLocationModal()">Cancel</button>
+      <button type="button" class="btn btn-save" onclick="saveSelectedLocation()">Done</button>
+    </div>
+  </div>
+</div>
+
 <script>
-  let fromMap, toMap, fromMarker, toMarker, geocoder, currentCity = '';
-
-  function initMap() {
-    geocoder = new google.maps.Geocoder();
-    const fallback = { lat: 28.6139, lng: 77.2090 }; // Delhi
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          const userLoc = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          geocodeCity(userLoc);
-        },
-        () => geocodeCity(fallback),
-        { timeout: 10000 }
-      );
-    } else {
-      geocodeCity(fallback);
-    }
+  // Toast notification function
+  function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.innerHTML = message;
+    
+    document.body.appendChild(toast);
+    
+    // Show toast
+    setTimeout(() => {
+      toast.classList.add('show');
+    }, 100);
+    
+    // Hide after 5 seconds
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        document.body.removeChild(toast);
+      }, 300);
+    }, 5000);
   }
 
-  function geocodeCity(location) {
-    geocoder.geocode({ location }, (results, status) => {
-      if (status === 'OK' && results[0]) {
-        const cityComp = results[0].address_components.find(
-          c => c.types.includes('locality') || c.types.includes('administrative_area_level_2')
-        );
-        if (cityComp) {
-          currentCity = cityComp.long_name;
-          document.getElementById('city').value = currentCity;
-        }
-        loadMaps(location);
-        initAutocomplete(location); // Setup autocomplete for both fields
-      }
-    });
-  }
-
-  function loadMaps(center) {
-    fromMap = new google.maps.Map(document.getElementById('from_map'), {
-      center,
-      zoom: 13
-    });
-
-    toMap = new google.maps.Map(document.getElementById('to_map'), {
-      center,
-      zoom: 13
-    });
-
-    fromMap.addListener('click', function (event) {
-      handleMapClick(event.latLng, 'from');
-    });
-
-    toMap.addListener('click', function (event) {
-      handleMapClick(event.latLng, 'to');
-    });
-  }
-
-  function handleMapClick(latLng, type) {
-    geocoder.geocode({ location: latLng }, (results, status) => {
-      if (status === 'OK' && results[0]) {
-        const address = results[0].formatted_address;
-
-        const foundCity = results[0].address_components.find(
-          c => c.types.includes('locality') || c.types.includes('administrative_area_level_2')
-        );
-
-        if (foundCity && foundCity.long_name !== currentCity) {
-          alert("Please select a location within " + currentCity);
-          return;
-        }
-
-        const lat = latLng.lat();
-        const lng = latLng.lng();
-
-        if (type === 'from') {
-          document.getElementById('from_location').value = address;
-          document.getElementById('from_latitude').value = lat;
-          document.getElementById('from_longitude').value = lng;
-
-          if (fromMarker) fromMarker.setMap(null);
-          fromMarker = new google.maps.Marker({ position: latLng, map: fromMap });
-        } else {
-          document.getElementById('to_location').value = address;
-          document.getElementById('to_latitude').value = lat;
-          document.getElementById('to_longitude').value = lng;
-
-          if (toMarker) toMarker.setMap(null);
-          toMarker = new google.maps.Marker({ position: latLng, map: toMap });
-        }
-
-        calculateDistanceAndPrice();
-      }
-    });
-  }
-
-  function initAutocomplete(center) {
-    const bounds = new google.maps.LatLngBounds(center);
-
-    const fromInput = document.getElementById('from_location');
-    const toInput = document.getElementById('to_location');
-
-    const fromAutocomplete = new google.maps.places.Autocomplete(fromInput, {
-      bounds: bounds,
-      strictBounds: false,
-      types: ['geocode'],
-    });
-
-    const toAutocomplete = new google.maps.places.Autocomplete(toInput, {
-      bounds: bounds,
-      strictBounds: false,
-      types: ['geocode'],
-    });
-
-    fromAutocomplete.addListener('place_changed', () => {
-      const place = fromAutocomplete.getPlace();
-      if (place.geometry) {
-        document.getElementById('from_latitude').value = place.geometry.location.lat();
-        document.getElementById('from_longitude').value = place.geometry.location.lng();
-
-        fromMap.setCenter(place.geometry.location);
-        if (fromMarker) fromMarker.setMap(null);
-        fromMarker = new google.maps.Marker({
-          position: place.geometry.location,
-          map: fromMap
-        });
-
-        calculateDistanceAndPrice();
-      }
-    });
-
-    toAutocomplete.addListener('place_changed', () => {
-      const place = toAutocomplete.getPlace();
-      if (place.geometry) {
-        document.getElementById('to_latitude').value = place.geometry.location.lat();
-        document.getElementById('to_longitude').value = place.geometry.location.lng();
-
-        toMap.setCenter(place.geometry.location);
-        if (toMarker) toMarker.setMap(null);
-        toMarker = new google.maps.Marker({
-          position: place.geometry.location,
-          map: toMap
-        });
-
-        calculateDistanceAndPrice();
-      }
-    });
-  }
-
-  function calculateDistanceAndPrice() {
-    const fromLat = parseFloat(document.getElementById('from_latitude').value);
-    const fromLng = parseFloat(document.getElementById('from_longitude').value);
-    const toLat = parseFloat(document.getElementById('to_latitude').value);
-    const toLng = parseFloat(document.getElementById('to_longitude').value);
-
-    if (fromLat && fromLng && toLat && toLng) {
-      const rad = Math.PI / 180;
-      const R = 6371;
-      const dLat = (toLat - fromLat) * rad;
-      const dLng = (toLng - fromLng) * rad;
-      const a = Math.sin(dLat / 2) ** 2 +
-                Math.cos(fromLat * rad) * Math.cos(toLat * rad) *
-                Math.sin(dLng / 2) ** 2;
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
-
-      const pricePerKm = 15;
-      const estimatedPrice = distance * pricePerKm;
-
-      document.getElementById('distance_km').value = distance.toFixed(2);
-      document.getElementById('estimated_price').value = estimatedPrice.toFixed(2);
-    }
+  // Show toast if message exists
+  const toastMessage = "{{ toast_message|escapejs }}";
+  const toastType = "{{ toast_type|escapejs }}";
+  
+  if (toastMessage) {
+    showToast(toastMessage, toastType);
   }
 </script>
 
-
-
-<!-- ✅ Google Maps API with callback -->
+<!-- Google Maps API with callback -->
+<script src="/static/assets/js/corporate_booking.js"></script>
 <script
   src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&libraries=places&callback=initMap"
   async
   defer
 ></script>
-
 
 {% endblock %}

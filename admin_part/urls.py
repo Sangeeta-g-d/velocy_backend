@@ -7,6 +7,7 @@ urlpatterns = [
     path('logout/',views.logout_view,name="logout"),
     path('approve_drivers/',views.approve_drivers,name="approve_drivers"),
     path('driver_details/<int:driver_id>/',views.driver_details,name="driver_details"),
+    path('get_indian_cities/', views.get_indian_cities, name='get_indian_cities'),
     path('add-city/', views.add_city, name='add_city'),
     path('add-vehicle-type/', views.add_vehicle_type, name='add_vehicle_type'),
     path('verify-driver/<int:driver_id>/', views.verify_driver, name='verify_driver'),

@@ -3,25 +3,26 @@ from . models import *
 from django.contrib.auth.hashers import make_password
 from django.db import transaction, IntegrityError
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.http import JsonResponse, HttpResponseForbidden
 from django.contrib.auth import get_user_model
 from django.utils.timezone import localtime
 import pytz
 from django.utils.timezone import make_aware
-
+from admin_part.models import VehicleType,City
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from . models import *
 from django.urls import reverse
 from django.template.loader import render_to_string
 import razorpay
-from rider_part.models import RideRequest
+from decimal import Decimal
+from rider_part.models import RideRequest,RideStop
 from django.db.models import Sum
 from django.conf import settings
 from django.http import JsonResponse
 User = get_user_model()
 # Create your views here.
-
 
 def register(request):
     if request.method == "POST":
@@ -39,35 +40,51 @@ def register(request):
         city = request.POST.get("city")
         pincode = request.POST.get("pincode")
 
-        # Create admin user
-        admin_user = CustomUser.objects.create(
-            username=admin_name,
-            phone_number=phone_number,
-            email=email,
-            password=make_password(password),
-            role="corporate_admin",
-            is_active=True
-        )
+        # ✅ Check if phone or email already exists
+        if CustomUser.objects.filter(phone_number=phone_number).exists():
+            request.session["toast_message"] = "Phone number already registered. Please use a different number."
+            request.session["toast_type"] = "error"
+            return redirect("register")
 
-        # Create company
-        CompanyAccount.objects.create(
-            admin_user=admin_user,
-            company_name=company_name,
-            business_registration_number=registration_number,
-            gst_number=gst_number,
-            address=address,
-            city=city,
-            pincode=pincode,
-            is_approved=False
-        )
+        if CustomUser.objects.filter(email=email).exists():
+            request.session["toast_message"] = "Email already registered. Please use a different email."
+            request.session["toast_type"] = "error"
+            return redirect("register")
 
-        # Set toast message in session
-        request.session["toast_message"] = "Registration successful. Please wait for admin approval."
-        request.session["toast_type"] = "success"
+        try:
+            # Create admin user
+            admin_user = CustomUser.objects.create(
+                username=admin_name,
+                phone_number=phone_number,
+                email=email,
+                password=make_password(password),
+                role="corporate_admin",
+                is_active=True
+            )
 
-        return redirect("register")  # Use your URL name here
+            # Create company
+            CompanyAccount.objects.create(
+                admin_user=admin_user,
+                company_name=company_name,
+                business_registration_number=registration_number,
+                gst_number=gst_number,
+                address=address,
+                city=city,
+                pincode=pincode,
+                is_approved=False
+            )
 
-    # Pop toast message so it doesn't persist on reload
+            # Success message
+            request.session["toast_message"] = "Registration successful. Please wait for admin approval."
+            request.session["toast_type"] = "success"
+        except IntegrityError:
+            # Fallback in case of race condition (e.g., same phone registered simultaneously)
+            request.session["toast_message"] = "A user with this phone/email already exists."
+            request.session["toast_type"] = "error"
+
+        return redirect("register")
+
+    # Show toast message if set
     toast_message = request.session.pop("toast_message", "")
     toast_type = request.session.pop("toast_type", "success")
 
@@ -350,19 +367,179 @@ def employee_details(request, employee_id):
     }
     return render(request, 'employee_details.html', context)
 
-
 @login_required(login_url='/login/')
 def book_ride(request):
-    context= {
+    employees = CustomUser.objects.filter(
+        company=request.user.company_account,
+        role='employee',
+        is_active=True
+    ).select_related('company')
+
+    # Get all available cities with service
+    available_cities = City.objects.filter(
+        vehicle_prices__isnull=False  # Changed from vehicletype to vehicle_prices
+    ).distinct()
+
+    # Handle AJAX check for city/vehicles
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        selected_city = request.GET.get('city', '').strip()
+        response_data = {
+            'service_available': False,
+            'vehicle_types': [],
+            'current_city': selected_city
+        }
+        
+        if selected_city:
+            try:
+                city = City.objects.get(name__iexact=selected_city)
+                vehicle_types = VehicleType.objects.filter(
+                    city_prices__city=city
+                ).annotate(
+                    price_per_km=models.F('city_prices__price_per_km')
+                ).distinct().values('id', 'name', 'price_per_km')
+                
+                if vehicle_types.exists():
+                    response_data.update({
+                        'service_available': True,
+                        'vehicle_types': list(vehicle_types)
+                    })
+            except City.DoesNotExist:
+                pass
+                
+        return JsonResponse(response_data)
+
+    # Initialize context
+    context = {
         "current_url_name": "book_ride",
         "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY,
+        "employees": employees,
+        "vehicle_types": VehicleType.objects.all(),
+        "available_cities": available_cities,
+        "service_available": True,
+        "toast_message": "",
+        "toast_type": "success",
     }
-    return render(request, 'book_ride.html', context)
-        
+
+    # Handle POST booking
+    if request.method == "POST":
+        company = request.user.company_account
+        if not company:
+            context.update({
+                "toast_message": "You are not linked to any company.",
+                "toast_type": "error"
+            })
+            return render(request, "book_ride.html", context)
+
+        try:
+            plan = CompanyPrepaidPlan.objects.filter(
+                company=company, payment_status="success"
+            ).latest("purchase_date")
+        except CompanyPrepaidPlan.DoesNotExist:
+            context.update({
+                "toast_message": "Your company does not have an active prepaid plan.",
+                "toast_type": "error"
+            })
+            return render(request, "book_ride.html", context)
+
+        # Collect form data
+        ride_type = request.POST.get("ride_type")
+        scheduled_time = request.POST.get("scheduled_time") or None
+        city_name = request.POST.get("city")
+        from_location = request.POST.get("from_location")
+        from_latitude = request.POST.get("from_latitude")
+        from_longitude = request.POST.get("from_longitude")
+        to_location = request.POST.get("to_location")
+        to_latitude = request.POST.get("to_latitude")
+        to_longitude = request.POST.get("to_longitude")
+        distance_km = Decimal(request.POST.get("distance_km") or 0)
+        estimated_price = Decimal(request.POST.get("estimated_price") or 0)
+        vehicle_type_id = request.POST.get("vehicle_type")
+        employee_ids = request.POST.getlist("employees")
+        stops = request.POST.getlist("stops[]")
+        stops_lat = request.POST.getlist("stops_lat[]")
+        stops_lng = request.POST.getlist("stops_lng[]")
+
+        try:
+            city = City.objects.get(name__iexact=city_name)
+        except City.DoesNotExist:
+            context.update({
+                "toast_message": f"Service not available in {city_name}.",
+                "toast_type": "error"
+            })
+            return render(request, "book_ride.html", context)
+
+        try:
+            vehicle_type = VehicleType.objects.get(id=vehicle_type_id)
+        except VehicleType.DoesNotExist:
+            context.update({
+                "toast_message": "Invalid vehicle type.",
+                "toast_type": "error"
+            })
+            return render(request, "book_ride.html", context)
+
+        # --- CREDIT CHECK ---
+        if plan.unassigned_credits < int(estimated_price):
+            context.update({
+                "toast_message": "Not enough company credits available. Please recharge.",
+                "toast_type": "error"
+            })
+            return render(request, "book_ride.html", context)
+
+        # --- CREATE RIDE ---
+        try:
+            with transaction.atomic():
+                ride = RideRequest.objects.create(
+                    user=request.user,
+                    company=company,
+                    ride_type=ride_type,
+                    scheduled_time=scheduled_time,
+                    city=city,
+                    vehicle_type=vehicle_type,
+                    from_location=from_location,
+                    from_latitude=from_latitude,
+                    from_longitude=from_longitude,
+                    to_location=to_location,
+                    to_latitude=to_latitude,
+                    to_longitude=to_longitude,
+                    distance_km=distance_km,
+                    estimated_price=estimated_price,
+                    status="pending",
+                    ride_purpose="corporate_admin",
+                    require_otp=False
+                )
+
+                if employee_ids:
+                    ride.employees.set(employee_ids)
+
+                # Add stops
+                for i, (stop, lat, lng) in enumerate(zip(stops, stops_lat, stops_lng)):
+                    if stop and lat and lng:
+                        RideStop.objects.create(
+                            ride=ride,
+                            location=stop,
+                            latitude=lat,
+                            longitude=lng,
+                            order=i+1
+                        )
+
+                # Deduct credits
+                plan.spend_company_credits(int(estimated_price))
+
+            context.update({
+                "toast_message": "Ride booked successfully. Credits deducted.",
+                "toast_type": "success"
+            })
+        except Exception as e:
+            context.update({
+                "toast_message": f"Failed to book ride: {str(e)}",
+                "toast_type": "error"
+            })
+
+    return render(request, "book_ride.html", context)
 def employee_activity(request, employee_id):
     employee = get_object_or_404(CustomUser, id=employee_id)
 
-    # Get recent 20 rides
+    # Get recent 20 ridesF
     rides = RideRequest.objects.filter(user=employee).order_by('-created_at')[:20]
 
     # Convert UTC to IST
