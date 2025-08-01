@@ -228,6 +228,26 @@ class RideShareSegmentPriceSerializer(serializers.ModelSerializer):
     def get_price(self, obj):
         return int(round(obj.price))
 
+class RideJoinRequestSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    profile_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideJoinRequest
+        fields = [
+            'id',
+            'username',
+            'profile_image',
+            'status'
+        ]
+
+    def get_profile_image(self, obj):
+        request = self.context.get("request")
+        if obj.user.profile and hasattr(obj.user.profile, "url"):
+            return request.build_absolute_uri(obj.user.profile.url) if request else obj.user.profile.url
+        return None
+
+
 
 class RideJoinRequestViewSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)

@@ -226,13 +226,17 @@ class RideStopSegmentListAPIView(StandardResponseMixin, APIView):
 
         stops = RideShareStop.objects.filter(ride_booking=booking).order_by('order')
         segments = RideShareRouteSegment.objects.filter(ride_booking=booking)
+        join_requests = RideJoinRequest.objects.filter(ride=booking)
 
         stop_data = RideShareStopSerializer(stops, many=True).data
         segment_data = RideShareSegmentPriceSerializer(segments, many=True).data
+        join_request_data = RideJoinRequestSerializer(join_requests, many=True, context={'request': request}).data
+
 
         return self.response({
             "stops": stop_data,
-            "segments": segment_data
+            "segments": segment_data,
+            "join_requests": join_request_data
         })
 
 class RideShareSearchAPIView(APIView):
@@ -428,7 +432,7 @@ class RideJoinRequestAPIView(APIView):
         ride_id = request.data.get('ride_id')
         segment_id = request.data.get('segment_id')  # Optional
         seats_requested = int(request.data.get('seats_requested', 1))
-        message = request.data.get('message', '')
+       
 
         if not ride_id:
             return Response({"status": False, "message": "ride_id is required."}, status=400)
@@ -458,7 +462,6 @@ class RideJoinRequestAPIView(APIView):
             user=user,
             segment=segment,
             seats_requested=seats_requested,
-            message=message
         )
 
         return Response({
