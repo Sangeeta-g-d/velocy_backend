@@ -156,16 +156,33 @@ class RidePriceUpdateSerializer(serializers.Serializer):
         return value
 
 class RideShareBookingSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    profile_url = serializers.SerializerMethodField()
+    join_requests_count = serializers.SerializerMethodField()
+
     class Meta:
         model = RideShareBooking
-        exclude = ['user', 'status', 'created_at', 'price']
+        exclude = [
+            'user', 'status', 'created_at', 'price', 
+            'cancellation_probability', 'ride_start_datetime', 'ride_end_datetime'
+        ]
+
+    def get_profile_url(self, obj):
+        request = self.context.get('request')
+        if obj.user.profile:
+            # Always return full absolute URL
+            if request:
+                return request.build_absolute_uri(obj.user.profile.url)
+            return obj.user.profile.url  # fallback (relative path)
+        return None
+
+    def get_join_requests_count(self, obj):
+        return obj.join_requests.count()
 
     def validate(self, attrs):
         distance = attrs.get('distance_km')
-
         if not distance or distance <= 0:
             raise serializers.ValidationError("Distance must be a positive number.")
-
         return attrs
 
     def create(self, validated_data):
@@ -174,7 +191,6 @@ class RideShareBookingSerializer(serializers.ModelSerializer):
         vehicle_id = self.initial_data.get('vehicle')
         passengers = validated_data.get('passengers_count')
 
-        # Fetch vehicle object
         try:
             vehicle_obj = RideShareVehicle.objects.get(id=vehicle_id)
         except RideShareVehicle.DoesNotExist:
@@ -193,25 +209,21 @@ class RideShareBookingSerializer(serializers.ModelSerializer):
         validated_data['seats_remaining'] = validated_data['passengers_count']
 
         distance_km = validated_data.get('distance_km')
-        ride_time = validated_data.get('ride_time')  # time object
+        ride_time = validated_data.get('ride_time')
 
-        # Estimate arrival time if distance and time are provided
         if distance_km and ride_time:
             try:
                 AVG_SPEED_KMPH = 40
                 travel_hours = float(distance_km) / AVG_SPEED_KMPH
-
-                # Combine today’s date with ride_time to form datetime
                 today = datetime.today().date()
                 ride_datetime = datetime.combine(today, ride_time)
-
                 eta_datetime = ride_datetime + timedelta(hours=travel_hours)
                 validated_data['to_location_estimated_arrival_time'] = eta_datetime.time()
             except Exception as e:
                 print(f"[ETA ERROR] Failed to calculate ETA: {e}")
 
         return RideShareBooking.objects.create(**validated_data)
-    
+
 
 class RideShareStopSerializer(serializers.ModelSerializer):
     class Meta:

@@ -476,34 +476,33 @@ class RideJoinRequestAPIView(APIView):
             }
         }, status=201)
     
-class RideJoinRequestsByRideView(APIView):
+class RideJoinRequestDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, ride_id):
+    def get(self, request, join_request_id):
         try:
-            ride = RideShareBooking.objects.get(id=ride_id, user=request.user)
-        except RideShareBooking.DoesNotExist:
+            join_request = (
+                RideJoinRequest.objects
+                .select_related('user', 'segment', 'ride')
+                .get(id=join_request_id, ride__user=request.user)
+            )
+        except RideJoinRequest.DoesNotExist:
             return Response({
                 'status': False,
-                'message': 'Ride not found or access denied.'
+                'message': 'Join request not found or access denied.'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        join_requests = (
-            RideJoinRequest.objects
-            .filter(ride=ride)
-            .select_related('user', 'segment')
-        )
         serializer = RideJoinRequestViewSerializer(
-            join_requests,
-            many=True,
-            context={'request': request, 'ride': ride}
+            join_request,
+            context={'request': request, 'ride': join_request.ride}
         )
 
         return Response({
             'status': True,
-            'message': 'Join requests found.',
+            'message': 'Join request found.',
             'data': serializer.data
         })
+
     
 class AcceptRideJoinRequestAPIView(APIView):
     permission_classes = [IsAuthenticated]
