@@ -904,7 +904,6 @@ class RideEndAPIView(APIView):
             "status": booking.status
         }, status=status.HTTP_200_OK)
 
-
 class RidePaymentSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -914,7 +913,10 @@ class RidePaymentSummaryAPIView(APIView):
                 id=join_request_id, user=request.user
             )
         except RideJoinRequest.DoesNotExist:
-            return Response({"status": False, "message": "Join request not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"status": False, "message": "Join request not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         ride = join_request.ride
         seats = join_request.seats_requested
@@ -929,7 +931,7 @@ class RidePaymentSummaryAPIView(APIView):
             from_location = ride.from_location
             to_location = ride.to_location
 
-        # Round off price and total
+        # Round off
         price_per_seat_rounded = int(round(price_per_seat))
         total_price = int(round(seats * price_per_seat))
 
@@ -943,6 +945,7 @@ class RidePaymentSummaryAPIView(APIView):
                 "ride_date": ride.ride_date.strftime('%Y-%m-%d'),
                 "ride_time": ride.ride_time.strftime('%H:%M:%S'),
                 "driver_name": ride.user.username,
+                "driver_role": ride.user.role,  # 👈 Added publisher role
                 "seats_requested": seats,
                 "price_per_seat": price_per_seat_rounded,
                 "total_amount": total_price,

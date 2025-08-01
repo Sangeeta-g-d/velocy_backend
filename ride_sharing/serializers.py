@@ -410,7 +410,6 @@ class RideJoinRequestDetailSerializer(serializers.ModelSerializer):
             'vehicle_info',
             'seats_requested',
             'status',
-            'message',
             'created_at',
             'ride_status',
             'start_time',
