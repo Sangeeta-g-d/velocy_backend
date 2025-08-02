@@ -1,0 +1,355 @@
+{% extends 'company_base.html' %}
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link rel="stylesheet" href="/static/assets/css/waiting_for_driver.css">
+
+<div class="waiting-container">
+    <div class="top-controls">
+        <a href="{% url 'company_dashboard' %}" class="back-arrow" title="Back to Dashboard">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="waiting-content">
+        {% if ride_details.status == 'accepted' and driver_details %}
+        <!-- Driver Found View -->
+        <div class="driver-found-header">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h1>Driver Found!</h1>
+            <p class="subtext">Your driver is on the way to your pickup location</p>
+        </div>
+
+        <div class="ride-details-card">
+            <div class="card-header">
+                <h2>Your Ride Details</h2>
+                <span class="status-badge accepted">Driver Assigned</span>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-icon">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="detail-content">
+                    <h3>Pickup Location</h3>
+                    <p>{{ ride_details.from_location }}</p>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-icon">
+                    <i class="fas fa-flag-checkered"></i>
+                </div>
+                <div class="detail-content">
+                    <h3>Drop Location</h3>
+                    <p>{{ ride_details.to_location }}</p>
+                </div>
+            </div>
+
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <div class="detail-icon small">
+                        <i class="fas fa-car"></i>
+                    </div>
+                    <div>
+                        <h4>Vehicle Type</h4>
+                        <p>{{ ride_details.vehicle_type.name }}</p>
+                    </div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-icon small">
+                        <i class="fas fa-road"></i>
+                    </div>
+                    <div>
+                        <h4>Distance</h4>
+                        <p>{{ ride_details.distance_km }} km</p>
+                    </div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-icon small">
+                        <i class="fas fa-indian-rupee-sign"></i>
+                    </div>
+                    <div>
+                        <h4>Estimated Price</h4>
+                        <p>₹{{ ride_details.estimated_price }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="driver-assignment">
+            <div class="driver-profile">
+                <div class="driver-avatar">
+                    {% if driver_details.photo_url %}
+                    <img src="{{ driver_details.photo_url }}" alt="Driver Photo" onerror="this.src='/static/assets/img/default-avatar.png'">
+                    {% else %}
+                    <img src="/static/assets/img/default-avatar.png" alt="Driver Photo">
+                    {% endif %}
+                </div>
+                <div class="driver-info">
+                    <h3>{{ driver_details.name }}</h3>
+                    <div class="driver-rating">
+                        {% for i in "12345"|make_list %}
+                            {% if forloop.counter <= driver_details.rating %}
+                            <i class="fas fa-star"></i>
+                            {% else %}
+                            <i class="far fa-star"></i>
+                            {% endif %}
+                        {% endfor %}
+                        <span>{{ driver_details.rating }}.0</span>
+                    </div>
+                    <p>{{ driver_details.vehicle_model }} ({{ driver_details.vehicle_number }})</p>
+                    {% if driver_details.phone %}
+                    <p><i class="fas fa-phone"></i> {{ driver_details.phone }}</p>
+                    <button class="btn btn-call" onclick="window.location.href='tel:{{ driver_details.phone }}'">
+                        <i class="fas fa-phone"></i> Call Driver
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-secondary" id="refresh-btn">
+                <i class="fas fa-sync-alt"></i> Refresh Status
+            </button>
+            <button class="btn btn-danger" id="cancel-btn">
+                <i class="fas fa-times"></i> Cancel Ride
+            </button>
+        </div>
+
+        {% else %}
+        <!-- Waiting for Driver View -->
+        <div class="waiting-header">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+            </div>
+            <h1>Looking for Available Drivers</h1>
+            <p class="subtext">We're finding the best driver for your corporate ride</p>
+        </div>
+
+        <div class="ride-details-card">
+            <div class="card-header">
+                <h2>Your Ride Details</h2>
+                <span class="status-badge pending">Pending</span>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-icon">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="detail-content">
+                    <h3>Pickup Location</h3>
+                    <p>{{ ride_details.from_location }}</p>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-icon">
+                    <i class="fas fa-flag-checkered"></i>
+                </div>
+                <div class="detail-content">
+                    <h3>Drop Location</h3>
+                    <p>{{ ride_details.to_location }}</p>
+                </div>
+            </div>
+
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <div class="detail-icon small">
+                        <i class="fas fa-car"></i>
+                    </div>
+                    <div>
+                        <h4>Vehicle Type</h4>
+                        <p>{{ ride_details.vehicle_type.name }}</p>
+                    </div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-icon small">
+                        <i class="fas fa-road"></i>
+                    </div>
+                    <div>
+                        <h4>Distance</h4>
+                        <p>{{ ride_details.distance_km }} km</p>
+                    </div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-icon small">
+                        <i class="fas fa-indian-rupee-sign"></i>
+                    </div>
+                    <div>
+                        <h4>Estimated Price</h4>
+                        <p>₹{{ ride_details.estimated_price }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="driver-assignment">
+            <div class="driver-profile">
+                <div class="driver-avatar-placeholder">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="driver-info">
+                    <h3>Driver Not Assigned Yet</h3>
+                    <p>We'll notify you when a driver accepts your ride</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-secondary" id="refresh-btn">
+                <i class="fas fa-sync-alt"></i> Refresh Status
+            </button>
+            <button class="btn btn-danger" id="cancel-btn">
+                <i class="fas fa-times"></i> Cancel Ride
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+   
+</div>
+
+<script>
+    // WebSocket connection setup
+    const rideId = "{{ ride_details.id }}";
+    const userId = "{{ request.user.id }}";
+    const rideStatus = "{{ ride_details.status }}";
+    let socket;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const reconnectDelay = 5000; // 5 seconds
+
+    // Only initialize WebSocket if ride is still pending
+    if (rideStatus !== 'accepted') {
+        function connectWebSocket() {
+            const socketProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const socketUrl = socketProtocol + window.location.host + '/ws/rider/notifications/' + userId + '/';
+            
+            console.log('[WebSocket] Attempting to connect to:', socketUrl);
+            
+            socket = new WebSocket(socketUrl);
+
+            socket.onopen = function(e) {
+                console.log('[WebSocket] Connection established successfully');
+                reconnectAttempts = 0;
+                
+                socket.send(JSON.stringify({
+                    type: 'identify',
+                    user_id: userId,
+                    ride_id: rideId
+                }));
+            };
+
+            socket.onmessage = function(event) {
+                console.log('[WebSocket] Message received:', event.data);
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('[WebSocket] Parsed message:', data);
+                    
+                    if (data.type === 'ride_accepted' || (data.type === 'ride_status_update' && data.status === 'accepted')) {
+                        window.location.reload();
+                    } else if (data.type === 'ride_cancelled') {
+                        alert(`Driver ${data.driver_name} cancelled the ride: ${data.message}`);
+                        setTimeout(() => window.location.href = '/company_dashboard/', 3000);
+                    }
+                } catch (e) {
+                    console.error('[WebSocket] Error parsing message:', e);
+                }
+            };
+
+            socket.onclose = function(event) {
+                console.log('[WebSocket] Connection closed, code:', event.code, 'reason:', event.reason);
+                
+                if (event.code !== 1000) {
+                    attemptReconnect();
+                }
+            };
+
+            socket.onerror = function(error) {
+                console.error('[WebSocket] Error:', error);
+            };
+        }
+
+        function attemptReconnect() {
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                console.log(`[WebSocket] Reconnect attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+                setTimeout(connectWebSocket, reconnectDelay);
+            } else {
+                console.log('[WebSocket] Max reconnect attempts reached');
+                alert('Connection lost. Please refresh the page.');
+            }
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[Initialization] Starting WebSocket connection');
+            connectWebSocket();
+
+            // Setup UI event listeners
+            document.getElementById('refresh-btn')?.addEventListener('click', function() {
+                location.reload();
+            });
+
+            document.getElementById('cancel-btn')?.addEventListener('click', function() {
+                if (confirm('Are you sure you want to cancel this ride?')) {
+                    cancelRide(rideId);
+                }
+            });
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.close(1000, 'Page navigation');
+            }
+        });
+    } else {
+        // If ride is already accepted, just set up the cancel button
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('refresh-btn')?.addEventListener('click', function() {
+                location.reload();
+            });
+
+            document.getElementById('cancel-btn')?.addEventListener('click', function() {
+                if (confirm('Are you sure you want to cancel this ride?')) {
+                    cancelRide(rideId);
+                }
+            });
+        });
+    }
+
+    async function cancelRide(rideId) {
+        try {
+            const response = await fetch(`/api/cancel_ride/${rideId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Ride cancelled successfully');
+                setTimeout(() => window.location.href = '/company_dashboard/', 2000);
+            } else {
+                alert('Failed to cancel ride: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('[API] Cancel error:', error);
+            alert('Error cancelling ride');
+        }
+    }
+</script>
+
+{% endblock %}

@@ -17,4 +17,6 @@ urlpatterns = [
 
     # Corporate ride booking url
     path('book_ride/', views.book_ride, name='book_ride'),
+    path('waiting_for_driver/<int:ride_id>/', views.waiting_for_driver, name='waiting_for_driver'),
+    path('driver_details/<int:driver_id>/', DriverDetailsAPIView.as_view(), name='driver-details'),
 ]

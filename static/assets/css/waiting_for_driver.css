@@ -1,0 +1,310 @@
+
+    .waiting-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .top-controls {
+        margin-bottom: 20px;
+    }
+
+    .back-arrow {
+        color: #4a6baf;
+        text-decoration: none;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .waiting-content {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .waiting-header {
+        margin-bottom: 30px;
+    }
+
+    .loading-spinner {
+        margin: 0 auto 20px;
+        width: 80px;
+        height: 80px;
+        position: relative;
+    }
+
+    .spinner {
+        border: 8px solid #f3f3f3;
+        border-top: 8px solid #4a6baf;
+        border-radius: 50%;
+        width: 100%;
+        height: 100%;
+        animation: spin 1.5s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .waiting-header h1 {
+        font-size: 28px;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .subtext {
+        color: #666;
+        font-size: 16px;
+        margin-bottom: 12px;
+    }
+
+    .ride-details-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 25px;
+        text-align: left;
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .card-header h2 {
+        font-size: 20px;
+        margin: 0;
+        color: #444;
+    }
+
+    .status-badge {
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .status-badge.pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .detail-row {
+        display: flex;
+        margin-bottom: 15px;
+        gap: 15px;
+    }
+
+    .detail-icon {
+        color: #4a6baf;
+        font-size: 20px;
+        margin-top: 3px;
+    }
+
+    .detail-content h3 {
+        margin: 0 0 5px 0;
+        font-size: 16px;
+        color: #555;
+    }
+
+    .detail-content p {
+        margin: 0;
+        font-size: 18px;
+        color: #222;
+    }
+
+    .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .detail-item {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .detail-icon.small {
+        font-size: 16px;
+        color: #666;
+    }
+
+    .detail-item h4 {
+        margin: 0 0 3px 0;
+        font-size: 14px;
+        color: #666;
+    }
+
+    .detail-item p {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .driver-assignment {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 25px;
+    }
+
+    .driver-profile {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .driver-avatar-placeholder {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background-color: #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        color: #999;
+    }
+
+    .driver-info h3 {
+        margin: 0 0 5px 0;
+        font-size: 18px;
+        color: #333;
+    }
+
+    .driver-info p {
+        margin: 0;
+        color: #666;
+        font-size: 15px;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        margin-top: 30px;
+    }
+
+    .btn {
+        padding: 12px 25px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary {
+        background-color: #f0f0f0;
+        color: #333;
+    }
+
+    .btn-secondary:hover {
+        background-color: #e0e0e0;
+    }
+
+    .btn-danger {
+        background-color: #ff4444;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background-color: #cc0000;
+    }
+
+    .progress-container {
+        margin-top: 40px;
+    }
+
+    .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        position: relative;
+        margin-bottom: 15px;
+    }
+
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        z-index: 1;
+    }
+
+    .step-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #e0e0e0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+        color: #999;
+    }
+
+    .step.active .step-icon {
+        background-color: #4a6baf;
+        color: white;
+    }
+
+    .step p {
+        margin: 0;
+        font-size: 14px;
+        color: #999;
+        font-weight: 500;
+    }
+
+    .step.active p {
+        color: #4a6baf;
+    }
+
+    .progress-bar {
+        height: 4px;
+        background-color: #e0e0e0;
+        border-radius: 2px;
+        position: relative;
+        margin: 0 20px;
+    }
+
+    .progress {
+        height: 100%;
+        background-color: #4a6baf;
+        border-radius: 2px;
+        transition: width 0.5s ease;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .detail-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }

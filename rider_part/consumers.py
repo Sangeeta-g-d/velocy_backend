@@ -9,6 +9,8 @@ from channels.db import database_sync_to_async
 from django.utils import timezone
 from .models import RideMessage
 from .models import RideRequest
+from auth_api.models import CustomUser
+from django.core.exceptions import ObjectDoesNotExist
 logger = logging.getLogger(__name__)
 
 class RideTrackingConsumer(AsyncWebsocketConsumer):
@@ -221,53 +223,136 @@ class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
         }))
 
 
-
 class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope["user"]
+        try:
+            # Try to get user from JWT authentication first
+            user = self.scope.get("user")
+            
+            # If JWT authentication failed or not provided, fall back to URL parameter
+            if not user.is_authenticated:
+                self.user_id = self.scope['url_route']['kwargs']['user_id']
+                user = await self.get_user(self.user_id)
+                print(f"User fetched from URL: {user}")
+            if user and user.is_authenticated:
+                self.user_id = str(user.id)
+                self.group_name = f"user_{self.user_id}"
+                await self.channel_layer.group_add(self.group_name, self.channel_name)
+                await self.accept()
+                print(f"✅ WebSocket connected: user_{self.user_id}")
+            else:
+                print("❌ Unauthorized WebSocket attempt")
+                await self.close()
+                
+        except KeyError as e:
+            print(f"❌ Missing required parameter: {e}")
+            await self.close(code=4000)  # Custom close code for invalid parameters
+        except ObjectDoesNotExist:
+            print("❌ User not found")
+            await self.close(code=4001)  # Custom close code for user not found
+        except Exception as e:
+            print(f"❌ Unexpected error during connection: {e}")
+            await self.close(code=4002)  # Custom close code for other errors
 
-        if self.user.is_authenticated:
-            self.group_name = f"user_{self.user.id}"
-            await self.channel_layer.group_add(self.group_name, self.channel_name)
-            await self.accept()
-            print(f"✅ WebSocket connected: user_{self.user.id}")
-        else:
-            print("❌ Unauthorized WebSocket attempt")
-            await self.close()
+    @database_sync_to_async
+    def get_user(self, user_id):
+        try:
+            return CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return None
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        print(f"WebSocket disconnected with code: {close_code}")
 
     async def receive_json(self, content):
-        # Optional: Handle client messages (if needed)
-        pass
+        try:
+            message_type = content.get('type')
+            
+            if message_type == 'ping':
+                await self.send_json({'type': 'pong', 'timestamp': content.get('timestamp')})
+            else:
+                print(f"Received unknown message type: {message_type}")
+                
+        except Exception as e:
+            print(f"Error processing message: {e}")
 
+    @database_sync_to_async
+    def get_driver_details(self, driver_id):
+        driver = CustomUser.objects.filter(id=driver_id, role='driver').first()
+        if not driver:
+            return None
+    
+        vehicle_info = getattr(driver, 'vehicle_info', None)
+    
+        return {
+            'driver_name': driver.username or f"Driver {driver.phone_number[-4:]}",
+            'driver_phone': driver.phone_number,
+            'vehicle_model': getattr(vehicle_info, 'car_model', 'Car'),
+            'vehicle_number': getattr(vehicle_info, 'vehicle_number', 'NA'),
+            'vehicle_type': getattr(vehicle_info, 'vehicle_type', 'Unknown'),
+            'car_company': getattr(vehicle_info, 'car_company', ''),
+            'year': getattr(vehicle_info, 'year', None),
+        }
+        
     async def ride_accepted(self, event):
-        await self.send_json({
-            "type": "ride_accepted",
-            "ride_id": event["ride_id"],
-            "message": event["message"],
-            "driver_name": event["driver_name"],
-            "driver_id": event["driver_id"],
-        })
-    async def ride_cancelled(self, event):
-        await self.send_json({
-            "type": "ride_cancelled",
-            "ride_id": event["ride_id"],
-            "message": event["message"],
-            "driver_name": event["driver_name"],
-            "driver_id": event["driver_id"],
-        })
-    async def ride_cancelled_by_user(self, event):
-        await self.send_json({
-            "type": "ride_cancelled_by_user",
-            "ride_id": event["ride_id"],
-            "message": event["message"],
-            "user_name": event["user_name"],
-            "user_id": event["user_id"],
-        })
+        driver_details = await self.get_driver_details(event['driver_id'])
+        if driver_details:
+            await self.send_json({
+                "type": "ride_accepted",
+                "ride_id": event["ride_id"],
+                "message": event["message"],
+                "driver_id": event["driver_id"],
+                **driver_details
+            })
+        else:
+            await self.send_json({
+                "type": "ride_accepted",
+                "ride_id": event["ride_id"],
+                "message": "Driver assigned but details unavailable",
+                "driver_id": event["driver_id"],
+                "driver_name": "Unknown Driver",
+            })
 
+    async def ride_cancelled(self, event):
+        try:
+            await self.send_json({
+                "type": "ride_cancelled",
+                "ride_id": event["ride_id"],
+                "message": event["message"],
+                "reason": event.get("reason", "No reason provided"),
+                "driver_name": event.get("driver_name", "Unknown driver"),
+                "driver_id": event.get("driver_id")
+            })
+        except Exception as e:
+            print(f"Error sending ride_cancelled: {e}")
+
+    async def ride_cancelled_by_user(self, event):
+        try:
+            await self.send_json({
+                "type": "ride_cancelled_by_user",
+                "ride_id": event["ride_id"],
+                "message": event["message"],
+                "user_name": event["user_name"],
+                "user_id": event["user_id"],
+                "timestamp": event.get("timestamp")
+            })
+        except Exception as e:
+            print(f"Error sending ride_cancelled_by_user: {e}")
+
+    
+    async def driver_location_update(self, event):
+        try:
+            await self.send_json({
+                "type": "driver_location",
+                "ride_id": event["ride_id"],
+                "latitude": event["latitude"],
+                "longitude": event["longitude"],
+                "timestamp": event["timestamp"]
+            })
+        except Exception as e:
+            print(f"Error sending driver_location_update: {e}")
 
 # shared ride tracking consumer
 class SharedRideTrackingConsumer(AsyncWebsocketConsumer):

@@ -589,16 +589,11 @@ class ActivePromoCodesAPIView(StandardResponseMixin, APIView):
 
         # Get user's favorite to-locations
         favorite_locations = FavoriteToLocation.objects.filter(user=request.user)
-
-        if favorite_locations.exists():
-            from .serializers import FavoriteToLocationSerializer
-            favorites_data = FavoriteToLocationSerializer(favorite_locations, many=True).data
-        else:
-            favorites_data = "No favorite locations found."
+        favorites_data = FavoriteToLocationSerializer(favorite_locations, many=True).data
 
         return Response({
             "active_promos": promo_data,
-            "favorite_to_locations": favorites_data
+            "favorite_to_locations": favorites_data  # ✅ always list (empty if none)
         }, status=status.HTTP_200_OK)
 
     

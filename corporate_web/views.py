@@ -1,8 +1,15 @@
 from django.shortcuts import render,redirect,get_object_or_404
 from . models import *
+from django.db.models import Avg 
 from django.contrib.auth.hashers import make_password
 from django.db import transaction, IntegrityError
+import math
+from rest_framework.views import APIView
+from auth_api.models import DriverVehicleInfo
+from rest_framework.response import Response
+from rest_framework import status
 from django.contrib.auth.decorators import login_required
+from django.urls import reverse
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseForbidden
 from django.contrib.auth import get_user_model
@@ -13,6 +20,7 @@ from admin_part.models import VehicleType,City
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from . models import *
+from auth_api.models import DriverRating
 from django.urls import reverse
 from django.template.loader import render_to_string
 import razorpay
@@ -367,6 +375,30 @@ def employee_details(request, employee_id):
     }
     return render(request, 'employee_details.html', context)
 
+
+def employee_activity(request, employee_id):
+    employee = get_object_or_404(CustomUser, id=employee_id)
+
+    # Get recent 20 ridesF
+    rides = RideRequest.objects.filter(user=employee).order_by('-created_at')[:20]
+
+    # Convert UTC to IST
+    ist = pytz.timezone("Asia/Kolkata")
+    for ride in rides:
+        utc_time = ride.created_at
+        if utc_time.tzinfo is None:
+            utc_time = make_aware(utc_time, timezone=pytz.UTC)
+        ride.created_at_ist = utc_time.astimezone(ist)
+
+    context = {
+        "employee_id": employee_id,
+        "employee": employee,
+        "recent_rides": rides,
+        "current_url_name": "employee_activity"
+    }
+    return render(request, 'employee_activity.html', context)
+
+
 @login_required(login_url='/login/')
 def book_ride(request):
     employees = CustomUser.objects.filter(
@@ -525,35 +557,76 @@ def book_ride(request):
                 # Deduct credits
                 plan.spend_company_credits(int(estimated_price))
 
-            context.update({
-                "toast_message": "Ride booked successfully. Credits deducted.",
-                "toast_type": "success"
-            })
+            # Redirect to waiting_for_driver page after successful booking
+            return redirect(reverse('waiting_for_driver', args=[ride.id]))
+            
         except Exception as e:
             context.update({
                 "toast_message": f"Failed to book ride: {str(e)}",
                 "toast_type": "error"
             })
+            return render(request, "book_ride.html", context)
 
     return render(request, "book_ride.html", context)
-def employee_activity(request, employee_id):
-    employee = get_object_or_404(CustomUser, id=employee_id)
 
-    # Get recent 20 ridesF
-    rides = RideRequest.objects.filter(user=employee).order_by('-created_at')[:20]
-
-    # Convert UTC to IST
-    ist = pytz.timezone("Asia/Kolkata")
-    for ride in rides:
-        utc_time = ride.created_at
-        if utc_time.tzinfo is None:
-            utc_time = make_aware(utc_time, timezone=pytz.UTC)
-        ride.created_at_ist = utc_time.astimezone(ist)
-
+def waiting_for_driver(request, ride_id):
+    ride_details = get_object_or_404(RideRequest, id=ride_id, user=request.user)
+    
+    driver_details = None
+    if ride_details.status == 'accepted' and ride_details.driver:
+        driver = ride_details.driver
+        try:
+            vehicle_info = DriverVehicleInfo.objects.get(user=driver)
+        except DriverVehicleInfo.DoesNotExist:
+            vehicle_info = None
+        
+        # Calculate average rating
+        from auth_api.models import DriverRating  # Import your DriverRating model
+        ratings = DriverRating.objects.filter(driver=driver)
+        average_rating = ratings.aggregate(Avg('rating'))['rating__avg'] or 5.0
+        rounded_rating = math.floor(average_rating * 2) / 2  # Round to nearest 0.5
+        
+        driver_details = {
+            'id': driver.id,
+            'name': driver.username or f"Driver {driver.phone_number[-4:]}",
+            'phone': driver.phone_number,
+            'photo_url': driver.profile.url if driver.profile else None,
+            'rating': rounded_rating,
+            'vehicle_model': vehicle_info.car_model if vehicle_info else 'Car',
+            'vehicle_number': vehicle_info.vehicle_number if vehicle_info else 'NA',
+        }
+    
     context = {
-        "employee_id": employee_id,
-        "employee": employee,
-        "recent_rides": rides,
-        "current_url_name": "employee_activity"
+        "ride_details": ride_details,
+        "driver_details": driver_details,
+        "current_url_name": "book_ride"
     }
-    return render(request, 'employee_activity.html', context)
+    return render(request, "waiting_for_driver.html", context)
+
+class DriverDetailsAPIView(APIView):
+    def get(self, request, driver_id):
+        try:
+            driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
+            
+            # Calculate average rating
+            ratings = DriverRating.objects.filter(driver=driver)
+            average_rating = ratings.aggregate(Avg('rating'))['rating__avg'] or 5.0
+            rounded_rating = math.floor(average_rating * 2) / 2  # Round to nearest 0.5
+            
+            response_data = {
+                'id': driver.id,
+                'name': driver.username or f"Driver {driver.phone_number[-4:]}",
+                'phone': driver.phone_number,
+                'photo_url': request.build_absolute_uri(driver.profile.url) if driver.profile else None,
+                'rating': rounded_rating,
+                'total_rides': driver.accepted_rides.count(),
+                'vehicle_model': driver.driverprofile.car_company if hasattr(driver, 'driverprofile') else 'Car',
+                'vehicle_number': driver.driverprofile.vehicle_number if hasattr(driver, 'driverprofile') else 'NA',
+                'is_corporate_driver': driver.is_corporate_driver,
+                'driver_type': driver.driver_type,
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
