@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import *
 from .models import PhoneOTP, CustomUser
+from rest_framework.permissions import AllowAny
 from twilio.base.exceptions import TwilioRestException
 from .utils.otp import generate_otp, send_otp
 from django.contrib.auth.hashers import make_password
@@ -172,6 +173,30 @@ class LoginWithOTPView(APIView):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# login with phone and password
+class LoginAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+
+        # ✅ Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "message": "Login successful",
+            "user": {
+                "user_id": user.id,
+                "phone_number": user.phone_number,
+                "role": user.role,
+            },
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
 
 # update profile 
 class UpdateUserProfileView(APIView):
