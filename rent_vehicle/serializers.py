@@ -69,16 +69,21 @@ class RentedVehicleUpdateSerializer(serializers.ModelSerializer):
             'images', 'update_images'
         ]
 
-
 class UserRentedVehicleListSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
 
     class Meta:
         model = RentedVehicle
-        fields = ['id', 'vehicle_name', 'registration_number', 'vehicle_color', 'is_approved', 'images','is_available']
+        fields = ['id', 'vehicle_name', 'registration_number', 'vehicle_color', 'is_approved', 'images', 'is_available']
 
     def get_images(self, obj):
-        return [image.image.url for image in obj.images.all()]
+        request = self.context.get('request')
+        if not request:
+            # Fallback to relative URLs if request not available
+            return [image.image.url for image in obj.images.all()]
+
+        return [request.build_absolute_uri(image.image.url) for image in obj.images.all()]
+
     
 class RentedVehicleEditImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -100,7 +105,6 @@ class RentedVehicleEditSerializer(serializers.ModelSerializer):
             'is_approved', 'images','security_deposite'
         ]
 
-
 class RentedVehicleHomeScreenListSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
 
@@ -118,8 +122,10 @@ class RentedVehicleHomeScreenListSerializer(serializers.ModelSerializer):
         ]
 
     def get_images(self, obj):
-        return [img.image.url for img in obj.images.all()]
-    
+        request = self.context.get('request')
+        if not request:
+            return [img.image.url for img in obj.images.all()]
+        return [request.build_absolute_uri(img.image.url) for img in obj.images.all()]
 
 
 # rental car details

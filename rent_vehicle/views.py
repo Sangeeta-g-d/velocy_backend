@@ -33,7 +33,7 @@ class UserRentedVehicleListAPIView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = UserRentedVehicleListSerializer(vehicles, many=True)
+        serializer = UserRentedVehicleListSerializer(vehicles, many=True,context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
@@ -106,7 +106,8 @@ class ApprovedVehiclesListAPIView(APIView):
         if vehicle_type in dict(RentedVehicle.VEHICLE_TYPE_CHOICES).keys():
             vehicles = vehicles.filter(vehicle_type=vehicle_type)
 
-        serializer = RentedVehicleHomeScreenListSerializer(vehicles, many=True)
+        serializer = RentedVehicleHomeScreenListSerializer(vehicles, many=True, context={'request': request})
+
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
