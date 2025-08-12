@@ -25,7 +25,7 @@ class UserRentedVehicleListAPIView(APIView):
 
     def get(self, request):
         user = request.user
-        vehicles = RentedVehicle.objects.filter(user=user)
+        vehicles = RentedVehicle.objects.filter(user=user).order_by('-id')
 
         if not vehicles.exists():
             return Response(
