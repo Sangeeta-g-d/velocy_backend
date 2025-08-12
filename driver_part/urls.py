@@ -42,5 +42,7 @@ urlpatterns = [
     # corporate ride APIs
     path('corporate-available-rides/', CorporateAvailableRidesAPIView.as_view(), name='corporate_available_rides'),
 
+    path('ride-history-details/<int:ride_id>/', DriverRideDetailAPIView.as_view(), name='driver-ride-detail'),
+
 
 ]

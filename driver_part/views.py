@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render,get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -938,4 +938,83 @@ class CorporateAvailableRidesAPIView(APIView):
             "status": True,
             "message": "success",
             "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class DriverRideDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, ride_id):
+        driver = request.user
+        ride = get_object_or_404(RideRequest, id=ride_id, driver=driver)
+
+        # Rider details
+        rider = ride.user
+        profile_url = request.build_absolute_uri(rider.profile.url) if rider.profile else None
+
+        # Get start time logic
+        if ride.ride_type == 'scheduled' and ride.scheduled_time:
+            start_time = localtime(ride.scheduled_time).strftime("%Y-%m-%d %I:%M %p")
+        else:
+            start_time = localtime(ride.start_time).strftime("%Y-%m-%d %I:%M %p") if ride.start_time else None
+
+        # Stops
+        stops = list(ride.ride_stops.values("location", "latitude", "longitude", "order"))
+
+        # Credited amount from DriverWalletTransaction
+        credited_amount = DriverWalletTransaction.objects.filter(
+            driver=driver,
+            ride=ride
+        ).aggregate(total=models.Sum("amount"))["total"]
+
+        # Payment method
+        payment_method = ride.payment_detail.payment_method if hasattr(ride, "payment_detail") else None
+
+        # Duration calculation
+        duration = None
+        if ride.start_time and ride.end_time:
+            diff = ride.end_time - ride.start_time
+            total_seconds = int(diff.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            duration = f"{hours}h {minutes}m" if hours else f"{minutes}m"
+
+        # Rating & Review
+        rating_data = None
+        driver_rating = ride.driver_ratings.filter(driver=driver).first()
+        if driver_rating:
+            rating_data = {
+                "rating": float(driver_rating.rating),
+                "review": driver_rating.review
+            }
+
+        data = {
+            "ride_id": ride.id,
+            "from_location": {
+                "address": ride.from_location,
+                "latitude": float(ride.from_latitude),
+                "longitude": float(ride.from_longitude)
+            },
+            "to_location": {
+                "address": ride.to_location,
+                "latitude": float(ride.to_latitude),
+                "longitude": float(ride.to_longitude)
+            },
+            "stops": stops,
+            "start_time": start_time,
+            "distance_km": float(ride.distance_km) if ride.distance_km else None,
+            "credited_amount": float(credited_amount) if credited_amount else 0.0,
+            "payment_method": payment_method,
+            "duration": duration,
+            "rider": {
+                "username": rider.username,
+                "profile_image": profile_url,
+                "rating_review": rating_data
+            }
+        }
+
+        return Response({
+            "status": True,
+            "message": "Ride details fetched successfully.",
+            "data": data
         }, status=status.HTTP_200_OK)
