@@ -661,6 +661,8 @@ class DriverPastRideHistoryAPIView(APIView):
 
     def get(self, request):
         driver = request.user
+
+        # Past rides
         rides = RideRequest.objects.filter(
             driver=driver,
             status__in=['completed', 'cancelled']
@@ -676,12 +678,25 @@ class DriverPastRideHistoryAPIView(APIView):
             elif ride.status == 'cancelled':
                 cancelled_rides.append(serialized)
 
+        # Upcoming scheduled rides
+        upcoming_rides_qs = RideRequest.objects.filter(
+            driver=driver,
+            status='accepted',
+            ride_type='scheduled',
+            scheduled_time__gt=timezone.now()
+        ).order_by('scheduled_time')
+
+        upcoming_rides = DriverRideHistorySerializer(upcoming_rides_qs, many=True).data
+
         return Response({
             "status": True,
             "message": "Ride history fetched successfully.",
             "completed_rides": completed_rides,
-            "cancelled_rides": cancelled_rides
+            "cancelled_rides": cancelled_rides,
+            "upcoming_rides": upcoming_rides
         }, status=status.HTTP_200_OK)
+
+
 
 
 class DriverScheduledRidesAPIView(APIView):

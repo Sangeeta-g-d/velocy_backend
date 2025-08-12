@@ -181,18 +181,30 @@ class DriverRideHistorySerializer(serializers.ModelSerializer):
         ]
 
     def get_date(self, obj):
-        # Use created_at for cancelled rides, start_time for others
-        target_time = obj.created_at if obj.status == 'cancelled' else obj.start_time
+        # For cancelled rides → use created_at
+        if obj.status == 'cancelled':
+            target_time = obj.created_at
+        # For upcoming rides (accepted & scheduled) → use scheduled_time
+        elif obj.status == 'accepted' and obj.ride_type == 'scheduled':
+            target_time = obj.scheduled_time
+        else:
+            target_time = obj.start_time
+
         if target_time:
-            return convert_to_ist(target_time).split()[0]  # 'YYYY-MM-DD'
+            return convert_to_ist(target_time).split()[0]
         return None
 
     def get_start_time(self, obj):
-        # Use created_at for cancelled rides, start_time for others
-        target_time = obj.created_at if obj.status == 'cancelled' else obj.start_time
+        if obj.status == 'cancelled':
+            target_time = obj.created_at
+        elif obj.status == 'accepted' and obj.ride_type == 'scheduled':
+            target_time = obj.scheduled_time
+        else:
+            target_time = obj.start_time
+
         if target_time:
             parts = convert_to_ist(target_time).split()
-            return parts[1] + " " + parts[2]  # 'HH:MM AM/PM'
+            return parts[1] + " " + parts[2]
         return None
 
     def get_payment_method(self, obj):
