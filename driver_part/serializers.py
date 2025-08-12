@@ -170,22 +170,24 @@ class DriverRideHistorySerializer(serializers.ModelSerializer):
     start_time = serializers.SerializerMethodField()
     amount_received = serializers.SerializerMethodField()
     payment_method = serializers.SerializerMethodField()
+    distance = serializers.SerializerMethodField()
 
     class Meta:
         model = RideRequest
         fields = [
             'id', 'from_location', 'to_location',
-            'date', 'start_time', 'amount_received', 'payment_method'
+            'date', 'start_time', 'amount_received', 'payment_method',
+            'distance'
         ]
 
     def get_date(self, obj):
         if obj.start_time:
-            return convert_to_ist(obj.start_time).split()[0]  # Returns 'YYYY-MM-DD'
+            return convert_to_ist(obj.start_time).split()[0]  # 'YYYY-MM-DD'
         return None
 
     def get_start_time(self, obj):
         if obj.start_time:
-            return convert_to_ist(obj.start_time).split()[1] + " " + convert_to_ist(obj.start_time).split()[2]  # 'HH:MM AM/PM'
+            return convert_to_ist(obj.start_time).split()[1] + " " + convert_to_ist(obj.start_time).split()[2]
         return None
 
     def get_payment_method(self, obj):
@@ -207,6 +209,12 @@ class DriverRideHistorySerializer(serializers.ModelSerializer):
                 return None
         else:
             return float(payment.driver_earnings)
+
+    def get_distance(self, obj):
+        if obj.distance_km is not None:
+            return float(obj.distance_km)
+        return None
+
 
 
 class DriverScheduledRideSerializer(serializers.ModelSerializer):
