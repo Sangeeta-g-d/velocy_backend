@@ -110,6 +110,14 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             "ride_id": self.ride_id,
             "otp": event["otp"]
         })
+        
+    async def ride_completed(self, event):
+        await self.send_json({
+            "type": "ride_completed",
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "end_time": event["end_time"]
+        })
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):

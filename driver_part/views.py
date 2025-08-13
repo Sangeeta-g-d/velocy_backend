@@ -301,7 +301,7 @@ class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
         }, status=status.HTTP_200_OK)
 
 
-class SetRideEndTimeAPIView(StandardResponseMixin,APIView):
+class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
     def post(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id)
@@ -314,14 +314,28 @@ class SetRideEndTimeAPIView(StandardResponseMixin,APIView):
         ride.end_time = timezone.now()
         ride.save()
 
+        # Convert to IST for response
         ist_time = ride.end_time.astimezone(pytz.timezone("Asia/Kolkata"))
+
+        # --- ✅ Send WebSocket notification to rider ---
+        channel_layer = get_channel_layer()
+        group_name = f"ride_{ride.id}"  # must match consumer's group naming
+
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "ride.completed",
+                "ride_id": ride.id,
+                "message": "Your ride has been completed.",
+                "end_time": ist_time.strftime('%Y-%m-%d %I:%M %p')
+            }
+        )
 
         return Response({
             "ride_id": ride.id,
             "end_time_utc": ride.end_time,
             "end_time_ist": ist_time.strftime('%Y-%m-%d %I:%M %p')
         }, status=status.HTTP_200_OK)
-    
 
 # Generate OTP and sending to the rider
 class GenerateRideOTPView(StandardResponseMixin,APIView):
