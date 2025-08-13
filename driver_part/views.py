@@ -776,8 +776,11 @@ class DriverEarningsSummaryAPIView(APIView):
         }, status=200)
     
 
-class DriverProfileAPIView(UpdateRidePaymentStatusAPIView,APIView):
+from rest_framework.parsers import MultiPartParser, FormParser
+
+class DriverProfileAPIView(UpdateRidePaymentStatusAPIView, APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]  # For file uploads
 
     def get(self, request):
         user = request.user
@@ -792,14 +795,46 @@ class DriverProfileAPIView(UpdateRidePaymentStatusAPIView,APIView):
             profile_url = request.build_absolute_uri(user.profile.url)
 
         return Response({
-                         "username": user.username,
+            "username": user.username,
             "email": user.email,
             "profile_image": profile_url,
             "vehicle_info": {
                 "id": vehicle_info.id if vehicle_info else None,
                 "vehicle_number": vehicle_info.vehicle_number if vehicle_info else None,
-                "car_name": f"{vehicle_info.car_company} {vehicle_info.car_model}" if vehicle_info else None}})
-    
+                "car_name": f"{vehicle_info.car_company} {vehicle_info.car_model}" if vehicle_info else None
+            }
+        })
+
+    def put(self, request):
+        user = request.user
+
+        if user.role != 'driver':
+            return Response({"detail": "Access denied. Only drivers allowed."}, status=403)
+
+        username = request.data.get('username')
+        email = request.data.get('email')
+        profile_image = request.FILES.get('profile_image')
+
+        if username:
+            user.username = username
+        if email:
+            user.email = email
+        if profile_image:
+            user.profile = profile_image  # Assuming `profile` is an ImageField in CustomUser
+
+        user.save()
+
+        profile_url = None
+        if user.profile and hasattr(user.profile, 'url'):
+            profile_url = request.build_absolute_uri(user.profile.url)
+
+        return Response({
+            "message": "Profile updated successfully",
+            "username": user.username,
+            "email": user.email,
+            "profile_image": profile_url
+        })
+
 # vehilce docs
 
 class DriverDocumentAPIView(UpdateRidePaymentStatusAPIView,APIView):
