@@ -48,5 +48,9 @@ urlpatterns = [
     path('delete-favorites-to-location/<int:pk>/', DeleteFavoriteToLocationAPIView.as_view(), name='delete-favorite-to'),
 
     path('cancel-by-user/<int:ride_id>/', CancelRideByUserAPIView.as_view(), name='cancel-ride-by-user'),
+
+
+    path('chat-history/<int:ride_id>/', RideChatHistoryAPIView.as_view(), name='ride-chat-history'),
+    path('active-rides/',ActiveRideAPIView.as_view(),name="active-rides")
     
 ]

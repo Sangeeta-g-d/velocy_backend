@@ -45,4 +45,7 @@ urlpatterns = [
     path('ride-history-details/<int:ride_id>/', DriverRideDetailAPIView.as_view(), name='driver-ride-detail'),
 
 
+    path('driver-active-rides/', DriverActiveRideAPIView.as_view(), name='driver-active-ride'),
 ]
+
+

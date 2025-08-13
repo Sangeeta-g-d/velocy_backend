@@ -856,3 +856,37 @@ class DeleteFavoriteToLocationAPIView(generics.DestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response({"detail": "Favorite location deleted successfully."}, status=status.HTTP_200_OK)
+    
+
+# chat history
+class RideChatHistoryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, ride_id):
+        # Ensure the ride exists and the user is either the rider or the driver
+        ride = get_object_or_404(RideRequest, id=ride_id)
+
+        if request.user != ride.user and request.user != ride.driver:
+            return Response({"detail": "Not authorized to view this ride's messages."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # Get all messages for this ride, ordered by timestamp
+        messages = RideMessage.objects.filter(ride=ride).order_by('timestamp')
+        serializer = RideMessageSerializer(messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class ActiveRideAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        ride = RideRequest.objects.filter(
+            user=request.user,
+            status__in=['pending', 'accepted']
+        ).order_by('-created_at').first()
+
+        if not ride:
+            return Response({"message": "No active ride found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = ActiveRideSerializer(ride)
+        return Response(serializer.data)

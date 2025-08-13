@@ -24,6 +24,7 @@ from admin_part.models import PlatformSetting
 from rider_part.models import DriverWalletTransaction, RideRequest, RidePaymentDetail
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from rider_part.models import ActiveRideSerializer
 # Create your views here.
 
 
@@ -1033,3 +1034,16 @@ class DriverRideDetailAPIView(APIView):
             "message": "Ride details fetched successfully.",
             "data": data
         }, status=status.HTTP_200_OK)
+    
+
+class DriverActiveRideAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        rides = RideRequest.objects.filter(
+            driver=request.user,
+            status='accepted'
+        ).select_related('otp')
+
+        serializer = ActiveRideSerializer(rides, many=True)
+        return Response(serializer.data)

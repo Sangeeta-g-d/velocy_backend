@@ -343,3 +343,31 @@ class FavoriteToLocationSerializer(serializers.ModelSerializer):
             "to_latitude",
             "to_longitude",
         ]
+
+
+class RideMessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.CharField(source='sender.username', read_only=True)
+    sender_id = serializers.IntegerField(source='sender.id', read_only=True)
+    timestamp = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideMessage
+        fields = ['id', 'ride', 'sender_id', 'sender_name', 'message', 'timestamp']
+
+    def get_timestamp(self, obj):
+        # Convert to IST
+        return localtime(obj.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+
+class ActiveRideSerializer(serializers.ModelSerializer):
+    otp_verified = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideRequest
+        fields = ['id', 'from_location', 'to_location', 'status', 'otp_verified']
+
+    def get_otp_verified(self, obj):
+        # Check if OTP exists and return verification status
+        if hasattr(obj, 'otp'):
+            return obj.otp.is_verified
+        return False
