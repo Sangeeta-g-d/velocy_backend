@@ -348,7 +348,7 @@ class GenerateRideOTPView(StandardResponseMixin,APIView):
         # Send OTP via WebSocket
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            "ride_user_test",  # Or use a dynamic group name if needed
+            f"ride_{ride.id}",  # Or use a dynamic group name if needed
             {
                 "type": "send.otp",
                 "otp": otp_code
