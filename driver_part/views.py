@@ -24,7 +24,7 @@ from admin_part.models import PlatformSetting
 from rider_part.models import DriverWalletTransaction, RideRequest, RidePaymentDetail
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from rider_part.models import ActiveRideSerializer
+from rider_part.serializers import ActiveRideSerializer
 # Create your views here.
 
 
