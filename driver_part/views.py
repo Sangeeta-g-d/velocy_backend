@@ -372,8 +372,7 @@ class GenerateRideOTPView(StandardResponseMixin,APIView):
         return Response({"message": f"OTP {otp_code} sent to WebSocket."})
 
     
-
-class VerifyRideOTPView(StandardResponseMixin,APIView):
+class VerifyRideOTPView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -396,8 +395,20 @@ class VerifyRideOTPView(StandardResponseMixin,APIView):
         # OTP is valid
         otp_obj.is_verified = True
         otp_obj.save()
+
         ride.status = 'accepted'
         ride.save()
+
+        # Notify rider via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"ride_{ride.id}",
+            {
+                "type": "otp_verified",  # consumer event method name
+                "ride_id": ride.id,
+                "message": "OTP has been verified by the driver."
+            }
+        )
 
         return Response({"message": "OTP verified"})
 

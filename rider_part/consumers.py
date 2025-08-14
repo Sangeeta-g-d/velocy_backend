@@ -110,7 +110,14 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             "ride_id": self.ride_id,
             "otp": event["otp"]
         })
-        
+
+    async def otp_verified(self, event):
+        await self.send_json({
+            "type": "otp_verified",
+            "ride_id": event["ride_id"],
+            "message": event["message"]
+        })
+
     async def ride_completed(self, event):
         await self.send_json({
             "type": "ride_completed",
