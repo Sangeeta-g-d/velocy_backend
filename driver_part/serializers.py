@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from admin_part.models import City, VehicleType
 from rider_part.models import RideRequest, RideStop
 import pytz
+from auth_api.models import CustomUser
 from auth_api.models import DriverDocumentInfo
 from ride_sharing.time_utils import convert_to_ist
 
@@ -286,3 +287,42 @@ class DriverDocumentSerializer(serializers.ModelSerializer):
     def get_vehicle_insurance(self, obj):
         request = self.context.get('request')
         return request.build_absolute_uri(obj.vehicle_insurance.url) if obj.vehicle_insurance else None
+
+
+
+class RiderInfoSerializer(serializers.ModelSerializer):
+    profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'phone_number', 'profile']
+
+    def get_profile(self, obj):
+        if obj.profile:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.profile.url) if request else obj.profile.url
+        return None
+
+
+class ActiveRideWithRiderSerializer(serializers.ModelSerializer):
+    otp_verified = serializers.SerializerMethodField()
+    rider = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideRequest
+        fields = [
+            'id',
+            'from_location',
+            'to_location',
+            'status',
+            'otp_verified',
+            'rider',
+        ]
+
+    def get_otp_verified(self, obj):
+        if hasattr(obj, 'otp'):
+            return obj.otp.is_verified
+        return False
+
+    def get_rider(self, obj):
+        return RiderInfoSerializer(obj.user, context=self.context).data

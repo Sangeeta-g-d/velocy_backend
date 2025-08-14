@@ -821,30 +821,30 @@ class DriverProfileAPIView(UpdateRidePaymentStatusAPIView, APIView):
 
     def put(self, request):
         user = request.user
-    
+
         if user.role != 'driver':
             return Response({"detail": "Access denied. Only drivers allowed."}, status=403)
-    
+
         username = request.data.get('username')
         email = request.data.get('email')
         profile_image = request.FILES.get('profile_image')
-    
+
         if username:
             user.username = username
         if email:
             user.email = email
         if profile_image:
             user.profile = profile_image  # Assuming `profile` is an ImageField in CustomUser
-    
+
         user.save()
-    
+
         # Get vehicle info after update
         vehicle_info = getattr(user, 'vehicle_info', None)
-    
+
         profile_url = None
         if user.profile and hasattr(user.profile, 'url'):
             profile_url = request.build_absolute_uri(user.profile.url)
-    
+
         return Response({
             "message": "Profile updated successfully",
             "username": user.username,
@@ -1100,7 +1100,7 @@ class DriverActiveRideAPIView(APIView):
         rides = RideRequest.objects.filter(
             driver=request.user,
             status='accepted'
-        ).select_related('otp')
+        ).select_related('otp', 'user')  # also load user for fewer queries
 
-        serializer = ActiveRideSerializer(rides, many=True)
+        serializer = ActiveRideWithRiderSerializer(rides, many=True, context={'request': request})
         return Response(serializer.data)
