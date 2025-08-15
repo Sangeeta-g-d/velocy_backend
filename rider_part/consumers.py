@@ -100,9 +100,22 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f"ride_{self.ride_id}"
-        
+
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+
+    async def disconnect(self, close_code):
+        # make sure you remove the user from the group
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive_json(self, content, **kwargs):
+        """
+        Optional: keeps the connection open even if the client
+        never sends anything. You can just pass for now.
+        """
+        pass
+
+    # <--- these are group event handlers (they must be flat methods) ----->
 
     async def send_otp(self, event):
         await self.send_json({
@@ -125,6 +138,7 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             "message": event["message"],
             "end_time": event["end_time"]
         })
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
