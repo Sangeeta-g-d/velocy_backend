@@ -277,14 +277,15 @@ class RiderProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'profile']
+        fields = ['id', 'phone_number', 'email', 'username', 'profile']
+        read_only_fields = ['phone_number']  # <— ✔️ cannot be edited through PUT
 
     def get_profile(self, obj):
         request = self.context.get('request')
         if obj.profile and request:
             return request.build_absolute_uri(obj.profile.url)
         return None
-    
+
 
 class RideReportSerializer(serializers.ModelSerializer):
     class Meta:

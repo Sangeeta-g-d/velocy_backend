@@ -717,12 +717,32 @@ class RiderProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        if user.role != 'rider':
+        if request.user.role != 'rider':
             return Response({"error": "User is not a rider."}, status=403)
 
-        serializer = RiderProfileSerializer(user, context={'request': request})
-        return Response(serializer.data)
+        serializer = RiderProfileSerializer(request.user, context={'request': request})
+        return Response(serializer.data, status=200)
+
+    def put(self, request):
+        """
+        Allows rider to update username, email and profile image.
+        Phone number is read-only.
+        """
+        if request.user.role != 'rider':
+            return Response({"error": "User is not a rider."}, status=403)
+
+        serializer = RiderProfileSerializer(
+            request.user,
+            data=request.data,
+            context={'request': request},
+            partial=True  # so that only provided fields need to be validated
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=200)
+
+        return Response(serializer.errors, status=400)
 
 
 class RideReportListAPIView(APIView):
