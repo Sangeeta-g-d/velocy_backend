@@ -432,18 +432,15 @@ class SharedRideNotificationConsumer(AsyncWebsocketConsumer):
 
 
 class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
-
     async def connect(self):
         self.ride_id = self.scope["url_route"]["kwargs"]["ride_id"]
         self.group_name = f"ride_{self.ride_id}"
-
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-    # ✅ Event from SetRideEndTimeAPIView
     async def ride_completed(self, event):
         await self.send_json({
             "ride_id": event["ride_id"],
@@ -451,12 +448,7 @@ class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
             "end_time": event["end_time"]
         })
 
-    # ✅ Event from VerifyRideOTPView
     async def notify_otp_verified(self, event):
-        """
-        Called when the OTP is verified by the driver,
-        triggered via group_send in VerifyRideOTPView.
-        """
         await self.send_json({
             "ride_id": event["ride_id"],
             "message": event["message"]
