@@ -29,5 +29,6 @@ urlpatterns = [
     path('handover-details/<int:rental_request_id>/', RentalHandoverDetailAPIView.as_view(), name='rental-handover-details'),
 
     path('toggle-availability/<int:pk>/', ToggleVehicleAvailabilityAPIView.as_view(), name='toggle-vehicle-availability'),
+    path('cancel-rental-requests/<int:rental_request_id>/', CancelRentalRequestAPIView.as_view(), name='cancel_rental_request'),
     
 ]  

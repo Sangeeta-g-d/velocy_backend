@@ -311,3 +311,30 @@ class ToggleVehicleAvailabilityAPIView(APIView):
             "message": f"Vehicle availability toggled to {'available' if vehicle.is_available else 'unavailable'}",
             "is_available": vehicle.is_available
         }, status=status.HTTP_200_OK)
+    
+class CancelRentalRequestAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, rental_request_id):
+        try:
+            rental_request = RentalRequest.objects.get(id=rental_request_id, user=request.user)
+        except RentalRequest.DoesNotExist:
+            return Response({"detail": "Rental request not found."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        if rental_request.status in ['cancelled', 'completed', 'rejected']:
+            return Response({"detail": "This request cannot be cancelled."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Free or paid cancellation check (optional)
+        if rental_request.can_cancel_for_free():
+            cancel_note = "Request cancelled successfully (free cancellation)."
+        else:
+            cancel_note = "Request cancelled successfully (cancellation fee may apply)."
+
+        rental_request.status = 'cancelled'
+        rental_request.cancelled_at = timezone.now()
+        rental_request.save()
+
+        return Response({"detail": cancel_note},
+                        status=status.HTTP_200_OK)
