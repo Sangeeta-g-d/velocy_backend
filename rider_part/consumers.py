@@ -98,61 +98,41 @@ class RideRequestConsumer(AsyncJsonWebsocketConsumer):
 # OTP consumer for ride notifications
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        try:
-            self.ride_id = self.scope['url_route']['kwargs']['ride_id']
-            self.group_name = f"ride_{self.ride_id}"
+        self.ride_id = self.scope['url_route']['kwargs']['ride_id']
+        self.group_name = f"ride_{self.ride_id}"
 
-            await self.channel_layer.group_add(self.group_name, self.channel_name)
-            await self.accept()
-            await self.send_json({
-                "type": "connection_established",
-                "message": f"Connected to ride {self.ride_id} notifications"
-            })
-        except Exception as e:
-            print(f"WebSocket connection error: {e}")
-            await self.close(code=4001)
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+        await self.accept()
 
     async def disconnect(self, close_code):
-        try:
-            await self.channel_layer.group_discard(self.group_name, self.channel_name)
-        except Exception as e:
-            print(f"WebSocket disconnection error: {e}")
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
 
-    async def receive_json(self, content, **kwargs):
-        """Handle ping/pong for connection keepalive"""
-        if content.get("type") == "ping":
-            await self.send_json({"type": "pong"})
+    # ❌ don’t accept messages from client for this socket,
+    # so remove receive_json completely to prevent early closure
 
-    async def send_otp(self, event):
-        try:
-            await self.send_json({
-                "type": "otp",
-                "ride_id": self.ride_id,
-                "otp": event["otp"]
-            })
-        except Exception as e:
-            print(f"Error sending OTP: {e}")
+    # ✅ Group event handlers
 
     async def notify_otp_verified(self, event):
-        try:
-            await self.send_json({
-                "type": "otp_verified",  # Consistent type
-                "ride_id": event["ride_id"],
-                "message": event["message"]
-            })
-        except Exception as e:
-            print(f"Error sending OTP verification: {e}")
+        # event = {"type": "notify_otp_verified", "ride_id": ..., "message": ...}
+        await self.send_json({
+            "type": "otp_verified",
+            "ride_id": event["ride_id"],
+            "message": event["message"]
+        })
 
     async def ride_completed(self, event):
-        try:
-            await self.send_json({
-                "type": "ride_completed",
-                "ride_id": event["ride_id"],
-                "message": event["message"],
-                "end_time": event["end_time"]
-            })
-        except Exception as e:
-            print(f"Error sending ride completion: {e}")
+        await self.send_json({
+            "type": "ride_completed",
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "end_time": event["end_time"]
+        })
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
