@@ -404,7 +404,7 @@ class VerifyRideOTPView(StandardResponseMixin, APIView):
         async_to_sync(channel_layer.group_send)(
             f"ride_{ride.id}",
             {
-                "type": "otp_verified",  # consumer event method name
+                "type": "notify_otp_verified",   # <-- ✅ use a custom prefix
                 "ride_id": ride.id,
                 "message": "OTP has been verified by the driver."
             }
