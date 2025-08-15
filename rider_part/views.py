@@ -348,21 +348,28 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         grand_total = max(ride_price - discount, 0) + tip_amount
         driver_earning = ride_price
 
+        # -----------------------------
+        # MAIN PAYMENT HANDLING BLOCK
+        # -----------------------------
         payment_status = 'pending'
         if payment_method == 'upi':
             if not upi_payment_id:
                 return Response({"detail": "UPI Payment ID is required for UPI method."}, status=status.HTTP_400_BAD_REQUEST)
+
             payment_status = 'completed'
             ride.status = 'completed'
+
+            # Send websocket message to the driver side
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
-                f'payment_ride_{ride.id}',
+                f'payment_normal_ride_{ride.id}',   # ride_type = 'normal'
                 {
                     'type': 'payment_status_update',
                     'payment_status': 'completed',
                     'message': f'UPI payment successful. Ride #{ride.id} marked as completed.',
                 }
             )
+
             ride.save()
 
             # Add wallet credit for driver
@@ -374,6 +381,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
                 else:
                     platform_fee = active_fee.fee_value
+
             net_earning = driver_earning - platform_fee + tip_amount
             DriverWalletTransaction.objects.create(
                 driver=ride.driver,
@@ -408,6 +416,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
             "payment_status": payment_status,
             "message": "Payment successful and ride completed." if payment_status == 'completed' else "Payment recorded. Waiting for driver confirmation."
         }, status=status.HTTP_200_OK)
+
 
 
 
