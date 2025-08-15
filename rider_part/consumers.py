@@ -101,38 +101,29 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f"ride_{self.ride_id}"
 
-        await self.channel_layer.group_add(
-            self.group_name,
-            self.channel_name
-        )
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.group_name,
-            self.channel_name
-        )
+        # make sure you remove the user from the group
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-    # ❌ don’t accept messages from client for this socket,
-    # so remove receive_json completely to prevent early closure
+    async def receive_json(self, content, **kwargs):
+        """
+        Optional: keeps the connection open even if the client
+        never sends anything. You can just pass for now.
+        """
+        pass
 
-    # ✅ Group event handlers
+    # <--- these are group event handlers (they must be flat methods) ----->
 
-    async def notify_otp_verified(self, event):
-        # event = {"type": "notify_otp_verified", "ride_id": ..., "message": ...}
+    async def send_otp(self, event):
         await self.send_json({
-            "type": "otp_verified",
-            "ride_id": event["ride_id"],
-            "message": event["message"]
+            "type": "otp",
+            "ride_id": self.ride_id,
+            "otp": event["otp"]
         })
 
-    async def ride_completed(self, event):
-        await self.send_json({
-            "type": "ride_completed",
-            "ride_id": event["ride_id"],
-            "message": event["message"],
-            "end_time": event["end_time"]
-        })
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -437,3 +428,36 @@ class SharedRideNotificationConsumer(AsyncWebsocketConsumer):
             "message": event["message"],
             "timestamp": event["timestamp"],
         }))
+
+
+
+class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
+
+    async def connect(self):
+        self.ride_id = self.scope["url_route"]["kwargs"]["ride_id"]
+        self.group_name = f"ride_{self.ride_id}"
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    # ✅ Event from SetRideEndTimeAPIView
+    async def ride_completed(self, event):
+        await self.send_json({
+            "ride_id": event["ride_id"],
+            "message": event["message"],
+            "end_time": event["end_time"]
+        })
+
+    # ✅ Event from VerifyRideOTPView
+    async def notify_otp_verified(self, event):
+        """
+        Called when the OTP is verified by the driver,
+        triggered via group_send in VerifyRideOTPView.
+        """
+        await self.send_json({
+            "ride_id": event["ride_id"],
+            "message": event["message"]
+        })

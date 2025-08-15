@@ -14,4 +14,7 @@ websocket_urlpatterns = [
     # shared live tracking for both rider and driver
     re_path(r'ws/shared_ride_tracking/(?P<ride_id>\d+)/$', SharedRideTrackingConsumer.as_asgi()),
     re_path(r'ws/shared-ride-notifications/$', SharedRideNotificationConsumer.as_asgi()),
+
+    # ride completion consumer
+    re_path(r'ws/ride/completion/(?P<ride_id>\d+)/$', RideCompletionConsumer.as_view()),
 ]
