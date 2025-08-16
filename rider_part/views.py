@@ -5,6 +5,7 @@ from admin_part.models import VehicleType, CityVehiclePrice
 from .serializers import *
 from rest_framework import generics, permissions
 from django.db.models import Avg
+from decimal import Decimal, InvalidOperation
 from decimal import Decimal
 from auth_api.models import DriverRating
 from django.db.models import Q
@@ -298,15 +299,35 @@ class ValidateAndApplyPromoCodeAPIView(StandardResponseMixin,APIView):
             "message": "Promo code applied successfully."
         }, status=status.HTTP_200_OK)
     
+
+
 class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         ride_id = request.data.get('ride_id')
         payment_method = request.data.get('payment_method')
-        tip_amount = request.data.get('tip_amount', 0)
         upi_payment_id = request.data.get('upi_payment_id')
 
+        # ------------------------------------------------------------------
+        # 1) TIP AMOUNT (safe conversion)
+        # ------------------------------------------------------------------
+        tip_amount_raw = request.data.get('tip_amount', 0)
+
+        try:
+            if tip_amount_raw in [None, '', 'null']:
+                tip_amount = Decimal(0)
+            else:
+                tip_amount = Decimal(str(tip_amount_raw).strip())
+        except (InvalidOperation, ValueError):
+            return Response(
+                {"detail": "Invalid tip amount."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ------------------------------------------------------------------
+        # 2) RIDE & PAYMENT VALIDATION
+        # ------------------------------------------------------------------
         if not ride_id or not payment_method:
             return Response({"detail": "Ride ID and payment method are required."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -322,16 +343,13 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         if RidePaymentDetail.objects.filter(ride=ride).exclude(payment_status='pending').exists():
             return Response({"detail": "Payment already submitted."}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            tip_amount = Decimal(tip_amount)
-        except:
-            return Response({"detail": "Invalid tip amount."}, status=status.HTTP_400_BAD_REQUEST)
-
+        # ------------------------------------------------------------------
+        # 3) PRICE CALCULATION
+        # ------------------------------------------------------------------
         ride_price = ride.offered_price or ride.estimated_price
         if ride_price is None:
             return Response({"detail": "Price not available."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Handle promo
         try:
             promo_usage = PromoCodeUsage.objects.get(user=request.user, ride=ride)
             promo = promo_usage.promo_code
@@ -348,9 +366,9 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         grand_total = max(ride_price - discount, 0) + tip_amount
         driver_earning = ride_price
 
-        # -----------------------------
-        # MAIN PAYMENT HANDLING BLOCK
-        # -----------------------------
+        # ------------------------------------------------------------------
+        # 4) HANDLE PAYMENT + WEBSOCKET
+        # ------------------------------------------------------------------
         payment_status = 'pending'
         if payment_method == 'upi':
             if not upi_payment_id:
@@ -359,21 +377,18 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
             payment_status = 'completed'
             ride.status = 'completed'
 
-            # Send websocket message to the driver side
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
-                f'payment_normal_ride_{ride.id}',   # ride_type = 'normal'
+                f'payment_normal_ride_{ride.id}',
                 {
                     'type': 'payment_status_update',
                     'payment_status': 'completed',
                     'message': f'UPI payment successful. Ride #{ride.id} marked as completed.',
                 }
             )
-
             ride.save()
 
             # Add wallet credit for driver
-            from decimal import Decimal
             platform_fee = Decimal('0')
             active_fee = PlatformSetting.objects.filter(is_active=True).first()
             if active_fee:
@@ -391,6 +406,9 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                 description=f"Auto-completed UPI payment for Ride #{ride.id}"
             )
 
+        # ------------------------------------------------------------------
+        # 5) SAVE PAYMENT RECORD
+        # ------------------------------------------------------------------
         RidePaymentDetail.objects.update_or_create(
             ride=ride,
             defaults={
