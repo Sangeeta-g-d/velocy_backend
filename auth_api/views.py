@@ -15,6 +15,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ObjectDoesNotExist
 import traceback
 
+
 class SendOTPView(APIView):
     def post(self, request):
         serializer = SendOTPSerializer(data=request.data)
@@ -54,9 +55,8 @@ class SendOTPView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class RegisterWithOTPView(APIView):
-    MASTER_OTP = '112233'  # define master OTP
+    MASTER_OTP = '112233'
 
     def post(self, request):
         serializer = RegisterWithOTPSerializer(data=request.data)
@@ -68,44 +68,55 @@ class RegisterWithOTPView(APIView):
             try:
                 phone_otp = PhoneOTP.objects.get(phone_number=phone)
 
+                # ---- OTP CHECKING ----
                 if otp != self.MASTER_OTP:
                     if phone_otp.otp != otp:
                         return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
                     if phone_otp.is_expired():
                         return Response({'error': 'OTP expired'}, status=status.HTTP_400_BAD_REQUEST)
 
-                # Register or get the user
+                # ---- REGISTER / GET USER ----
                 user, created = CustomUser.objects.get_or_create(phone_number=phone)
-
-                # Set password
                 user.password = make_password(password)
 
-                # Default role (if just created)
                 if created:
                     user.role = 'rider'
                 user.save()
 
-                # Clean up OTP (optional)
+                # ---- DELETE OTP ----
                 if otp != self.MASTER_OTP:
                     phone_otp.delete()
 
+                # ---- AUTO LOGIN / ISSUE TOKENS ----
+                refresh = RefreshToken.for_user(user)
+                access = refresh.access_token
+
                 return Response({
                     'message': 'User registered successfully',
-                    'user_id': user.id
+                    'user_id': user.id,
+                    'phone_number': user.phone_number,
+                    'refresh': str(refresh),
+                    'access': str(access)
                 }, status=status.HTTP_201_CREATED)
 
             except PhoneOTP.DoesNotExist:
                 if otp == self.MASTER_OTP:
-                    # Proceed even if OTP record is missing
                     user, created = CustomUser.objects.get_or_create(phone_number=phone)
                     user.password = make_password(password)
                     if created:
                         user.role = 'rider'
                     user.save()
 
+                    # also issue tokens here
+                    refresh = RefreshToken.for_user(user)
+                    access = refresh.access_token
+
                     return Response({
                         'message': 'User registered successfully with master OTP',
-                        'user_id': user.id
+                        'user_id': user.id,
+                        'phone_number': user.phone_number,
+                        'refresh': str(refresh),
+                        'access': str(access)
                     }, status=status.HTTP_201_CREATED)
 
                 return Response({'error': 'Please request an OTP first'}, status=status.HTTP_404_NOT_FOUND)
