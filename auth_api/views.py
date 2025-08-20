@@ -14,7 +14,41 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ObjectDoesNotExist
 import traceback
+from velocy_backend.firebase_config import * 
 
+class FirebaseAuthView(APIView):
+    """
+    This endpoint receives Firebase ID token and
+    returns your own JWT tokens.
+    """
+    def post(self, request):
+        id_token = request.data.get('idToken')
+        if not id_token:
+            return Response({'error': 'idToken is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            decoded_token = firebase_auth.verify_id_token(id_token)
+            phone_number = decoded_token.get("phone_number")
+
+            if not phone_number:
+                return Response({'error': 'Phone number not found in token'}, status=status.HTTP_400_BAD_REQUEST)
+
+            user, created = CustomUser.objects.get_or_create(phone_number=phone_number)
+            if created:
+                user.role = 'rider'
+                user.save()
+
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'message': 'Authenticated via Firebase',
+                'user_id': user.id,
+                'phone': user.phone_number,
+                'refresh': str(refresh),
+                'access': str(refresh.access_token)
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class SendOTPView(APIView):
     def post(self, request):

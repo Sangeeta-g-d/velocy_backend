@@ -57,8 +57,7 @@ INSTALLED_APPS = [
 ]
 INSTALLED_APPS += ['channels']
 
-# firebase file path
-# FIREBASE_CREDENTIALS_PATH = BASE_DIR / 'firebase_credentials.json' 
+from .firebase_config import *
 
 
 REST_FRAMEWORK = {

@@ -12,5 +12,6 @@ urlpatterns = [
     path('driver-registration/', DriverVehicleInfoView.as_view(), name='driver-vehicle-info'),
     path('document-upload/', DriverDocumentInfoView.as_view(), name='driver-document-info'),
     path("password-login/", LoginAPIView.as_view(), name="login"),
+    path("firebase-auth/",FirebaseAuthView.as_view())
 
 ]
