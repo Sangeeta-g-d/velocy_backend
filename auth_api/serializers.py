@@ -3,6 +3,7 @@
 from rest_framework import serializers
 from .models import CustomUser, PhoneOTP,DriverVehicleInfo,DriverDocumentInfo
 import re
+from auth_api.models import UserFCMToken
 from django.contrib.auth import authenticate
 class SendOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField()
@@ -75,3 +76,10 @@ class DriverDocumentInfoSerializer(serializers.ModelSerializer):
             'driver_license',
             'vehicle_insurance'
         ]
+
+class UserFCMTokenSerializer(serializers.ModelSerializer):
+    device_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    class Meta:
+        model = UserFCMToken
+        fields = ['id', 'token', 'device_type', 'created_at', 'updated_at']

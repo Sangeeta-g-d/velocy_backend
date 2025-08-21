@@ -56,6 +56,7 @@ class FirebaseAuthView(APIView):
                 'message': 'Authenticated via Firebase',
                 'user_id': user.id,
                 'phone': user.phone_number,
+                'role':user.role,
                 'refresh': str(refresh),
                 'access': str(refresh.access_token)
             }, status=status.HTTP_200_OK)
@@ -360,3 +361,30 @@ class DriverDocumentInfoView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+
+class SaveFCMTokenAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        token = request.data.get("token")
+        device_type = request.data.get("device_type", None)
+
+        if not token:
+            return Response({"error": "FCM token is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if token already exists
+        fcm_token, created = UserFCMToken.objects.update_or_create(
+            token=token,
+            defaults={
+                "user": request.user,
+                "device_type": device_type,
+            }
+        )
+
+        serializer = UserFCMTokenSerializer(fcm_token)
+        return Response(
+            {"message": "Token saved successfully", "data": serializer.data},
+            status=status.HTTP_200_OK,
+        )
