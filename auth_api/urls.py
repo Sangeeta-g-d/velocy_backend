@@ -5,7 +5,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 urlpatterns = [
     path('send-otp/', SendOTPView.as_view(), name='send-otp'),
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('register/', RegisterWithOTPView.as_view(), name='register-with-otp'),
+    path('register/', RegisterView.as_view(), name='register'),
     path('otp-login/', LoginWithOTPView.as_view(), name='login-with-otp'),
     path('profile-setup/', UpdateUserProfileView.as_view(), name='update-profile'),
     path('become-driver/', BecomeDriverView.as_view(), name='become-driver'),

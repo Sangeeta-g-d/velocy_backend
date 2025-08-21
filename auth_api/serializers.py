@@ -83,3 +83,7 @@ class UserFCMTokenSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserFCMToken
         fields = ['id', 'token', 'device_type', 'created_at', 'updated_at']
+
+class RegisterSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+    password = serializers.CharField(write_only=True, min_length=6)
