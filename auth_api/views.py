@@ -131,6 +131,7 @@ class RegisterView(APIView):
             return Response({
                 "message": "User registered successfully",
                 "user_id": user.id,
+                "role":user.role,
                 "phone_number": user.phone_number,
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
