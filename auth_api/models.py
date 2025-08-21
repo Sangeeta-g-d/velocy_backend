@@ -89,6 +89,21 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.phone_number
 
 
+class UserFCMToken(models.Model):
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="fcm_tokens"
+    )
+    token = models.TextField(unique=True)
+    device_type = models.CharField(max_length=50, blank=True, null=True)  # optional (android/ios/web)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.phone_number} - {self.token[:20]}..."
+
+
 class PhoneOTP(models.Model):
     phone_number = models.CharField(max_length=15, unique=True)
     otp = models.CharField(max_length=6)

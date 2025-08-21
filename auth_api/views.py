@@ -15,14 +15,19 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ObjectDoesNotExist
 import traceback
 from velocy_backend.firebase_config import * 
+from auth_api.models import UserFCMToken
+from velocy_backend.firebase_config import firebase_auth
+
 
 class FirebaseAuthView(APIView):
     """
-    This endpoint receives Firebase ID token and
-    returns your own JWT tokens.
+    This endpoint receives Firebase ID token and FCM token,
+    returns JWT tokens.
     """
     def post(self, request):
         id_token = request.data.get('idToken')
+        fcm_token = request.data.get('fcmToken')  # ✅ New field
+
         if not id_token:
             return Response({'error': 'idToken is required'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -38,6 +43,14 @@ class FirebaseAuthView(APIView):
                 user.role = 'rider'
                 user.save()
 
+            # ✅ Save or update FCM token
+            if fcm_token:
+                UserFCMToken.objects.update_or_create(
+                    user=user,
+                    token=fcm_token,
+                    defaults={'updated_at': timezone.now()}
+                )
+
             refresh = RefreshToken.for_user(user)
             return Response({
                 'message': 'Authenticated via Firebase',
@@ -49,6 +62,7 @@ class FirebaseAuthView(APIView):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class SendOTPView(APIView):
     def post(self, request):
