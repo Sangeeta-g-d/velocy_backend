@@ -5,6 +5,9 @@ from .models import *
 from driver_part.models import CashOutRequest
 import json
 import os
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+
 from django.conf import settings
 from django.http import JsonResponse
 import json
@@ -718,3 +721,22 @@ def reports(request):
         'current_url_name': 'reports'
     }
     return render(request, 'reports.html', context)
+
+
+def delete_account_view(request):
+    if request.method == "POST":
+        phone = request.POST.get("phone_number")
+        password = request.POST.get("password")
+
+        # Authenticate using phone_number and password
+        user = authenticate(request, phone_number=phone, password=password)
+
+        if user is not None:
+            # Delete the account
+            user.delete()
+            messages.success(request, f"Account with phone {phone} deleted successfully!")
+            return HttpResponseRedirect(reverse("delete_account"))
+        else:
+            messages.error(request, "Invalid phone number or password!")
+
+    return render(request, "delete_account.html")

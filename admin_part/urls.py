@@ -61,5 +61,8 @@ urlpatterns = [
     path('add_prepaid_plan/',views.add_prepaid_plan,name="add_prepaid_plan"),
     path('prepaid_plans/',views.prepaid_plans,name="prepaid_plans"),
     path('delete_prepaid_plan/<int:plan_id>/', views.delete_prepaid_plan, name='delete_prepaid_plan'),
+
+
+    path('delete-account/',views.delete_account_view,name="delete_account")
 ]
     
