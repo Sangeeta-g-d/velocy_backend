@@ -18,11 +18,10 @@ from velocy_backend.firebase_config import *
 from auth_api.models import UserFCMToken
 from velocy_backend.firebase_config import firebase_auth
 
-
 class FirebaseAuthView(APIView):
     """
     This endpoint receives Firebase ID token and FCM token,
-    returns JWT tokens.
+    returns JWT tokens if the phone number exists in DB.
     """
     def post(self, request):
         id_token = request.data.get('idToken')
@@ -38,10 +37,13 @@ class FirebaseAuthView(APIView):
             if not phone_number:
                 return Response({'error': 'Phone number not found in token'}, status=status.HTTP_400_BAD_REQUEST)
 
-            user, created = CustomUser.objects.get_or_create(phone_number=phone_number)
-            if created:
-                user.role = 'rider'
-                user.save()
+            # ✅ Check if user exists
+            user = CustomUser.objects.filter(phone_number=phone_number).first()
+            if not user:
+                return Response(
+                    {'error': 'This phone number is not registered. Please register first.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
             # ✅ Save or update FCM token
             if fcm_token:
@@ -56,13 +58,14 @@ class FirebaseAuthView(APIView):
                 'message': 'Authenticated via Firebase',
                 'user_id': user.id,
                 'phone': user.phone_number,
-                'role':user.role,
+                'role': user.role,
                 'refresh': str(refresh),
                 'access': str(refresh.access_token)
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class SendOTPView(APIView):
