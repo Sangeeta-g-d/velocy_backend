@@ -22,7 +22,7 @@ from django.core.exceptions import ValidationError
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from admin_part.models import PlatformSetting
-
+from .tasks import delete_unaccepted_ride
 
 class VehicleTypeListView(StandardResponseMixin,APIView):
     def get(self, request):
@@ -161,6 +161,10 @@ class RideRequestUpdateAPIView(StandardResponseMixin,APIView):
         serializer = RideRequestUpdateSerializer(ride, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            if ride.status == "pending" and not ride.published_at:
+                ride.published_at = timezone.now()
+                ride.save()
+                delete_unaccepted_ride.apply_async((ride.id,), countdown=180)
             return Response({
                 "message": "Ride request updated successfully",
                 "ride": serializer.data

@@ -62,6 +62,8 @@ class RideRequest(models.Model):
     
     require_otp = models.BooleanField(default=True, help_text="Whether OTP is needed for this ride")
 
+    published_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"Ride by {self.user} - {self.from_location} → {self.to_location}"
 
