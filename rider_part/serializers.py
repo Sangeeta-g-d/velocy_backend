@@ -345,15 +345,20 @@ class FavoriteToLocationSerializer(serializers.ModelSerializer):
             "to_longitude",
         ]
 
-
 class RideMessageSerializer(serializers.ModelSerializer):
-    sender_name = serializers.CharField(source='sender.username', read_only=True)
+    sender_name = serializers.SerializerMethodField()
     sender_id = serializers.IntegerField(source='sender.id', read_only=True)
     timestamp = serializers.SerializerMethodField()
 
     class Meta:
         model = RideMessage
         fields = ['id', 'ride', 'sender_id', 'sender_name', 'message', 'timestamp']
+
+    def get_sender_name(self, obj):
+        request = self.context.get('request')
+        if request and request.user == obj.sender:
+            return "You"
+        return obj.sender.username
 
     def get_timestamp(self, obj):
         # Convert to IST
