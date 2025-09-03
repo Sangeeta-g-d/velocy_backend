@@ -923,7 +923,7 @@ class RideChatHistoryAPIView(APIView):
 
         # Get all messages for this ride, ordered by timestamp
         messages = RideMessage.objects.filter(ride=ride).order_by('timestamp')
-        serializer = RideMessageSerializer(messages, many=True, context={'request': request})
+        serializer = RideMessageSerializer(messages, many=True)
 
         return Response({
             "logged_in_username": request.user.username,   

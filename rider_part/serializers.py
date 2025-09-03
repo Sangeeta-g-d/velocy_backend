@@ -354,12 +354,6 @@ class RideMessageSerializer(serializers.ModelSerializer):
         model = RideMessage
         fields = ['id', 'ride', 'sender_id', 'sender_name', 'message', 'timestamp']
 
-    def get_sender_name(self, obj):
-        request = self.context.get('request')
-        if request and request.user == obj.sender:
-            return "You"
-        return obj.sender.username
-
     def get_timestamp(self, obj):
         # Convert to IST
         return localtime(obj.timestamp).strftime('%Y-%m-%d %H:%M:%S')
