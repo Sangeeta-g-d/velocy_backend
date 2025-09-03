@@ -938,7 +938,7 @@ class RideChatHistoryAPIView(APIView):
             })
 
         response_data = {
-            "messages": messages_data,
+            messages_data
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
