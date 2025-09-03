@@ -938,7 +938,6 @@ class RideChatHistoryAPIView(APIView):
             })
 
         response_data = {
-            "ride_id": ride.id,
             "messages": messages_data,
         }
 
