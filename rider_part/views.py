@@ -918,30 +918,13 @@ class RideChatHistoryAPIView(APIView):
         ride = get_object_or_404(RideRequest, id=ride_id)
 
         if request.user != ride.user and request.user != ride.driver:
-            return Response(
-                {"detail": "Not authorized to view this ride's messages."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({"detail": "Not authorized to view this ride's messages."},
+                            status=status.HTTP_403_FORBIDDEN)
 
         # Get all messages for this ride, ordered by timestamp
         messages = RideMessage.objects.filter(ride=ride).order_by('timestamp')
-
-        # Manually serialize messages to replace sender name with "You" if needed
-        messages_data = []
-        for msg in messages:
-            messages_data.append({
-                "id": msg.id,
-                "sender_id": msg.sender.id,
-                "sender_name": "You" if msg.sender == request.user else getattr(msg.sender, 'username', msg.sender.phone_number),
-                "message": msg.message,
-                "timestamp": msg.timestamp,
-            })
-
-        response_data = {
-            messages_data
-        }
-
-        return Response(response_data, status=status.HTTP_200_OK)
+        serializer = RideMessageSerializer(messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
 
 class ActiveRideAPIView(APIView):
