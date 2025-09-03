@@ -203,6 +203,7 @@ class RentalRequestListSerializer(serializers.ModelSerializer):
 
     pickup = serializers.SerializerMethodField()
     dropoff = serializers.SerializerMethodField()
+    is_handovered = serializers.SerializerMethodField()
 
     class Meta:
         model = RentalRequest
@@ -215,14 +216,19 @@ class RentalRequestListSerializer(serializers.ModelSerializer):
             'registration_number',
             'pickup',
             'dropoff',
-            'duration_hours'
+            'duration_hours',
+            'is_handovered',   # ✅ Added here
         ]
 
     def get_pickup(self, obj):
-        return obj.pickup_datetime.strftime('%d %b %Y, %I:%M %p')  # e.g., "12 Jun 2025, 10:00 AM"
+        return obj.pickup_datetime.strftime('%d %b %Y, %I:%M %p')
 
     def get_dropoff(self, obj):
         return obj.dropoff_datetime.strftime('%d %b %Y, %I:%M %p')
+
+    def get_is_handovered(self, obj):
+        # True if checklist exists
+        return hasattr(obj, 'handover_checklist')
 
 
 class LessorRentalRequestSerializer(serializers.ModelSerializer):
