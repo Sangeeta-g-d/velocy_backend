@@ -321,21 +321,30 @@ class RentalRequestVehicleInfoSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(first_image.image.url) if request else first_image.image.url
         return None
     
-
 class HandoverChecklistSerializer(serializers.ModelSerializer):
     class Meta:
         model = HandoverChecklist
         fields = [
             'handed_over_car_keys',
             'handed_over_vehicle_documents',
-            'fuel_tank_full'
+            'fuel_tank_full',
+            'checklist_completed_at',
         ]
 
-class HandoverChecklistSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = HandoverChecklist
-        fields = ['handed_over_car_keys', 'handed_over_vehicle_documents', 'fuel_tank_full', 'checklist_completed_at']
+    def create(self, validated_data):
+        rental_request = validated_data['rental_request']
+        # ✅ Update rental request status
+        rental_request.status = 'handovered'
+        rental_request.save(update_fields=['status'])
+        return super().create(validated_data)
 
+    def update(self, instance, validated_data):
+        rental_request = instance.rental_request
+        # ✅ Ensure status is updated on checklist update as well
+        if rental_request.status != 'handovered':
+            rental_request.status = 'handovered'
+            rental_request.save(update_fields=['status'])
+        return super().update(instance, validated_data)
 
 class RentalHandoverDetailSerializer(serializers.ModelSerializer):
     vehicle_name = serializers.CharField(source='vehicle.vehicle_name', read_only=True)

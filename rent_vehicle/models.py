@@ -83,7 +83,8 @@ class RentalRequest(models.Model):
         ('confirmed', 'Confirmed'),
         ('cancelled', 'Cancelled'),
         ('completed', 'Completed'),
-        ('rejected','Rejected')
+        ('rejected','Rejected'),
+        ('handovered','Handovered')
     )
 
     vehicle = models.ForeignKey(RentedVehicle, on_delete=models.CASCADE, related_name='rental_requests')
