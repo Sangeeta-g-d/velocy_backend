@@ -206,6 +206,7 @@ class LoginWithOTPView(APIView):
 
 
 # login with phone and password
+# login with phone and password
 class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -213,6 +214,18 @@ class LoginAPIView(APIView):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
+
+        # ✅ If user is a driver, check document verification
+        if user.role == "driver":
+            try:
+                if not user.document_info.verified:
+                    return Response({
+                        "error": "Your documents are under verification. Please wait until approval."
+                    }, status=status.HTTP_403_FORBIDDEN)
+            except DriverDocumentInfo.DoesNotExist:
+                return Response({
+                    "error": "Your documents are missing. Please upload and wait for verification."
+                }, status=status.HTTP_403_FORBIDDEN)
 
         # ✅ Generate JWT tokens
         refresh = RefreshToken.for_user(user)
@@ -227,6 +240,7 @@ class LoginAPIView(APIView):
             "refresh": str(refresh),
             "access": str(refresh.access_token),
         }, status=status.HTTP_200_OK)
+
 
 # update profile 
 class UpdateUserProfileView(APIView):

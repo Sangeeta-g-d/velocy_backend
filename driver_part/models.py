@@ -1,6 +1,9 @@
 from django.db import models
 from rider_part.models import RideRequest
 from auth_api.models import CustomUser
+from rider_part.models import DriverWalletTransaction
+from django.utils import timezone
+
 # Create your models here.
 
 class DeclinedRide(models.Model):
@@ -24,5 +27,17 @@ class CashOutRequest(models.Model):
     requested_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
 
-    def __str__(self):
-        return f"{self.driver.phone_number} requested ₹{self.amount} - {self.status}"
+    def process(self):
+        """Mark as processed and deduct from wallet"""
+        if self.status != 'processed':
+            self.status = 'processed'
+            self.reviewed_at = timezone.now()
+            self.save()
+
+            # Deduct from wallet now
+            DriverWalletTransaction.objects.create(
+                driver=self.driver,
+                amount=-self.amount,
+                transaction_type="withdrawal",
+                description=f"Cash out processed: {self.amount}"
+            )

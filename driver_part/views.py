@@ -815,12 +815,20 @@ class DriverEarningsSummaryAPIView(APIView):
             ).aggregate(total=Sum('amount'))['total'] or 0.0
 
         # ---------- Available balance (withdrawable) ----------
-        # ---------- Available balance (withdrawable) ----------
-        available_balance = DriverWalletTransaction.objects.filter(
+
+        earnings = DriverWalletTransaction.objects.filter(
             driver=user,
             transaction_type="ride_earning",
             ride__payment_detail__payment_method__in=["upi", "wallet"]
-        ).aggregate(total=Sum('amount'))['total'] or 0.0
+        ).aggregate(total=Sum("amount"))["total"] or 0.0
+
+        withdrawals = DriverWalletTransaction.objects.filter(
+            driver=user,
+            transaction_type="withdrawal"
+        ).aggregate(total=Sum("amount"))["total"] or 0.0
+
+        available_balance = float(earnings) + float(withdrawals)  # withdrawals are negative
+
 
         # ---------- Cash vs UPI totals ----------
         cash_total_qs = RidePaymentDetail.objects.filter(
@@ -1018,7 +1026,6 @@ class DriverStatsAPIView(UpdateRidePaymentStatusAPIView,APIView):
 
         }, status=200)
     
-
 class DriverCashOutRequestAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1039,14 +1046,27 @@ class DriverCashOutRequestAPIView(APIView):
         except:
             return Response({"error": "Invalid amount."}, status=400)
 
-        # Optional: Check if they are eligible to withdraw this much
-        total_earnings = DriverWalletTransaction.objects.filter(driver=user).aggregate(total=Sum('amount'))['total'] or 0.0
-        if amount > total_earnings:
-            return Response({"error": "Withdrawal amount exceeds total earnings."}, status=400)
+        # ✅ Only count withdrawable balance (UPI + Wallet, no cash, minus already processed withdrawals)
+        total_earnings = DriverWalletTransaction.objects.filter(
+            driver=user,
+            transaction_type="ride_earning",
+            ride__payment_detail__payment_method__in=["upi", "wallet"]
+        ).aggregate(total=Sum("amount"))["total"] or 0.0
 
+        processed_withdrawals = DriverWalletTransaction.objects.filter(
+            driver=user,
+            transaction_type="withdrawal"
+        ).aggregate(total=Sum("amount"))["total"] or 0.0
+
+        available_balance = float(total_earnings) + float(processed_withdrawals)
+
+        if amount > available_balance:
+            return Response({"error": "Withdrawal amount exceeds available balance."}, status=400)
+
+        # ✅ Create cash-out request record (only pending, no deduction yet)
         CashOutRequest.objects.create(driver=user, amount=amount)
-        return Response({"message": "Cash out request submitted."}, status=201)
-    
+
+        return Response({"message": "Cash out request submitted. Awaiting approval."}, status=201)
 
 # corporate available ride API
 class CorporateAvailableRidesAPIView(APIView):
