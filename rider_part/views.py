@@ -4,6 +4,7 @@ from rest_framework import status
 from admin_part.models import VehicleType, CityVehiclePrice
 from .serializers import *
 from rest_framework import generics, permissions
+from django.db.models import Sum
 from django.db.models import Avg
 from decimal import Decimal, InvalidOperation
 from decimal import Decimal
@@ -400,14 +401,50 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
                 else:
                     platform_fee = active_fee.fee_value
-
-            net_earning = driver_earning - platform_fee + tip_amount
+                # ---- Fetch all pending fees from cash rides ----
+            pending_fees_qs = DriverPendingFee.objects.filter(driver=ride.driver, settled=False)
+            total_pending_fees = pending_fees_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        
+            net_earning = driver_earning - platform_fee - total_pending_fees + tip_amount
             DriverWalletTransaction.objects.create(
                 driver=ride.driver,
                 ride=ride,
                 amount=net_earning,
                 transaction_type='ride_earning',
                 description=f"Auto-completed UPI payment for Ride #{ride.id}"
+            )
+            pending_fees_qs.update(settled=True)
+
+        elif payment_method == 'cash':
+            ride.status = 'completed'
+            ride.save()
+
+            # ---- Platform Fee (deferred) ----
+            platform_fee = Decimal('0')
+            active_fee = PlatformSetting.objects.filter(is_active=True).first()
+            if active_fee:
+                if active_fee.fee_type == 'percentage':
+                    platform_fee = (active_fee.fee_value / 100) * driver_earning
+                else:
+                    platform_fee = active_fee.fee_value
+
+            # ---- Record pending fee ----
+            DriverPendingFee.objects.create(
+                driver=ride.driver,
+                ride=ride,
+                amount=platform_fee,
+                settled=False
+            )
+
+            # ---- Driver gets full fare immediately ----
+            net_earning = driver_earning + tip_amount
+
+            DriverWalletTransaction.objects.create(
+                driver=ride.driver,
+                ride=ride,
+                amount=net_earning,
+                transaction_type='ride_earning',
+                description=f"Cash payment for Ride #{ride.id} (platform fee {platform_fee} deferred)"
             )
 
         # ------------------------------------------------------------------
@@ -537,7 +574,7 @@ class RateDriverAPIView(StandardResponseMixin,APIView):
 
         # ✅ Create rating
         DriverRating.objects.create(
-            ride=ride,
+            ride_request=ride,
             driver=ride.driver,
             rated_by=request.user,
             rating=rating_value,

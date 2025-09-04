@@ -152,6 +152,17 @@ class DriverWalletTransaction(models.Model):
         return f"{self.driver} - {self.transaction_type} - {self.amount}"
 
 
+class DriverPendingFee(models.Model):
+    driver = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pending_fees")
+    ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    settled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        status = "Settled" if self.settled else "Pending"
+        return f"{self.driver} - Ride {self.ride.id} - Fee {self.amount} ({status})"
+
 class RideMessage(models.Model):
     ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE)
     sender = models.ForeignKey(User, on_delete=models.CASCADE)

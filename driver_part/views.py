@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .mixins import StandardResponseMixin
 from rider_part.models import RideRequest
+from django.db.models import F, Sum, DecimalField, ExpressionWrapper
 from django.db.models import Sum
 from django.utils.timezone import make_aware,get_current_timezone
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -574,69 +575,102 @@ class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
             )
         }, status=status.HTTP_200_OK)
 
-
-class DriverRideEarningDetailAPIView(UpdateRidePaymentStatusAPIView,APIView):
+class DriverRideEarningDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ride_id):
         try:
-            ride = RideRequest.objects.select_related('user').get(
-                id=ride_id, driver=request.user, status='completed'
+            ride = RideRequest.objects.select_related("user").get(
+                id=ride_id, driver=request.user, status="completed"
             )
         except RideRequest.DoesNotExist:
-            return Response({"detail": "Ride not found or not completed."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Ride not found or not completed."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         try:
             payment = RidePaymentDetail.objects.get(ride=ride)
         except RidePaymentDetail.DoesNotExist:
-            return Response({"detail": "Payment details not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Payment details not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-        # Duration calculation
+        # Duration
         duration = None
         if ride.start_time and ride.end_time:
             duration = ride.end_time - ride.start_time
 
         ist = pytz.timezone("Asia/Kolkata")
-        start_time_ist = ride.start_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.start_time else None
-        end_time_ist = ride.end_time.astimezone(ist).strftime('%Y-%m-%d %I:%M %p') if ride.end_time else None
-        # Try to get rider rating
+        start_time_ist = (
+            ride.start_time.astimezone(ist).strftime("%Y-%m-%d %I:%M %p")
+            if ride.start_time
+            else None
+        )
+        end_time_ist = (
+            ride.end_time.astimezone(ist).strftime("%Y-%m-%d %I:%M %p")
+            if ride.end_time
+            else None
+        )
+
+        # Rider rating
         rating_data = None
         try:
-            rating = DriverRating.objects.get(ride=ride, driver=request.user)
-            rating_data = {
-                "rating": float(rating.rating),
-                "review": rating.review,
-            }
+            rating = DriverRating.objects.get(ride_request=ride, driver=request.user)
+            rating_data = {"rating": float(rating.rating), "review": rating.review}
         except DriverRating.DoesNotExist:
-            pass
+            rating_data = None
 
-        # Handle cash vs non-cash payment
-        if payment.payment_method == 'cash':
-            ride_price = ride.offered_price if ride.offered_price else ride.estimated_price
-            payment_info = {
-                "payment_method": "cash",
-                "received_amount": float(ride_price) if ride_price else None,
-                "note": "Payment was made in cash. No digital summary available."
-            }
-        else:
-            # Get active platform setting
+        # ---------------- CASH PAYMENT ----------------
+        if payment.payment_method == "cash":
+            ride_price = ride.offered_price or ride.estimated_price
+            tip_amount = payment.tip_amount or 0
+
+            # Cash rides → platform fee deferred
             platform_fee = PlatformSetting.objects.filter(is_active=True).first()
-
+            fee_value = fee_type = None
             fee_amount = Decimal(0)
-            fee_type = None
-            fee_value = None
-
             if platform_fee:
                 fee_type = platform_fee.fee_type
                 fee_value = platform_fee.fee_value
-                if fee_type == 'percentage':
+                if fee_type == "percentage":
+                    fee_amount = (ride_price * fee_value) / 100
+                else:
+                    fee_amount = fee_value
+
+            payment_info = {
+                "payment_method": "cash",
+                "ride_price": float(ride_price) if ride_price else None,
+                "tip_amount": float(tip_amount),
+                "platform_fee_type": fee_type,
+                "platform_fee_value": float(fee_value) if fee_value else None,
+                "platform_fee_pending": float(fee_amount),
+                "total_received_in_cash": float(ride_price + tip_amount)
+                if ride_price
+                else None,
+                "note": "Cash collected directly. Platform fee pending settlement.",
+            }
+
+        # ---------------- UPI / WALLET ----------------
+        else:
+            platform_fee = PlatformSetting.objects.filter(is_active=True).first()
+
+            fee_amount = Decimal(0)
+            fee_type = fee_value = None
+            if platform_fee:
+                fee_type = platform_fee.fee_type
+                fee_value = platform_fee.fee_value
+                if fee_type == "percentage":
                     fee_amount = (payment.driver_earnings * fee_value) / 100
                 else:
                     fee_amount = fee_value
 
-            # Final amount after deduction + tips
-            total_received = payment.driver_earnings - fee_amount + payment.tip_amount
+            total_received = (
+                payment.driver_earnings - fee_amount + payment.tip_amount
+            )
             payment_info = {
+                "payment_method": payment.payment_method,
                 "driver_earnings": float(payment.driver_earnings),
                 "tip_amount": float(payment.tip_amount),
                 "platform_fee_type": fee_type,
@@ -645,27 +679,30 @@ class DriverRideEarningDetailAPIView(UpdateRidePaymentStatusAPIView,APIView):
                 "total_received_by_driver": float(total_received),
             }
 
-        return Response({
-            "rider": {
-                "id": ride.user.id,
-                "username": ride.user.username,
-                "email": ride.user.email,
-                "profile_image": (
-                    request.build_absolute_uri(ride.user.profile.url)
-                    if hasattr(ride.user, 'profile') and ride.user.profile and request
-                    else None
-                ),
+        return Response(
+            {
+                "rider": {
+                    "id": ride.user.id,
+                    "username": ride.user.username,
+                    "email": ride.user.email,
+                    "profile_image": request.build_absolute_uri(
+                        ride.user.profile.url
+                    )
+                    if ride.user.profile
+                    else None,
+                },
+                "ride_info": {
+                    "distance_km": float(ride.distance_km),
+                    "start_time": start_time_ist,
+                    "end_time": end_time_ist,
+                    "duration": str(duration) if duration else None,
+                },
+                "payment_summary": payment_info,
+                "rider_rating": rating_data,
             },
-            "ride_info": {
-                "distance_km": float(ride.distance_km),
-                "start_time": start_time_ist,
-                "end_time": end_time_ist,
-                "duration": str(duration) if duration else None,
-            },
-            "payment_summary": payment_info,
-            "rider_rating": rating_data
-        }, status=status.HTTP_200_OK)
-    
+            status=status.HTTP_200_OK,
+        )
+
 
 class DriverNameAPIView(UpdateRidePaymentStatusAPIView,APIView):
     permission_classes = [IsAuthenticated]
@@ -742,7 +779,6 @@ class DriverScheduledRidesAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-
 class DriverEarningsSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -756,7 +792,7 @@ class DriverEarningsSummaryAPIView(APIView):
         now = timezone.now().astimezone(ist)
         today = now.date()
 
-        # Define time ranges in IST
+        # ---------- Helpers ----------
         def start_of(day):
             return timezone.make_aware(datetime.combine(day, datetime.min.time()), timezone=ist)
 
@@ -778,17 +814,58 @@ class DriverEarningsSummaryAPIView(APIView):
                 created_at__range=(start, end)
             ).aggregate(total=Sum('amount'))['total'] or 0.0
 
-        # ✅ Total earnings from all wallet transactions
-        total_earnings = DriverWalletTransaction.objects.filter(
-            driver=user
+        # ---------- Available balance (withdrawable) ----------
+        # ---------- Available balance (withdrawable) ----------
+        available_balance = DriverWalletTransaction.objects.filter(
+            driver=user,
+            transaction_type="ride_earning",
+            ride__payment_detail__payment_method__in=["upi", "wallet"]
         ).aggregate(total=Sum('amount'))['total'] or 0.0
 
+        # ---------- Cash vs UPI totals ----------
+        cash_total_qs = RidePaymentDetail.objects.filter(
+            ride__driver=user,
+            payment_method="cash",
+            payment_status="completed"
+        ).annotate(
+            total_with_tips=ExpressionWrapper(
+                F("driver_earnings") + F("tip_amount"),
+                output_field=DecimalField(max_digits=10, decimal_places=2)
+            )
+        )
+        cash_total = cash_total_qs.aggregate(total=Sum("total_with_tips"))["total"] or 0.0
+        upi_total = RidePaymentDetail.objects.filter(
+            ride__driver=user,
+            payment_method="upi",
+            payment_status="completed"
+        ).aggregate(total=Sum("driver_earnings"))["total"] or 0.0
+
+        # ✅ UPI grand total = sum of all UPI payouts ever credited
+        upi_grand_total = DriverWalletTransaction.objects.filter(
+            driver=user,
+            transaction_type="ride_earning",
+            ride__payment_detail__payment_method="upi"
+        ).aggregate(total=Sum('amount'))['total'] or 0.0
+
+        # ---------- Pending platform fees ----------
+        pending_platform_fees = DriverPendingFee.objects.filter(
+            driver=user,
+            settled=False
+        ).aggregate(total=Sum('amount'))['total'] or 0.0
+
+        # ---------- Final summary ----------
         summary = {
             "today_earnings": float(get_earning(start_today, end_today)),
             "yesterday_earnings": float(get_earning(start_yesterday, end_yesterday)),
             "this_week_earnings": float(get_earning(start_of_week, now)),
             "this_month_earnings": float(get_earning(start_of_month, now)),
-            "total_earnings": float(total_earnings),
+
+            "cash_total": float(cash_total),
+            "upi_total": float(upi_total),
+            "upi_grand_total": float(upi_grand_total),
+            "available_balance": float(available_balance),
+
+            "pending_platform_fees": float(pending_platform_fees),
             "remaining_cash_limit": user.cash_payments_left
         }
 
@@ -797,6 +874,7 @@ class DriverEarningsSummaryAPIView(APIView):
             "message": "success",
             "data": summary
         }, status=200)
+
     
 
 from rest_framework.parsers import MultiPartParser, FormParser
