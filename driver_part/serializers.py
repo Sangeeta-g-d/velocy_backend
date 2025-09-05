@@ -15,18 +15,23 @@ User = get_user_model()
 class CashLimitSerializer(serializers.Serializer):
     cash_payments_left = serializers.IntegerField()
 
-
 class RideNowDestinationSerializer(serializers.ModelSerializer):
     price = serializers.SerializerMethodField()
+    scheduled_time_ist = serializers.SerializerMethodField()
 
     class Meta:
         model = RideRequest
-        fields = ['id','to_location', 'to_latitude', 'to_longitude', 'price']
+        fields = ['id', 'to_location', 'to_latitude', 'to_longitude', 'price', 'scheduled_time_ist']
 
     def get_price(self, obj):
         return obj.offered_price if obj.offered_price is not None else obj.estimated_price
-    
 
+    def get_scheduled_time_ist(self, obj):
+        if obj.scheduled_time:
+            ist = pytz.timezone("Asia/Kolkata")
+            return timezone.localtime(obj.scheduled_time, ist).strftime("%Y-%m-%d %H:%M:%S")
+        return None
+    
 class RideStopSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideStop
