@@ -640,12 +640,14 @@ class ActivePromoCodesAPIView(StandardResponseMixin, APIView):
     def get(self, request):
         now = timezone.now()
 
-        # Get active promo codes
+        # Get active promo codes (based on DB fields)
         active_promos = PromoCode.objects.filter(
-            is_active=True,
             valid_from__lte=now,
             valid_to__gte=now
         )
+
+        # Double-check using property (optional, since same check is done above)
+        active_promos = [promo for promo in active_promos if promo.is_active]
 
         promo_data = [
             {
@@ -661,7 +663,7 @@ class ActivePromoCodesAPIView(StandardResponseMixin, APIView):
 
         return Response({
             "active_promos": promo_data,
-            "favorite_to_locations": favorites_data  # ✅ always list (empty if none)
+            "favorite_to_locations": favorites_data
         }, status=status.HTTP_200_OK)
 
     
