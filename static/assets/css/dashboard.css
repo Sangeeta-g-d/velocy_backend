@@ -845,13 +845,13 @@
     color: #333;
   }
 
-  .promo-actions a {
+  /* .promo-actions a {
     margin-left: 0.5rem;
     font-size: 1.1rem;
     text-decoration: none;
     cursor: pointer;
     color: #ffffff;
-  }
+  } */
 
   .promo-actions a:hover {
     color: #000;

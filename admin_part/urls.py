@@ -47,6 +47,7 @@ urlpatterns = [
     # driver role
     path('change_driver_role/<int:driver_id>/', views.change_driver_role, name='update_driver_role'),
     path('reports/', views.reports, name='reported_drivers'),
+    path("edit-promo-codes/<int:promo_id>/", views.edit_promo_code, name="edit_promo_code"),
 
 
 

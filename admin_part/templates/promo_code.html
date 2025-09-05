@@ -15,9 +15,9 @@
         <div class="promo-card-header">
           <h3>{{ promo.code }}</h3>
           <div class="promo-actions">
-            <button title="Edit" class="btn btn-secondary open-modal-btn" data-modal="editVehicle">
-            <i class="fas fa-edit"></i>
-            </button>
+            <a href="{% url 'edit_promo_code' promo.id %}" title="Edit" class="btn btn-secondary open-modal-btn">
+  <i class="fas fa-edit"></i>
+</a>
            <button onclick="deletePromo('{{promo.id}}')" title="Delete" class="btn btn-danger"><i class="fas fa-trash-alt"></i></button>
           </div>
         </div>
@@ -64,12 +64,29 @@
       .then(data => {
         if (data.success) {
           showToast("Promo code deleted successfully");
-          setTimeout(() => location.reload(), 800);
+          setTimeout(() => location.reload(), 3000);
         } else {
           showToast(data.error || "Delete failed", "error");
         }
       });
     }
+  }
+</script>
+<script>
+  // Check if ?updated=true is in URL
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get("updated") === "true") {
+      Toastify({
+          text: "Promo code updated successfully!",
+          duration: 3000,
+          gravity: "top",
+          position: "center",
+          backgroundColor: "#28a745",
+          stopOnFocus: true,
+      }).showToast();
+
+      // Clean URL so it doesn’t keep showing
+      window.history.replaceState({}, document.title, window.location.pathname);
   }
 </script>
 {% endblock %}

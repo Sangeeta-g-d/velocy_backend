@@ -1,0 +1,79 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+  <div class="top-controls">
+    <a href="{% url 'promo_code' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+  </div>
+
+  <h2 class="section-title center-heading">Edit Promo Code</h2>
+  <div class="form-container">
+    <form method="POST" class="promo-form">
+      {% csrf_token %}
+      <div class="form-grid form-grid-2col">
+
+        <div class="form-group">
+          <label for="code">Promo Code</label>
+          <input type="text" name="code" id="code" value="{{ promo.code }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="discount_type">Discount Type</label>
+          <select name="discount_type" id="discount_type" required>
+            <option value="flat" {% if promo.discount_type == "flat" %}selected{% endif %}>Flat</option>
+            <option value="percent" {% if promo.discount_type == "percent" %}selected{% endif %}>Percentage</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="discount_value">Discount Value</label>
+          <input type="number" name="discount_value" id="discount_value" step="0.01" value="{{ promo.discount_value }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="max_discount_amount">Max Discount Amount</label>
+          <input type="number" name="max_discount_amount" id="max_discount_amount" step="0.01" value="{{ promo.max_discount_amount|default_if_none:'' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="min_ride_amount">Minimum Ride Amount</label>
+          <input type="number" name="min_ride_amount" id="min_ride_amount" step="0.01" value="{{ promo.min_ride_amount }}">
+        </div>
+
+        <div class="form-group">
+          <label for="usage_limit_per_user">Usage Limit per User</label>
+          <input type="number" name="usage_limit_per_user" id="usage_limit_per_user" value="{{ promo.usage_limit_per_user }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="total_usage_limit">Total Usage Limit</label>
+          <input type="number" name="total_usage_limit" id="total_usage_limit" value="{{ promo.total_usage_limit|default_if_none:'' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="valid_from">Valid From</label>
+          <input type="datetime-local" name="valid_from" id="valid_from"
+            value="{{ promo.valid_from|date:'Y-m-d\TH:i' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="valid_to">Valid To</label>
+          <input type="datetime-local" name="valid_to" id="valid_to"
+            value="{{ promo.valid_to|date:'Y-m-d\TH:i' }}" required>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="description">Description</label>
+          <textarea name="description" id="description" rows="3">{{ promo.description }}</textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-black">Update Promo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

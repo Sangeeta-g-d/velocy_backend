@@ -506,6 +506,27 @@ def promo_code(request):
     }
     return render(request,'promo_code.html',context)
 
+def edit_promo_code(request, promo_id):
+    promo = get_object_or_404(PromoCode, id=promo_id)
+
+    if request.method == "POST":
+        promo.code = request.POST.get("code")
+        promo.discount_type = request.POST.get("discount_type")
+        promo.discount_value = request.POST.get("discount_value")
+        promo.max_discount_amount = request.POST.get("max_discount_amount") or None
+        promo.min_ride_amount = request.POST.get("min_ride_amount") or 0
+        promo.usage_limit_per_user = request.POST.get("usage_limit_per_user")
+        promo.total_usage_limit = request.POST.get("total_usage_limit") or None
+        promo.valid_from = request.POST.get("valid_from")
+        promo.valid_to = request.POST.get("valid_to")
+        promo.description = request.POST.get("description")
+        promo.save()
+
+        # Redirect with query parameter
+        return redirect(f"{reverse('promo_code')}?updated=true")
+
+    return render(request, "edit_promo_code.html", {"promo": promo})
+
 
 def delete_promo(request, pk):
     if request.method == "POST":

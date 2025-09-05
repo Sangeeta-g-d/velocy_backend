@@ -28,9 +28,9 @@ class RideNowDestinationSerializer(serializers.ModelSerializer):
 
     def get_scheduled_time_ist(self, obj):
         if obj.scheduled_time:
-            ist = pytz.timezone("Asia/Kolkata")
-            return timezone.localtime(obj.scheduled_time, ist).strftime("%Y-%m-%d %H:%M:%S")
+            return obj.scheduled_time.strftime("%Y-%m-%d %H:%M:%S")
         return None
+
     
 class RideStopSerializer(serializers.ModelSerializer):
     class Meta:
