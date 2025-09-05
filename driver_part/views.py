@@ -777,8 +777,6 @@ class DriverScheduledRidesAPIView(APIView):
             "message": "Upcoming scheduled rides fetched successfully.",
             "data": serializer.data
         }, status=status.HTTP_200_OK)
-
-
 class DriverEarningsSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -809,26 +807,21 @@ class DriverEarningsSummaryAPIView(APIView):
         start_of_month = start_of(today.replace(day=1))
 
         def get_earning(start, end):
+            # Only include earnings, exclude withdrawals and cash payments
             return DriverWalletTransaction.objects.filter(
                 driver=user,
-                created_at__range=(start, end)
+                created_at__range=(start, end),
+                transaction_type="ride_earning"  # Only include earnings
             ).aggregate(total=Sum('amount'))['total'] or 0.0
 
         # ---------- Available balance (withdrawable) ----------
-
-        earnings = DriverWalletTransaction.objects.filter(
-            driver=user,
-            transaction_type="ride_earning",
-            ride__payment_detail__payment_method__in=["upi", "wallet"]
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
-
-        withdrawals = DriverWalletTransaction.objects.filter(
-            driver=user,
-            transaction_type="withdrawal"
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
-
-        available_balance = float(earnings) + float(withdrawals)  # withdrawals are negative
-
+        # Calculate available balance (excluding cash payments but including all transaction types)
+        available_balance = DriverWalletTransaction.objects.filter(
+            driver=user
+        ).exclude(
+            # Exclude cash payment transactions
+            description__icontains="Cash payment for Ride"
+        ).aggregate(total=Sum('amount'))['total'] or 0.0
 
         # ---------- Cash vs UPI totals ----------
         cash_total_qs = RidePaymentDetail.objects.filter(
@@ -842,16 +835,17 @@ class DriverEarningsSummaryAPIView(APIView):
             )
         )
         cash_total = cash_total_qs.aggregate(total=Sum("total_with_tips"))["total"] or 0.0
+        
         upi_total = RidePaymentDetail.objects.filter(
             ride__driver=user,
             payment_method="upi",
             payment_status="completed"
         ).aggregate(total=Sum("driver_earnings"))["total"] or 0.0
 
-        # ✅ UPI grand total = sum of all UPI payouts ever credited
+        # UPI grand total = sum of all UPI payouts ever credited (only earnings)
         upi_grand_total = DriverWalletTransaction.objects.filter(
             driver=user,
-            transaction_type="ride_earning",
+            transaction_type="ride_earning",  # Only include earnings
             ride__payment_detail__payment_method="upi"
         ).aggregate(total=Sum('amount'))['total'] or 0.0
 
@@ -861,18 +855,32 @@ class DriverEarningsSummaryAPIView(APIView):
             settled=False
         ).aggregate(total=Sum('amount'))['total'] or 0.0
 
+        # ---------- Additional metrics for better insights ----------
+        # Total earnings (excluding withdrawals and cash payments)
+        total_earnings = DriverWalletTransaction.objects.filter(
+            driver=user,
+            transaction_type="ride_earning"  # Only include earnings
+        ).exclude(
+            description__icontains="Cash payment for Ride"
+        ).aggregate(total=Sum('amount'))['total'] or 0.0
+
+
         # ---------- Final summary ----------
         summary = {
             "today_earnings": float(get_earning(start_today, end_today)),
             "yesterday_earnings": float(get_earning(start_yesterday, end_yesterday)),
             "this_week_earnings": float(get_earning(start_of_week, now)),
             "this_month_earnings": float(get_earning(start_of_month, now)),
-
+            
             "cash_total": float(cash_total),
             "upi_total": float(upi_total),
             "upi_grand_total": float(upi_grand_total),
             "available_balance": float(available_balance),
-
+            
+            # Additional metrics for better understanding
+            "total_earnings": float(total_earnings),
+           
+            
             "pending_platform_fees": float(pending_platform_fees),
             "remaining_cash_limit": user.cash_payments_left
         }
@@ -882,7 +890,6 @@ class DriverEarningsSummaryAPIView(APIView):
             "message": "success",
             "data": summary
         }, status=200)
-
     
 
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -1046,19 +1053,22 @@ class DriverCashOutRequestAPIView(APIView):
         except:
             return Response({"error": "Invalid amount."}, status=400)
 
-        # ✅ Only count withdrawable balance (UPI + Wallet, no cash, minus already processed withdrawals)
-        total_earnings = DriverWalletTransaction.objects.filter(
+        # Check if driver has any pending or unprocessed cashout requests
+        pending_requests = CashOutRequest.objects.filter(
             driver=user,
-            transaction_type="ride_earning",
-            ride__payment_detail__payment_method__in=["upi", "wallet"]
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
+            status__in=['pending']  # Add other statuses if needed, like 'processing'
+        ).exists()
+        
+        if pending_requests:
+            return Response({"error": "You already have a pending cashout request. Please wait until it is processed."}, status=400)
 
-        processed_withdrawals = DriverWalletTransaction.objects.filter(
-            driver=user,
-            transaction_type="withdrawal"
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
-
-        available_balance = float(total_earnings) + float(processed_withdrawals)
+        # ✅ Calculate available balance (excluding cash payments) - consistent with DriverEarningsSummaryAPIView
+        available_balance = DriverWalletTransaction.objects.filter(
+            driver=user
+        ).exclude(
+            # Exclude cash payment transactions
+            description__icontains="Cash payment for Ride"
+        ).aggregate(total=Sum('amount'))['total'] or 0.0
 
         if amount > available_balance:
             return Response({"error": "Withdrawal amount exceeds available balance."}, status=400)

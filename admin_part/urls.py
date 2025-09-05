@@ -43,8 +43,7 @@ urlpatterns = [
     # 25-6-25
     path('cash_out_requests/',views.cash_out_requests,name="cash_out_requests"),
     path('user_profile/<int:user_id>/',views.user_profile,name="user_profile"),
-    path('process-cash-out/<int:cashOut_id>/',views.process_cash_out,name="process_cash_out"),
-
+    path('process-cash-out/<int:cashOut_id>/', views.ProcessCashOutView.as_view(), name="process_cash_out"),
     # driver role
     path('change_driver_role/<int:driver_id>/', views.change_driver_role, name='update_driver_role'),
     path('reports/', views.reports, name='reported_drivers'),

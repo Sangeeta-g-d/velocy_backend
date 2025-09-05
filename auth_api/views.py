@@ -206,7 +206,6 @@ class LoginWithOTPView(APIView):
 
 
 # login with phone and password
-# login with phone and password
 class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 

@@ -7,7 +7,7 @@ import json
 import os
 from django.contrib import messages
 from django.http import HttpResponseRedirect
-
+from django.views import View
 from django.conf import settings
 from django.http import JsonResponse
 import json
@@ -596,21 +596,34 @@ def user_profile(request, user_id):
     }
     return render(request, 'user_profile.html', context)
 
-def process_cash_out(request, cashOut_id):
-    if request.method == "POST":
+@method_decorator(csrf_exempt, name='dispatch')
+class ProcessCashOutView(View):
+    def post(self, request, cashOut_id):
         try:
-            obj = CashOutRequest.objects.get(id=cashOut_id)
-            obj.status = "processed"
-            obj.save()
-            return JsonResponse({"status": "success"})
-        except DriverDocumentInfo.DoesNotExist:
-            return JsonResponse({"status": "error"}, status=404)
-        
-
-
-
-
-
+            cash_out_request = CashOutRequest.objects.get(id=cashOut_id)
+            
+            # Parse JSON data from request body
+            try:
+                data = json.loads(request.body)
+                action = data.get('action')
+            except json.JSONDecodeError:
+                return JsonResponse({"status": "error", "message": "Invalid JSON data"}, status=400)
+            
+            if action == 'approve':
+                cash_out_request.process(reviewed_by=request.user)
+                return JsonResponse({"status": "success", "message": "Cash out processed successfully"})
+            elif action == 'reject':
+                cash_out_request.reject(reviewed_by=request.user)
+                return JsonResponse({"status": "success", "message": "Cash out request rejected"})
+            else:
+                return JsonResponse({"status": "error", "message": "Invalid action"}, status=400)
+                
+        except CashOutRequest.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Cash out request not found"}, status=404)
+        except ValueError as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": "An error occurred: " + str(e)}, status=500)
 
 # Corporate side code
 def corporate_requests(request):
