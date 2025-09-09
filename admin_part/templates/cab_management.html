@@ -140,18 +140,25 @@
     <div class="modal-content">
       <form id="addCityForm">
         <div class="form-group">
-          <label class="form-group label">Search Indian City</label>
+          <label class="form-group label">Search City</label>
           <div class="city-search-container">
             <input type="text" class="form-control" id="citySearch" placeholder="Start typing city name..." autocomplete="off">
             <div class="city-suggestions" id="citySuggestions"></div>
             <input type="hidden" id="selectedCity" name="name">
+            <input type="hidden" id="selectedPlaceId" name="place_id">
           </div>
         </div>
-        <button type="submit" class="btn btn-primary w-100 mt-2">Add City</button>
+        <button type="submit" class="btn btn-primary w-100 mt-2" id="submitCityBtn">
+          <span id="submitText">Add City</span>
+          <span id="submitLoading" style="display: none;">
+            <div class="loading-spinner"></div> Processing...
+          </span>
+        </button>
       </form>
     </div>
   </div>
 </div>
+
 
 <!-- vehicle type modal -->
 <div class="modal-overlay" id="addVehicleModal">
@@ -211,58 +218,143 @@
 </div>
 
 <!-- add city script -->
+<!-- add city script -->
 <script>
- let indianCities = [];
-
-// Fetch cities from JSON file
-fetch("{% static 'assets/cities.json' %}")
-  .then(response => response.json())
-  .then(data => {
-    indianCities = data;
-  })
-  .catch(error => {
-    console.error('Error loading cities:', error);
-    showToast("Failed to load city data", "error");
-  });
-
-// Setup city search functionality
+// Google Places API Autocomplete implementation
 document.addEventListener('DOMContentLoaded', function() {
   const citySearch = document.getElementById('citySearch');
   const citySuggestions = document.getElementById('citySuggestions');
   const selectedCity = document.getElementById('selectedCity');
+  const selectedPlaceId = document.getElementById('selectedPlaceId');
+  const submitCityBtn = document.getElementById('submitCityBtn');
+  const submitText = document.getElementById('submitText');
+  const submitLoading = document.getElementById('submitLoading');
   
-  citySearch.addEventListener('input', function() {
-    const searchTerm = this.value.toLowerCase().trim();
+  let autocompleteService;
+  let geocoderService;
+  let sessionToken;
+  
+  // Initialize Google Places Autocomplete service
+  function initAutocompleteService() {
+    if (typeof google !== 'undefined' && google.maps && google.maps.places) {
+      // Use the new AutocompleteService (not the deprecated one)
+      autocompleteService = new google.maps.places.AutocompleteService();
+      geocoderService = new google.maps.Geocoder();
+      sessionToken = new google.maps.places.AutocompleteSessionToken();
+    } else {
+      console.error('Google Maps JavaScript API not loaded');
+      showToast("City search functionality not available", "error");
+    }
+  }
+  
+  // Load Google Maps API with proper async loading
+  function loadGoogleMapsAPI() {
+    // Use the API key from Django template variable
+    const apiKey = '{{ google_maps_api_key }}';
+    
+    if (!apiKey) {
+      console.error('Google Maps API key not found');
+      showToast("City search functionality not available", "error");
+      return;
+    }
+    
+    // Create the script element with proper async loading
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async&callback=initAutocompleteService&region=IN`;
+    script.async = true;
+    script.defer = true;
+    
+    // Add the script to the document head
+    document.head.appendChild(script);
+  }
+  
+  // Global callback function for Google Maps API
+  window.initAutocompleteService = initAutocompleteService;
+  
+  // Start loading the Google Maps API
+  loadGoogleMapsAPI();
+  
+  // Debounce function to limit API requests
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+  
+  // Handle input events for city search with debouncing
+  const handleCitySearch = debounce(function(searchTerm) {
     citySuggestions.innerHTML = '';
     citySuggestions.style.display = 'none';
     
     if (searchTerm.length < 2) return;
     
-    const filteredCities = indianCities.filter(city => 
-      city.toLowerCase().includes(searchTerm)
-    ).slice(0, 10); // FIXED misplaced parenthesis
-    
-    if (filteredCities.length > 0) {
-      citySuggestions.innerHTML = filteredCities.map(city => {
-        const matchIndex = city.toLowerCase().indexOf(searchTerm);
-        if (matchIndex >= 0) {
-          const before = city.substring(0, matchIndex);
-          const match = city.substring(matchIndex, matchIndex + searchTerm.length);
-          const after = city.substring(matchIndex + searchTerm.length);
-          return `<div class="city-suggestion">${before}<span class="highlight">${match}</span>${after}</div>`;
-        }
-        return `<div class="city-suggestion">${city}</div>`;
-      }).join('');
-      citySuggestions.style.display = 'block';
+    if (!autocompleteService) {
+      showToast("Search service not ready yet", "error");
+      return;
     }
+    
+    // Request predictions from Google Places API
+    autocompleteService.getPlacePredictions({
+      input: searchTerm,
+      types: ['(cities)'],
+      sessionToken: sessionToken
+    }, (predictions, status) => {
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+        if (status !== 'ZERO_RESULTS') {
+          console.error('Autocomplete error:', status);
+        }
+        return;
+      }
+      
+      if (predictions.length > 0) {
+        citySuggestions.innerHTML = predictions.map(prediction => {
+          const mainText = prediction.structured_formatting.main_text;
+          const secondaryText = prediction.structured_formatting.secondary_text;
+          const matchedSubstrings = prediction.structured_formatting.main_text_matched_substrings;
+          
+          // Highlight matched portions
+          let highlightedText = mainText;
+          if (matchedSubstrings && matchedSubstrings.length > 0) {
+            const match = matchedSubstrings[0];
+            const before = mainText.substring(0, match.offset);
+            const matchText = mainText.substring(match.offset, match.offset + match.length);
+            const after = mainText.substring(match.offset + match.length);
+            highlightedText = `${before}<span class="highlight">${matchText}</span>${after}`;
+          }
+          
+          return `<div class="city-suggestion" data-city="${mainText}" data-place-id="${prediction.place_id}">
+                    ${highlightedText}
+                    <small>${secondaryText || ''}</small>
+                  </div>`;
+        }).join('');
+        
+        citySuggestions.style.display = 'block';
+      }
+    });
+  }, 300); // 300ms debounce time
+  
+  // Event listener for city search input
+  citySearch.addEventListener('input', function() {
+    const searchTerm = this.value.trim();
+    handleCitySearch(searchTerm);
   });
   
   // Handle city selection
   citySuggestions.addEventListener('click', function(e) {
-    if (e.target.classList.contains('city-suggestion')) {
-      const cityName = e.target.textContent;
+    const suggestion = e.target.closest('.city-suggestion');
+    if (suggestion) {
+      const cityName = suggestion.getAttribute('data-city');
+      const placeId = suggestion.getAttribute('data-place-id');
+      
       citySearch.value = cityName;
       selectedCity.value = cityName;
+      selectedPlaceId.value = placeId;
       citySuggestions.style.display = 'none';
     }
   });
@@ -274,40 +366,100 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+  // Function to get the official city name using Geocoding API
+  function getOfficialCityName(placeId, callback) {
+    if (!geocoderService) {
+      console.error('Geocoder service not available');
+      callback(null);
+      return;
+    }
+    
+    geocoderService.geocode({ placeId: placeId }, (results, status) => {
+      if (status === 'OK' && results && results.length > 0) {
+        const addressComponents = results[0].address_components;
+        
+        // Find the component with types ['locality', 'political']
+        for (const component of addressComponents) {
+          if (component.types.includes('locality') && component.types.includes('political')) {
+            callback(component.long_name);
+            return;
+          }
+        }
+        
+        // If locality not found, try administrative_area_level_2 or level_3
+        for (const component of addressComponents) {
+          if (component.types.includes('administrative_area_level_2') || 
+              component.types.includes('administrative_area_level_3')) {
+            callback(component.long_name);
+            return;
+          }
+        }
+        
+        // Fallback to the first result's formatted address
+        callback(results[0].formatted_address.split(',')[0]);
+      } else {
+        console.error('Geocoder failed due to: ' + status);
+        callback(null);
+      }
+    });
+  }
+  
   // Form submission
   document.getElementById('addCityForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const cityName = selectedCity.value.trim();
+    const placeId = selectedPlaceId.value;
     
-    if (!cityName) {
+    if (!cityName || !placeId) {
       showToast("Please select a city from the list", "error");
       return;
     }
     
-    fetch("{% url 'add_city' %}", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": getCookie("csrftoken")
-      },
-      body: JSON.stringify({ name: cityName })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        showToast("City added successfully");
-        document.getElementById("addCityForm").reset();
-        closeModal(document.getElementById("addCityModal"));
-        setTimeout(() => {
-          location.reload();
-        }, 3000);
-      } else {
-        showToast(data.error || "Something went wrong", "error");
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      showToast("Network error", "error");
+    // Show loading state
+    submitText.style.display = 'none';
+    submitLoading.style.display = 'inline';
+    submitCityBtn.disabled = true;
+    
+    // Get the official city name using Geocoding API
+    getOfficialCityName(placeId, function(officialCityName) {
+      const finalCityName = officialCityName || cityName;
+      
+      // Send the city name to the server
+      fetch("{% url 'add_city' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({ name: finalCityName })
+      })
+      .then(res => res.json())
+      .then(data => {
+        // Reset loading state
+        submitText.style.display = 'inline';
+        submitLoading.style.display = 'none';
+        submitCityBtn.disabled = false;
+        
+        if (data.success) {
+          showToast("City added successfully");
+          document.getElementById("addCityForm").reset();
+          closeModal(document.getElementById("addCityModal"));
+          setTimeout(() => {
+            location.reload();
+          }, 3000);
+        } else {
+          showToast(data.error || "Something went wrong", "error");
+        }
+      })
+      .catch(err => {
+        // Reset loading state
+        submitText.style.display = 'inline';
+        submitLoading.style.display = 'none';
+        submitCityBtn.disabled = false;
+        
+        console.error(err);
+        showToast("Network error", "error");
+      });
     });
   });
 });

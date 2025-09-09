@@ -316,14 +316,17 @@ def cab_management(request):
     cities = City.objects.all()
     vehicle_types = VehicleType.objects.all()
     city_vehicle_prices = CityVehiclePrice.objects.select_related('city', 'vehicle_type').all()
+    
+    # Get the API key from environment variables
+    google_maps_api_key = getattr(settings, 'GOOGLE_MAPS_API_KEY', '')
 
     return render(request, 'cab_management.html', {
         'cities': cities,
         'vehicle_types': vehicle_types,
         'city_vehicle_prices': city_vehicle_prices,
-        'current_url_name':"cab"
+        'current_url_name': "cab",
+        'google_maps_api_key': google_maps_api_key  # Pass the API key to template
     })
-
 
 @csrf_exempt
 def get_vehicle_type(request, pk):
