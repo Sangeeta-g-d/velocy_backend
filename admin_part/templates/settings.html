@@ -1,0 +1,440 @@
+{% extends 'admin_base.html' %}
+{% load static %}
+{% block content %}
+<link rel="stylesheet" href="/static/assets/css/settings.css">
+<div class="container">
+  <h2>Admin Settings</h2>
+
+  <!-- Platform Settings -->
+  <div class="settings-section">
+    <div class="section-header">
+      <h3>Platform Settings</h3>
+      <button class="btn btn-black" onclick="addPlatformSetting()">+ Add Platform Setting</button>
+    </div>
+    
+    <div class="settings-grid">
+      {% for setting in platform_settings %}
+        <div class="setting-card" id="platform-{{ setting.id }}">
+          <div class="card-content">
+            <div class="setting-type">{{ setting.fee_type|title }}</div>
+            <div class="setting-value">{{ setting.fee_value }}</div>
+            <div class="setting-status">
+              <span class="status-badge {% if setting.is_active %}active{% else %}inactive{% endif %}">
+                {{ setting.is_active|yesno:"Active,Inactive" }}
+              </span>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button onclick="openEditPlatformModal({{ setting.id }}, '{{ setting.fee_type }}', '{{ setting.fee_value }}', {{ setting.is_active|yesno:"true,false" }})" 
+                    class="btn btn-secondary">
+              <i class="fas fa-edit"></i> Edit
+            </button>
+            <button onclick="deletePlatformSetting({{ setting.id }})" class="btn btn-danger">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+      {% empty %}
+        <div class="empty-state">
+          <i class="fas fa-cogs"></i>
+          <p>No platform settings yet.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Ride Reports -->
+  <div class="settings-section">
+    <div class="section-header">
+      <h3>Ride Reports</h3>
+      <button class="btn btn-black" onclick="addRideReport()">+ Add Ride Report</button>
+    </div>
+    
+    <div class="settings-grid">
+      {% for report in ride_reports %}
+        <div class="setting-card" id="report-{{ report.id }}">
+          <div class="card-content">
+            <div class="report-name">{{ report.report_name }}</div>
+            <div class="report-description">{{ report.description }}</div>
+            <div class="report-date">Created: {{ report.created_at|date:"M d, Y H:i" }}</div>
+          </div>
+          <div class="card-actions">
+            <button onclick="openEditReportModal({{ report.id }}, '{{ report.report_name|escapejs }}', '{{ report.description|escapejs }}')" 
+                    class="btn btn-secondary">
+              <i class="fas fa-edit"></i> Edit
+            </button>
+            <button onclick="deleteRideReport({{ report.id }})" class="btn btn-danger">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+      {% empty %}
+        <div class="empty-state">
+          <i class="fas fa-clipboard-list"></i>
+          <p>No ride reports yet.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Platform Setting Modal -->
+<div class="modal-overlay" id="platformModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="platformModalTitle">Edit Platform Setting</h2>
+      <button class="close-btn" onclick="closeModalById('platformModal')">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="platformForm">
+        <input type="hidden" id="platformId">
+        <div class="form-group">
+          <label for="platformFeeType">Fee Type</label>
+          <select class="form-control" id="platformFeeType" name="fee_type" required>
+            <option value="percentage">Percentage</option>
+            <option value="flat">Flat Rate</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="platformFeeValue">Value</label>
+          <input type="number" class="form-control" id="platformFeeValue" name="fee_value" step="0.01" min="0" required>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-container">
+            <input type="checkbox" id="platformIsActive" name="is_active">
+            <span class="checkmark"></span>
+            Active
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-2">Save Setting</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Ride Report Modal -->
+<div class="modal-overlay" id="reportModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="reportModalTitle">Edit Ride Report</h2>
+      <button class="close-btn" onclick="closeModalById('reportModal')">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="reportForm">
+        <input type="hidden" id="reportId">
+        <div class="form-group">
+          <label for="reportName">Report Name</label>
+          <input type="text" class="form-control" id="reportName" name="report_name" required>
+        </div>
+        <div class="form-group">
+          <label for="reportDescription">Description</label>
+          <textarea class="form-control" id="reportDescription" name="description" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-2">Save Report</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Helper function to get CSRF token
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        cookie = cookie.trim();
+        if (cookie.startsWith(name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  // Modal functions with error handling
+  function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
+    } else {
+      console.error('Modal not found:', modalId);
+    }
+  }
+
+  function closeModal(modalElement) {
+    if (modalElement && modalElement.classList) {
+      modalElement.classList.remove('active');
+      document.body.style.overflow = ''; // Re-enable scrolling
+    } else {
+      console.error('Invalid modal element:', modalElement);
+    }
+  }
+
+  function closeModalById(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      closeModal(modal);
+    } else {
+      console.error('Modal not found:', modalId);
+    }
+  }
+
+  // Close modals when clicking outside
+  document.addEventListener('click', function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+      closeModal(event.target);
+    }
+  });
+
+  // Close modals with Escape key
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+      const activeModals = document.querySelectorAll('.modal-overlay.active');
+      activeModals.forEach(modal => closeModal(modal));
+    }
+  });
+
+  // Platform Setting functions
+  function addPlatformSetting() {
+    // Reset form and set title
+    document.getElementById('platformForm').reset();
+    document.getElementById('platformModalTitle').textContent = 'Add Platform Setting';
+    document.getElementById('platformId').value = '';
+    document.getElementById('platformIsActive').checked = true;
+    
+    // Open modal
+    openModal('platformModal');
+  }
+
+  function openEditPlatformModal(id, feeType, feeValue, isActive) {
+    // Populate form with existing data
+    document.getElementById('platformModalTitle').textContent = 'Edit Platform Setting';
+    document.getElementById('platformId').value = id;
+    document.getElementById('platformFeeType').value = feeType;
+    document.getElementById('platformFeeValue').value = feeValue;
+    document.getElementById('platformIsActive').checked = isActive;
+    
+    // Open modal
+    openModal('platformModal');
+  }
+
+  // Enhanced API call function
+  async function makeApiCall(url, method = 'POST', data = null) {
+    const options = {
+      method: method,
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    };
+    
+    if (data) {
+      options.body = new URLSearchParams(data);
+    }
+    
+    try {
+      const response = await fetch(url, options);
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.message || `Server error: ${response.status}`);
+        }
+        
+        return result;
+      } else {
+        const text = await response.text();
+        
+        if (!response.ok) {
+          throw new Error(`Server returned non-JSON: ${response.status} ${text.substring(0, 100)}`);
+        }
+        
+        // Try to parse as JSON even if content-type is wrong
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { success: true, message: 'Operation completed successfully' };
+        }
+      }
+    } catch (error) {
+      console.error('API call failed:', error);
+      throw error;
+    }
+  }
+
+  // Handle platform form submission
+  document.getElementById('platformForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('platformId').value;
+    const fee_type = document.getElementById('platformFeeType').value;
+    const fee_value = document.getElementById('platformFeeValue').value;
+    const is_active = document.getElementById('platformIsActive').checked;
+    
+    const url = id 
+      ? "{% url 'update_platform_setting' 0 %}".replace('0', id)
+      : "{% url 'add_platform_setting' %}";
+    
+    try {
+      const data = await makeApiCall(url, 'POST', {
+        fee_type, 
+        fee_value, 
+        is_active: is_active ? 'true' : 'false'
+      });
+      
+      if (data.success) {
+        closeModalById('platformModal');
+        showToast(data.message || 'Operation successful');
+        setTimeout(() => location.reload(), 800);
+      } else {
+        throw new Error(data.message || 'Operation failed');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error: ' + error.message);
+    }
+  });
+
+  async function deletePlatformSetting(id) {
+    if (confirm("Are you sure you want to delete this setting?")) {
+      try {
+        const url = "{% url 'delete_platform_setting' 0 %}".replace('0', id);
+        const data = await makeApiCall(url, 'POST');
+        
+        if (data.success) {
+          showToast(data.message || 'Setting deleted successfully');
+          setTimeout(() => location.reload(), 800);
+        } else {
+          throw new Error(data.message || 'Deletion failed');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+  }
+
+  // Ride Report functions
+  function addRideReport() {
+    // Reset form and set title
+    document.getElementById('reportForm').reset();
+    document.getElementById('reportModalTitle').textContent = 'Add Ride Report';
+    document.getElementById('reportId').value = '';
+    
+    // Open modal
+    openModal('reportModal');
+  }
+
+  function openEditReportModal(id, name, description) {
+    // Populate form with existing data
+    document.getElementById('reportModalTitle').textContent = 'Edit Ride Report';
+    document.getElementById('reportId').value = id;
+    document.getElementById('reportName').value = name;
+    document.getElementById('reportDescription').value = description;
+    
+    // Open modal
+    openModal('reportModal');
+  }
+
+  // Handle report form submission
+  document.getElementById('reportForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('reportId').value;
+    const report_name = document.getElementById('reportName').value;
+    const description = document.getElementById('reportDescription').value;
+    
+    const url = id 
+      ? "{% url 'update_ride_report' 0 %}".replace('0', id)
+      : "{% url 'add_ride_report' %}";
+    
+    try {
+      const data = await makeApiCall(url, 'POST', { report_name, description });
+      
+      if (data.success) {
+        closeModalById('reportModal');
+        showToast(data.message || 'Operation successful');
+        setTimeout(() => location.reload(), 800);
+      } else {
+        throw new Error(data.message || 'Operation failed');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error: ' + error.message);
+    }
+  });
+
+  async function deleteRideReport(id) {
+    if (confirm("Are you sure you want to delete this report?")) {
+      try {
+        const url = "{% url 'delete_ride_report' 0 %}".replace('0', id);
+        const data = await makeApiCall(url, 'POST');
+        
+        if (data.success) {
+          showToast(data.message || 'Report deleted successfully');
+          setTimeout(() => location.reload(), 800);
+        } else {
+          throw new Error(data.message || 'Deletion failed');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+  }
+
+  // Toast notification function
+  function showToast(message, type = 'success') {
+    // Create toast element if it doesn't exist
+    let toast = document.getElementById('toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 4px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        opacity: 0;
+        transition: opacity 0.3s;
+      `;
+      document.body.appendChild(toast);
+    }
+    
+    toast.textContent = message;
+    toast.style.backgroundColor = type === 'success' ? '#2ecc71' : '#e74c3c';
+    toast.style.opacity = '1';
+    
+    setTimeout(() => {
+      if (toast && toast.style) {
+        toast.style.opacity = '0';
+      }
+    }, 3000);
+  }
+
+  // Initialize modals
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add close buttons to modals if they don't exist
+    const modals = document.querySelectorAll('.modal-overlay');
+    modals.forEach(modal => {
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          closeModal(modal);
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

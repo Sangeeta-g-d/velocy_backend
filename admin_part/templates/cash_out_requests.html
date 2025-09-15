@@ -3,47 +3,144 @@
 {% block content %}
 
 <div class="container">
-    <h2 style="margin-bottom: 15px;">Driver Cash Out Requests</h2>
+    <h2 style="margin-bottom: 20px;">Driver Cash Out Requests</h2>
 
-    <div style="overflow-x:auto;" class="table-container">
-        <table class="styled-table" style="width: 100%;">
-            <thead>
-                <tr>
-                    <th>Driver Name</th>
-                    <th>Phone Number</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Requested At</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for req in requests %}
-                <tr>
-                    <td>{{ req.driver.username }}</td>
-                    <td>{{ req.driver.phone_number }}</td>
-                    <td>₹{{ req.amount }}</td>
-                    <td>
-                        {% if req.status == "pending" %}
-                            <span class="status-badge pending">Pending</span>
-                        {% elif req.status == "processed" %}
-                            <span class="status-badge approved">Processed</span>
-                        {% else %}
-                            <span class="status-badge rejected">Rejected</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ req.requested_at|timezone:"Asia/Kolkata"|date:"M d, Y H:i" }}</td>
-                    <td><a href="{% url 'user_profile' req.driver.id %}" class="btn btn-primary btn-sm">Details</a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" style="text-align: center;">No cash out requests found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- 🔎 Search Input -->
+    <div style="margin-bottom: 20px;">
+        <input type="text" id="driverSearch" placeholder="Search by name or phone..."
+               style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px;">
+    </div>
+
+    <!-- 🚫 No Results Message -->
+    <div id="noResults" style="display: none; text-align: center; color: #888; margin: 20px 0; font-size: 1.1rem; font-weight: 500;">
+        🚘 No drivers match your search.
+    </div>
+
+    <div id="driverCards">
+        {% for driver in drivers %}
+        <div class="card driver-card" 
+             data-name="{{ driver.username|default:driver.phone_number|lower }}" 
+             data-phone="{{ driver.phone_number|lower }}"
+             style="margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            
+            <div class="card-header" style="background: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #ddd;">
+                <strong>{{ driver.username|default:driver.phone_number }}</strong>
+                ({{ driver.phone_number }})
+            </div>
+            
+            <div class="card-body" style="padding: 15px;">
+                {% if driver.cashout_requests %}
+                <div class="table-container">
+                    <table class="styled-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left; padding:8px;">Amount</th>
+                                <th style="text-align:left; padding:8px;">Status</th>
+                                <th style="text-align:left; padding:8px;">Requested At</th>
+                                <th style="text-align:left; padding:8px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in driver.cashout_requests %}
+                            <tr style="border-top: 1px solid #eee;">
+                                <td style="padding:8px;">₹{{ req.amount }}</td>
+                                <td style="padding:8px;">
+                                    {% if req.status == "pending" %}
+                                        <span class="status-badge pending">Pending</span>
+                                    {% elif req.status == "processed" %}
+                                        <span class="status-badge approved">Processed</span>
+                                    {% else %}
+                                        <span class="status-badge rejected">Rejected</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding:8px;">{{ req.requested_at|timezone:"Asia/Kolkata"|date:"M d, Y H:i" }}</td>
+                                <td style="padding:8px;">
+                                    <a href="{% url 'user_profile' driver.id %}" class="btn btn-primary btn-sm">Details</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p style="color:#888;">No requests yet for this driver.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div style="text-align: center; color: #777; margin-top: 40px;">
+            <p>No drivers with cash out requests found.</p>
+        </div>
+        {% endfor %}
     </div>
 </div>
+
+<style>
+    .table-container {
+        max-height: 250px; /* adjust height as needed */
+        overflow-y: auto;
+        border: 1px solid #eee;
+        border-radius: 4px;
+    }
+
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .status-badge.pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    .status-badge.approved {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    .status-badge.rejected {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .btn {
+        padding: 4px 10px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 0.85rem;
+    }
+    .btn-primary {
+        background: #007bff;
+        color: #fff;
+    }
+    .btn-primary:hover {
+        background: #0056b3;
+    }
+</style>
+
+<!-- 🔎 JavaScript Search -->
+<script>
+document.getElementById("driverSearch").addEventListener("keyup", function() {
+    let filter = this.value.toLowerCase();
+    let cards = document.querySelectorAll("#driverCards .driver-card");
+    let noResults = document.getElementById("noResults");
+
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+        let name = card.getAttribute("data-name");
+        let phone = card.getAttribute("data-phone");
+
+        if (name.includes(filter) || phone.includes(filter)) {
+            card.style.display = "block";
+            visibleCount++;
+        } else {
+            card.style.display = "none";
+        }
+    });
+
+    // Show "No Results" message if nothing is visible
+    noResults.style.display = (visibleCount === 0) ? "block" : "none";
+});
+</script>
 
 {% endblock %}

@@ -2,8 +2,10 @@ from django.shortcuts import render,redirect,get_object_or_404
 from django.contrib.auth import authenticate, login,logout
 from auth_api.models import CustomUser,DriverDocumentInfo
 from .models import *
+from django.db.models import Prefetch
 from driver_part.models import CashOutRequest
 import json
+from django.db.models import Sum, Q
 import os
 from django.contrib import messages
 from django.http import HttpResponseRedirect
@@ -85,6 +87,15 @@ def approve_drivers(request):
     }
     return render(request, 'approve_drivers.html', context)
 
+def delete_driver(request, driver_id):
+    if request.method == "POST":
+        deleted, _ = CustomUser.objects.filter(id=driver_id, role="driver").delete()
+        if deleted:
+            return JsonResponse({"success": True, "message": "Driver deleted successfully."})
+        return JsonResponse({"success": False, "message": "Driver not found."}, status=404)
+    return JsonResponse({"success": False, "message": "Invalid request method."}, status=400)
+
+
 def users_list(request):
     riders = CustomUser.objects.filter(role="rider")
     context = {
@@ -92,6 +103,17 @@ def users_list(request):
         'riders': riders
     }
     return render(request, 'users_list.html', context)
+
+
+def delete_user(request, user_id):
+    if request.method == "POST":
+        try:
+            user = CustomUser.objects.get(id=user_id, role="rider")
+            user.delete()
+            return JsonResponse({"success": True, "message": "User deleted successfully."})
+        except CustomUser.DoesNotExist:
+            return JsonResponse({"success": False, "message": "User not found."}, status=404)
+    return JsonResponse({"success": False, "message": "Invalid request method."}, status=400)
 
 def driver_details(request, driver_id):
     driver = get_object_or_404(CustomUser, id=driver_id, role='driver')
@@ -579,20 +601,28 @@ def disapprove_sharing_vehicle(request, vehicle_id):
         except DriverDocumentInfo.DoesNotExist:
             return JsonResponse({"status": "error", "message": "Document not found"}, status=404)
         
-def cash_out_requests(request):
-    requests = CashOutRequest.objects.select_related('driver').order_by('-requested_at')
 
+def cash_out_requests(request):
+    drivers = CustomUser.objects.filter(role="driver").prefetch_related(
+        Prefetch(
+            'cashoutrequest_set',
+            queryset=CashOutRequest.objects.order_by('-requested_at'),
+            to_attr='cashout_requests'
+        )
+    )
     context = {
         'current_url_name': "cash_out",
-        'requests': requests
+        'drivers': drivers
     }
     return render(request, 'cash_out_requests.html', context)
+
 
 def user_profile(request, user_id):
     driver = get_object_or_404(CustomUser, id=user_id, role='driver')
 
     recent_rides = RideRequest.objects.filter(driver=driver).order_by('-created_at')[:5]
     latest_cashout = CashOutRequest.objects.filter(driver=driver).order_by('-requested_at').first()
+
     ride_data = []
     for ride in recent_rides:
         payment = getattr(ride, 'payment_detail', None)
@@ -610,6 +640,46 @@ def user_profile(request, user_id):
 
     avg_rating = DriverRating.objects.filter(driver=driver).aggregate(avg=Avg('rating'))['avg'] or 0
 
+    # 🔹 Aggregated stats
+    total_upi = DriverWalletTransaction.objects.filter(
+        driver=driver,
+        description__icontains="UPI payment"
+    ).aggregate(total=Sum('amount'))['total'] or 0
+
+    total_cash = DriverWalletTransaction.objects.filter(
+        driver=driver,
+        description__icontains="Cash payment"
+    ).aggregate(total=Sum('amount'))['total'] or 0
+
+    total_earnings = DriverWalletTransaction.objects.filter(
+        driver=driver,
+        transaction_type="ride_earning"
+    ).aggregate(total=Sum('amount'))['total'] or 0
+
+    total_withdrawals = DriverWalletTransaction.objects.filter(
+        driver=driver,
+        transaction_type="withdrawal"
+    ).aggregate(total=Sum('amount'))['total'] or 0
+
+    total_bonus = DriverWalletTransaction.objects.filter(
+        driver=driver,
+        transaction_type="bonus"
+    ).aggregate(total=Sum('amount'))['total'] or 0
+
+    total_penalty = DriverWalletTransaction.objects.filter(
+        driver=driver,
+        transaction_type="penalty"
+    ).aggregate(total=Sum('amount'))['total'] or 0
+
+    stats = {
+        'total_upi': total_upi,
+        'total_cash': total_cash,
+        'total_earnings': total_earnings,
+        'total_withdrawals': total_withdrawals,
+        'total_bonus': total_bonus,
+        'total_penalty': total_penalty,
+    }
+
     context = {
         'driver': driver,
         'ride_data': ride_data,
@@ -617,6 +687,7 @@ def user_profile(request, user_id):
         'current_url_name': 'cash_out',
         'avg_rating': avg_rating,
         'latest_cashout': latest_cashout,
+        'stats': stats,
     }
     return render(request, 'user_profile.html', context)
 
@@ -705,6 +776,30 @@ def prepaid_plans(request):
     }
     return render(request, 'prepaid_plans.html',context)
 
+def edit_prepaid_plan(request, plan_id):
+    plan = get_object_or_404(PrepaidPlan, id=plan_id)
+
+    if request.method == "POST":
+        plan.name = request.POST.get("name")
+        plan.price = request.POST.get("price")
+        plan.validity_type = request.POST.get("validity_type")
+        plan.validity_days = request.POST.get("validity_days")
+        plan.credits_provided = request.POST.get("credits_provided")
+        plan.is_active = "is_active" in request.POST  # checkbox
+        plan.benefits = request.POST.get("benefits")
+        plan.description = request.POST.get("description")
+        plan.save()
+
+        # redirect back to prepaid_plans with success param
+        return redirect(f"{reverse('prepaid_plans')}?updated=1")
+
+    context = {
+        "current_url_name": "prepaid",
+        "plan": plan
+    }
+    return render(request, "edit_prepaid_plan.html", context)
+
+
 def add_prepaid_plan(request):
     if request.method == 'POST':
         try:
@@ -777,3 +872,154 @@ def delete_account_view(request):
             messages.error(request, "Invalid phone number or password!")
 
     return render(request, "delete_account.html")
+
+
+def settings_view(request):
+    platform_settings = PlatformSetting.objects.all().order_by('-updated_at')
+    ride_reports = RideReport.objects.all().order_by('-created_at')
+
+    context = {
+        'current_url_name': 'settings',
+        'platform_settings': platform_settings,
+        'ride_reports': ride_reports
+    }
+    return render(request, 'settings.html', context)
+
+# --- PlatformSetting CRUD ---
+@login_required
+def add_platform_setting(request):
+    if request.method != "POST":
+        return JsonResponse({'success': False, 'message': 'Invalid request'}, status=400)
+    
+    try:
+        # Try to get data from both POST and JSON
+        if request.POST:
+            fee_type = request.POST.get('fee_type')
+            fee_value = request.POST.get('fee_value')
+            is_active = request.POST.get('is_active', 'false') == 'true'
+        else:
+            # Fallback to JSON if no POST data
+            data = json.loads(request.body)
+            fee_type = data.get('fee_type')
+            fee_value = data.get('fee_value')
+            is_active = data.get('is_active', False)
+
+        # Validate required fields
+        if not fee_type or not fee_value:
+            return JsonResponse({'success': False, 'message': 'Fee type and value are required'}, status=400)
+
+        setting = PlatformSetting.objects.create(
+            fee_type=fee_type,
+            fee_value=fee_value,
+            is_active=is_active
+        )
+        return JsonResponse({'success': True, 'message': 'Platform setting added', 'id': setting.id})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+@login_required
+def update_platform_setting(request, setting_id):
+    if request.method != "POST":
+        return JsonResponse({'success': False, 'message': 'Invalid request'}, status=400)
+    
+    try:
+        setting = get_object_or_404(PlatformSetting, id=setting_id)
+        
+        # Try to get data from both POST and JSON
+        if request.POST:
+            setting.fee_type = request.POST.get('fee_type')
+            setting.fee_value = request.POST.get('fee_value')
+            setting.is_active = request.POST.get('is_active', 'false') == 'true'
+        else:
+            # Fallback to JSON if no POST data
+            data = json.loads(request.body)
+            setting.fee_type = data.get('fee_type')
+            setting.fee_value = data.get('fee_value')
+            setting.is_active = data.get('is_active', False)
+        
+        setting.save()
+        return JsonResponse({'success': True, 'message': 'Platform setting updated'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+@login_required
+def delete_platform_setting(request, setting_id):
+    if request.method != "POST":
+        return JsonResponse({'success': False, 'message': 'Invalid request'}, status=400)
+    
+    try:
+        setting = get_object_or_404(PlatformSetting, id=setting_id)
+        setting.delete()
+        return JsonResponse({'success': True, 'message': 'Platform setting deleted'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+# --- Ride Reports CRUD ---
+@login_required
+def add_ride_report(request):
+    if request.method != "POST":
+        return JsonResponse({'success': False, 'message': 'Invalid request'}, status=400)
+    
+    try:
+        # Try to get data from both POST and JSON
+        if request.POST:
+            report_name = request.POST.get('report_name')
+            description = request.POST.get('description')
+        else:
+            # Fallback to JSON if no POST data
+            data = json.loads(request.body)
+            report_name = data.get('report_name')
+            description = data.get('description')
+
+        # Validate required fields
+        if not report_name:
+            return JsonResponse({'success': False, 'message': 'Report name is required'}, status=400)
+
+        report = RideReport.objects.create(
+            report_name=report_name,
+            description=description
+        )
+        return JsonResponse({'success': True, 'message': 'Ride report added', 'id': report.id})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+@login_required
+def update_ride_report(request, report_id):
+    if request.method != "POST":
+        return JsonResponse({'success': False, 'message': 'Invalid request'}, status=400)
+    
+    try:
+        report = get_object_or_404(RideReport, id=report_id)
+        
+        # Try to get data from both POST and JSON
+        if request.POST:
+            report.report_name = request.POST.get('report_name')
+            report.description = request.POST.get('description')
+        else:
+            # Fallback to JSON if no POST data
+            data = json.loads(request.body)
+            report.report_name = data.get('report_name')
+            report.description = data.get('description')
+        
+        report.save()
+        return JsonResponse({'success': True, 'message': 'Ride report updated'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+@login_required
+def delete_ride_report(request, report_id):
+    if request.method != "POST":
+        return JsonResponse({'success': False, 'message': 'Invalid request'}, status=400)
+    
+    try:
+        report = get_object_or_404(RideReport, id=report_id)
+        report.delete()
+        return JsonResponse({'success': True, 'message': 'Ride report deleted'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)

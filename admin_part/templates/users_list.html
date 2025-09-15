@@ -8,9 +8,10 @@
 
     <!-- Table -->
     <div class="table-container">
-        <table class="styled-table" id="driversTable" style="width: 100%;">
+        <table class="styled-table" id="usersTable" style="width: 100%;">
             <thead>
                 <tr>
+                    <th>ID</th>
                     <th>Profile</th>
                     <th>Name</th>
                     <th>Phone</th>
@@ -19,20 +20,22 @@
                 </tr>
             </thead>
             <tbody>
-                {% for driver in riders %}
-                <tr>
+                {% for rider in riders %}
+                <tr id="user-row-{{ rider.id }}">
+                    <td>#{{rider.id}}</td>
                     <td>
-                        {% if driver.profile %}
-                          <img src="{{ driver.profile.url }}" width="40" height="40" style="border-radius: 50%;">
+                        {% if rider.profile %}
+                          <img src="{{ rider.profile.url }}" width="40" height="40" style="border-radius: 50%;">
                         {% else %}
                           N/A
                         {% endif %}
                     </td>
-                    <td>{{ driver.username|default:"N/A" }}</td>
-                    <td>{{ driver.phone_number }}</td>
-                    <td>{{ driver.gender|title }}</td>
+                    <td>{{ rider.username|default:"N/A" }}</td>
+                    <td>{{ rider.phone_number }}</td>
+                    <td>{{ rider.gender|title }}</td>
                     <td>
-                        <a href="{% url 'driver_details' driver.id %}" class="btn btn-primary">View</a>
+                        <a href="{% url 'driver_details' rider.id %}" class="btn btn-primary btn-sm">View</a>
+                        <button class="btn btn-danger btn-sm" onclick="deleteUser({{ rider.id }})">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -46,15 +49,44 @@
     </div>
 </div>
 
+<script>
+function deleteUser(userId) {
+    if (confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+        fetch(`/delete-user/${userId}/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}",
+                "Content-Type": "application/json"
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, "success");
+                // remove row instantly
+                const row = document.getElementById(`user-row-${userId}`);
+                if (row) row.remove();
+            } else {
+                showToast(data.message, "error");
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            showToast("Something went wrong. Please try again.", "error");
+        });
+    }
+}
+</script>
+
 <!-- JS for Search + Pagination -->
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        initializeTablePagination({
-            tableId: "driversTable",
-            searchInputId: "searchInput",
-            paginationId: "pagination",
-            rowsPerPage: 20  // adjust as needed
-        });
+document.addEventListener('DOMContentLoaded', function () {
+    initializeTablePagination({
+        tableId: "usersTable",
+        searchInputId: "searchInput",
+        paginationId: "pagination",
+        rowsPerPage: 20
     });
+});
 </script>
 {% endblock %}

@@ -15,12 +15,12 @@
         <div class="promo-card-header">
           <h3>{{ plan.name }}</h3>
           <div class="promo-actions">
-            <button title="Edit" class="btn btn-secondary open-modal-btn" data-modal="editPlan{{ plan.id }}">
+            <a title="Edit" class="btn btn-secondary" href="{% url 'edit_prepaid_plan' plan.id %}">
               <i class="fas fa-edit"></i>
-            </button>
-            <button onclick="deletePlan('{{ plan.id }}')" title="Delete" class="btn btn-danger">
+            </a>
+            <a onclick="deletePlan('{{ plan.id }}')" title="Delete" class="btn btn-danger">
               <i class="fas fa-trash-alt"></i>
-            </button>
+            </a>
           </div>
         </div>
 
@@ -69,6 +69,16 @@
       });
     }
   }
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('updated') === '1') {
+      showToast("Prepaid plan updated successfully!");
+      // remove ?updated=1 from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  });
 </script>
 
 {% endblock %}

@@ -48,6 +48,8 @@ urlpatterns = [
     path('change_driver_role/<int:driver_id>/', views.change_driver_role, name='update_driver_role'),
     path('reports/', views.reports, name='reported_drivers'),
     path("edit-promo-codes/<int:promo_id>/", views.edit_promo_code, name="edit_promo_code"),
+    path("delete-driver/<int:driver_id>/", views.delete_driver, name="delete_driver"),
+    path("delete-user/<int:user_id>/", views.delete_user, name="delete_user"),
 
 
 
@@ -61,8 +63,22 @@ urlpatterns = [
     path('add_prepaid_plan/',views.add_prepaid_plan,name="add_prepaid_plan"),
     path('prepaid_plans/',views.prepaid_plans,name="prepaid_plans"),
     path('delete_prepaid_plan/<int:plan_id>/', views.delete_prepaid_plan, name='delete_prepaid_plan'),
+    path("edit_prepaid_plan/<int:plan_id>/", views.edit_prepaid_plan, name="edit_prepaid_plan"),
 
 
-    path('delete-account/',views.delete_account_view,name="delete_account")
+    path('delete-account/',views.delete_account_view,name="delete_account"),
+
+
+    path('settings/', views.settings_view, name='settings'),
+    # Platform settings
+    path('settings/platform/add/', views.add_platform_setting, name='add_platform_setting'),
+    path('settings/platform/update/<int:setting_id>/', views.update_platform_setting, name='update_platform_setting'),
+    path('settings/platform/delete/<int:setting_id>/', views.delete_platform_setting, name='delete_platform_setting'),
+
+    # Ride reports
+    path('settings/report/add/', views.add_ride_report, name='add_ride_report'),
+    path('settings/report/update/<int:report_id>/', views.update_ride_report, name='update_ride_report'),
+    path('settings/report/delete/<int:report_id>/', views.delete_ride_report, name='delete_ride_report'),
+
 ]
     

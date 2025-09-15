@@ -1,0 +1,72 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container">
+  <div class="top-controls">
+    <a href="{% url 'prepaid_plans' %}" class="back-arrow" title="Back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+  </div>
+
+  <h2 class="section-title center-heading">Edit Prepaid Plan</h2>
+
+  <div class="form-container">
+    <form method="POST" class="promo-form">
+      {% csrf_token %}
+      <div class="form-grid form-grid-2col">
+
+        <div class="form-group">
+          <label for="name">Plan Name</label>
+          <input type="text" name="name" id="name" value="{{ plan.name }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="price">Price (INR)</label>
+          <input type="number" step="0.01" name="price" id="price" value="{{ plan.price }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="validity_type">Validity Type</label>
+          <select name="validity_type" id="validity_type" required>
+            <option value="" disabled>Select validity</option>
+            <option value="monthly" {% if plan.validity_type == "monthly" %}selected{% endif %}>Monthly</option>
+            <option value="quarterly" {% if plan.validity_type == "quarterly" %}selected{% endif %}>Quarterly</option>
+            <option value="half_yearly" {% if plan.validity_type == "half_yearly" %}selected{% endif %}>Half-Yearly</option>
+            <option value="yearly" {% if plan.validity_type == "yearly" %}selected{% endif %}>Yearly</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="validity_days">Validity in Days</label>
+          <input type="number" name="validity_days" id="validity_days" value="{{ plan.validity_days }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="credits_provided">Credits Provided</label>
+          <input type="number" name="credits_provided" id="credits_provided" value="{{ plan.credits_provided }}" required>
+        </div>
+
+        <div class="form-group checkbox-group">
+          <label for="is_active">Active</label>
+          <input type="checkbox" name="is_active" id="is_active" {% if plan.is_active %}checked{% endif %}>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="benefits">Benefits</label>
+          <textarea name="benefits" id="benefits" rows="3">{{ plan.benefits }}</textarea>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="description">Description</label>
+          <textarea name="description" id="description" rows="3">{{ plan.description }}</textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-black">Update Plan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+{% endblock %}
