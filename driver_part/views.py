@@ -402,6 +402,7 @@ class VerifyRideOTPView(StandardResponseMixin, APIView):
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f"ride_{ride.id}",
+            
             {
                 "type": "notify_otp_verified",
                 "ride_id": ride.id,
