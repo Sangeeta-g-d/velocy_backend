@@ -450,6 +450,7 @@ class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
 
     async def notify_otp_verified(self, event):
         await self.send_json({
+            "type": "notify_otp_verified",  
             "ride_id": event["ride_id"],
             "message": event["message"]
         })
