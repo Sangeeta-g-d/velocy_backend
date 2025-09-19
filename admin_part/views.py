@@ -1030,14 +1030,26 @@ def delete_ride_report(request, report_id):
 from django.shortcuts import render, get_object_or_404
 from django.conf import settings
 from rider_part.models import RideLocationSession
+def share_ride_view(request, ride_id):
+    # 1. Try to get Ride (404 if not found)
+    ride = get_object_or_404(RideRequest, id=ride_id)
 
-def share_ride_view(request, session_id):
-    session = get_object_or_404(RideLocationSession, session_id=session_id)
-    ride = session.ride  # assuming you linked RideLocationSession to RideRequest via FK
+    # 2. Try to get session for this ride (None if not found)
+    try:
+        session = ride.location_session
+    except RideLocationSession.DoesNotExist:
+        return render(request, "session_not_found.html", {
+            "ride": ride
+        })
 
+    # 3. Check if expired
     if session.is_expired():
-        return render(request, "link_expired.html", {"session_id": session_id})
+        return render(request, "link_expired.html", {
+            "ride": ride,
+            "expiry_time": session.expiry_time
+        })
 
+    # 4. If everything fine → show map
     return render(request, "share_ride.html", {
         "ride_id": ride.id,
         "from_location": ride.from_location,
@@ -1046,5 +1058,7 @@ def share_ride_view(request, session_id):
         "from_lng": float(ride.from_longitude),
         "to_lat": float(ride.to_latitude),
         "to_lng": float(ride.to_longitude),
-        "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY
+        "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY,
+        "session_id": str(session.session_id),
+        "expiry_time": session.expiry_time
     })
