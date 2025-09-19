@@ -49,7 +49,7 @@ urlpatterns = [
 
 
     # share live location
-    path("update-live-location/<uuid:session_id>/", RideLocationUpdateAPIView.as_view(), name="ride-location-update"),
+    path("update-live-location/<int:ride_id>/", RideLocationUpdateAPIView.as_view(), name="ride-location-update"),
 ]
 
 

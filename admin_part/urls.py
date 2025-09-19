@@ -83,7 +83,7 @@ urlpatterns = [
 
 
     # share ride
-    path("share-ride/<uuid:session_id>/", views.share_ride_view, name="share_ride"),
+    path("share-ride/<int:ride_id>/", views.share_ride_view, name="share_ride"),
 
 ]
     
