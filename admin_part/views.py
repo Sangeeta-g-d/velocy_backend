@@ -1036,9 +1036,9 @@ def share_ride_view(request, session_id):
     ride = session.ride  # assuming you linked RideLocationSession to RideRequest via FK
 
     if session.is_expired():
-        return render(request, "rider_part/link_expired.html", {"session_id": session_id})
+        return render(request, "link_expired.html", {"session_id": session_id})
 
-    return render(request, "rider_part/share_ride.html", {
+    return render(request, "share_ride.html", {
         "session_id": session_id,
         "from_location": ride.from_location,
         "to_location": ride.to_location,
