@@ -1094,3 +1094,6 @@ def ride_route_view(request, ride_id):
         "to_lng": float(ride.to_longitude),
         "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY
     })
+
+def ride_not_available(request):
+    return render(request, "ride_not_available.html")
