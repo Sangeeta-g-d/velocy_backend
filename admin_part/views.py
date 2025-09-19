@@ -1072,3 +1072,25 @@ def link_expiryd(request):
 
 def session_not_found(request):
     return render(request, "session_not_found.html")    
+
+
+
+def ride_route_view(request, ride_id):
+    ride = get_object_or_404(RideRequest, id=ride_id)
+
+    # Only allow for accepted rides
+    if ride.status != "accepted":
+        return render(request, "ride_not_available.html", {
+            "ride": ride
+        })
+
+    return render(request, "ride_route.html", {
+        "ride_id": ride.id,
+        "from_location": ride.from_location,
+        "to_location": ride.to_location,
+        "from_lat": float(ride.from_latitude),
+        "from_lng": float(ride.from_longitude),
+        "to_lat": float(ride.to_latitude),
+        "to_lng": float(ride.to_longitude),
+        "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY
+    })
