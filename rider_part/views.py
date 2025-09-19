@@ -994,6 +994,7 @@ class ActiveRideAPIView(APIView):
 
 
 class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
     def post(self, request, ride_id):
         try:
             session = RideLocationSession.objects.get(ride__id=ride_id)
@@ -1036,6 +1037,7 @@ class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
 
 @api_view(["POST"])
 def stop_sharing_view(request, ride_id):
+    permission_classes = [IsAuthenticated]
     try:
         ride = RideRequest.objects.get(id=ride_id)
     except RideRequest.DoesNotExist:

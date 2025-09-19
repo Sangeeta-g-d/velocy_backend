@@ -1064,3 +1064,11 @@ def share_ride_view(request, ride_id):
         "session_id": str(session.session_id),
         "expiry_time": session.expiry_time
     })
+
+
+def link_expiryd(request):
+    return render(request, "link_expired.html")
+
+
+def session_not_found(request):
+    return render(request, "session_not_found.html")    

@@ -84,6 +84,8 @@ urlpatterns = [
 
     # share ride
     path("share-ride/<int:ride_id>/", views.share_ride_view, name="share_ride"),
+    path("link_expiryd/", views.link_expiryd, name="link_expiryd"),
+    path("session_not_found/", views.session_not_found, name="session_not_found"),
 
 ]
     
