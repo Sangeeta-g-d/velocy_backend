@@ -352,8 +352,6 @@ class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
 
 
 
-
-
 class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
     def post(self, request, ride_id):
         try:
@@ -366,11 +364,6 @@ class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
 
         ride.end_time = timezone.now()
         ride.save()
-
-                # ✅ Expire session immediately
-        if hasattr(ride, "location_session"):
-            ride.location_session.expiry_time = timezone.now()
-            ride.location_session.save()
 
         # Convert to IST for response
         ist_time = ride.end_time.astimezone(pytz.timezone("Asia/Kolkata"))

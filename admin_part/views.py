@@ -1030,6 +1030,8 @@ def delete_ride_report(request, report_id):
 from django.shortcuts import render, get_object_or_404
 from django.conf import settings
 from rider_part.models import RideLocationSession
+
+
 def share_ride_view(request, ride_id):
     # 1. Try to get Ride (404 if not found)
     ride = get_object_or_404(RideRequest, id=ride_id)
