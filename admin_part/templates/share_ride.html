@@ -2,7 +2,6 @@
 <html>
   <head>
     <title>Live Ride Location</title>
-    <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&loading=async"></script>
     <style>
       body, html {
         margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,12 +43,8 @@
         border-radius: 50%;
         margin-right: 10px;
       }
-      .from-dot {
-        background: #2ecc71; /* green */
-      }
-      .to-dot {
-        background: #e74c3c; /* red */
-      }
+      .from-dot { background: #2ecc71; }
+      .to-dot { background: #e74c3c; }
       .ride-text {
         flex: 1;
         font-size: 14px;
@@ -80,7 +75,6 @@
       const socket = new WebSocket("wss://{{ request.get_host }}/ws/share-ride/" + sessionId + "/");
 
       async function initMap() {
-        // Initialize map
         map = new google.maps.Map(document.getElementById("map"), {
           zoom: 14,
           center: { lat: {{ from_lat }}, lng: {{ from_lng }} },
@@ -91,7 +85,6 @@
           ]
         });
 
-        // From marker
         fromMarker = new google.maps.Marker({
           position: { lat: {{ from_lat }}, lng: {{ from_lng }} },
           map: map,
@@ -99,7 +92,6 @@
           title: "Pickup: {{ from_location }}"
         });
 
-        // To marker
         toMarker = new google.maps.Marker({
           position: { lat: {{ to_lat }}, lng: {{ to_lng }} },
           map: map,
@@ -107,14 +99,12 @@
           title: "Drop: {{ to_location }}"
         });
 
-        // Live marker
         liveMarker = new google.maps.Marker({ 
           map: map,
           icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
           title: "Live Location"
         });
 
-        // Initial location
         try {
           const res = await fetch("https://{{ request.get_host }}/emergency-share/" + sessionId + "/");
           if (res.ok) {
@@ -133,11 +123,16 @@
       socket.onmessage = function(e) {
         const data = JSON.parse(e.data);
         const pos = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
-        liveMarker.setPosition(pos);
-        map.setCenter(pos);
+        if (liveMarker) {
+          liveMarker.setPosition(pos);
+          map.setCenter(pos);
+        }
       };
+    </script>
 
-      window.onload = initMap;
+    <!-- Load Google Maps API with callback -->
+    <script async defer 
+      src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&callback=initMap">
     </script>
   </body>
 </html>
