@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Live Ride Location</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&loading=async"></script>
+    <style>
+      body, html { margin: 0; padding: 0; height: 100%; }
+      #map { height: 90vh; width: 100%; }
+      #ride-info { padding: 10px; background: #f9f9f9; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif; }
+      #ride-info strong { color: #333; }
+    </style>
+  </head>
+  <body>
+    <div id="ride-info">
+      🚖 <strong>Ride Info:</strong><br>
+      From: {{ from_location }} <br>
+      To: {{ to_location }}
+    </div>
+    <div id="map"></div>
+    
+    <script>
+      let map, liveMarker, fromMarker, toMarker;
+      const sessionId = "{{ session_id }}";  // dynamic from Django
+      const socket = new WebSocket("wss://{{ request.get_host }}/ws/share-ride/" + sessionId + "/");
+
+      async function initMap() {
+        // Initialize map
+        map = new google.maps.Map(document.getElementById("map"), {
+          zoom: 14,
+          center: { lat: {{ from_lat }}, lng: {{ from_lng }} } // start from pickup
+        });
+
+        // From marker
+        fromMarker = new google.maps.Marker({
+          position: { lat: {{ from_lat }}, lng: {{ from_lng }} },
+          map: map,
+          label: "A",
+          title: "Pickup: {{ from_location }}"
+        });
+
+        // To marker
+        toMarker = new google.maps.Marker({
+          position: { lat: {{ to_lat }}, lng: {{ to_lng }} },
+          map: map,
+          label: "B",
+          title: "Drop: {{ to_location }}"
+        });
+
+        // Live marker for user
+        liveMarker = new google.maps.Marker({ 
+          map: map,
+          icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+          title: "Live Location"
+        });
+
+        // Fetch initial location
+        try {
+          const res = await fetch("https://{{ request.get_host }}/emergency-share/" + sessionId + "/");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.latitude && data.longitude) {
+              const pos = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
+              liveMarker.setPosition(pos);
+              map.setCenter(pos);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching initial location", err);
+        }
+      }
+
+      socket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        const pos = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
+        liveMarker.setPosition(pos);
+        map.setCenter(pos);
+      };
+
+      window.onload = initMap;
+    </script>
+  </body>
+</html>

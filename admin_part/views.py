@@ -1023,3 +1023,28 @@ def delete_ride_report(request, report_id):
     
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+    
+
+
+# ride share details
+from django.shortcuts import render, get_object_or_404
+from django.conf import settings
+from rider_part.models import RideLocationSession
+
+def share_ride_view(request, session_id):
+    session = get_object_or_404(RideLocationSession, session_id=session_id)
+    ride = session.ride  # assuming you linked RideLocationSession to RideRequest via FK
+
+    if session.is_expired():
+        return render(request, "rider_part/link_expired.html", {"session_id": session_id})
+
+    return render(request, "rider_part/share_ride.html", {
+        "session_id": session_id,
+        "from_location": ride.from_location,
+        "to_location": ride.to_location,
+        "from_lat": float(ride.from_latitude),
+        "from_lng": float(ride.from_longitude),
+        "to_lat": float(ride.to_latitude),
+        "to_lng": float(ride.to_longitude),
+        "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY
+    })

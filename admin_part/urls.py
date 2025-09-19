@@ -80,5 +80,10 @@ urlpatterns = [
     path('settings/report/update/<int:report_id>/', views.update_ride_report, name='update_ride_report'),
     path('settings/report/delete/<int:report_id>/', views.delete_ride_report, name='delete_ride_report'),
 
+
+
+    # share ride
+    path("share-ride/<uuid:session_id>/", views.share_ride_view, name="share_ride"),
+
 ]
     
