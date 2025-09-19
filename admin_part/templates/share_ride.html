@@ -1,315 +1,93 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Ride Location</title>
     <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&loading=async"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      }
-      
       body, html {
-        height: 100%;
-        background: #f5f7fa;
+        margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: #f4f6f8;
       }
-      
-      .container {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-      }
-      
-      .header {
-        background: linear-gradient(135deg, #4a6bdf 0%, #322fd6 100%);
-        color: white;
-        padding: 16px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      }
-      
-      .header h1 {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      
-      .header h1 i {
-        font-size: 1.8rem;
-      }
-      
-      .ride-info-card {
+      #map { height: 100vh; width: 100%; }
+
+      /* Ride info card */
+      #ride-info {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
         background: white;
         border-radius: 12px;
-        padding: 16px;
-        margin-top: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        padding: 15px 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        width: 90%;
+        max-width: 400px;
+        z-index: 1000;
       }
-      
-      .location-row {
-        display: flex;
-        align-items: center;
-        margin-bottom: 12px;
-        padding: 10px;
-        border-radius: 8px;
-        transition: background-color 0.2s;
-      }
-      
-      .location-row:hover {
-        background-color: #f9fafc;
-      }
-      
-      .location-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 12px;
-        flex-shrink: 0;
-      }
-      
-      .from-icon {
-        background-color: #e3f2fd;
-        color: #1565c0;
-      }
-      
-      .to-icon {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-      }
-      
-      .location-text {
-        flex: 1;
-      }
-      
-      .location-label {
-        font-size: 0.8rem;
-        color: #78909c;
-        margin-bottom: 4px;
-      }
-      
-      .location-value {
-        font-weight: 500;
-        color: #37474f;
-      }
-      
-      .divider {
-        height: 20px;
-        width: 2px;
-        background: #e0e0e0;
-        margin-left: 17px;
-        margin-bottom: 5px;
-      }
-      
-      #map {
-        flex: 1;
-        width: 100%;
-      }
-      
-      .status-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 16px;
-        background: white;
-        border-top: 1px solid #e0e0e0;
-        font-size: 0.9rem;
-        color: #546e7a;
-      }
-      
-      .driver-info {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      
-      .driver-avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: #bbdefb;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #0d47a1;
-        font-weight: bold;
-      }
-      
-      .eta {
+      #ride-info h3 {
+        margin: 0 0 10px;
+        font-size: 18px;
         font-weight: 600;
-        color: #4a6bdf;
+        color: #333;
       }
-      
-      @media (max-width: 600px) {
-        .header h1 {
-          font-size: 1.3rem;
-        }
-        
-        .location-value {
-          font-size: 0.9rem;
-        }
-        
-        .status-bar {
-          flex-direction: column;
-          gap: 8px;
-          align-items: flex-start;
-        }
+      .ride-location {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .ride-location:last-child {
+        margin-bottom: 0;
+      }
+      .ride-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 10px;
+      }
+      .from-dot {
+        background: #2ecc71; /* green */
+      }
+      .to-dot {
+        background: #e74c3c; /* red */
+      }
+      .ride-text {
+        flex: 1;
+        font-size: 14px;
+        color: #444;
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="header">
-        <h1><i class="fas fa-taxi"></i> Live Ride Tracking</h1>
-        <div class="ride-info-card">
-          <div class="location-row">
-            <div class="location-icon from-icon">
-              <i class="fas fa-location-arrow"></i>
-            </div>
-            <div class="location-text">
-              <div class="location-label">FROM</div>
-              <div class="location-value">{{ from_location }}</div>
-            </div>
-          </div>
-          
-          <div class="divider"></div>
-          
-          <div class="location-row">
-            <div class="location-icon to-icon">
-              <i class="fas fa-flag-checkered"></i>
-            </div>
-            <div class="location-text">
-              <div class="location-label">TO</div>
-              <div class="location-value">{{ to_location }}</div>
-            </div>
-          </div>
-        </div>
+    <!-- Ride Info Card -->
+    <div id="ride-info">
+      <h3>🚖 Ride Info</h3>
+      <div class="ride-location">
+        <div class="ride-dot from-dot"></div>
+        <div class="ride-text"><strong>From:</strong> {{ from_location }}</div>
       </div>
-      
-      <div id="map"></div>
-      
-     
+      <div class="ride-location">
+        <div class="ride-dot to-dot"></div>
+        <div class="ride-text"><strong>To:</strong> {{ to_location }}</div>
+      </div>
     </div>
+
+    <!-- Map -->
+    <div id="map"></div>
     
     <script>
       let map, liveMarker, fromMarker, toMarker;
-      const sessionId = "{{ session_id }}";  // dynamic from Django
+      const sessionId = "{{ session_id }}";  
       const socket = new WebSocket("wss://{{ request.get_host }}/ws/share-ride/" + sessionId + "/");
 
       async function initMap() {
         // Initialize map
         map = new google.maps.Map(document.getElementById("map"), {
           zoom: 14,
-          center: { lat: {{ from_lat }}, lng: {{ from_lng }} }, // start from pickup
+          center: { lat: {{ from_lat }}, lng: {{ from_lng }} },
+          disableDefaultUI: true,
           styles: [
-            {
-              "elementType": "geometry",
-              "stylers": [{ "color": "#f5f5f5" }]
-            },
-            {
-              "elementType": "labels.icon",
-              "stylers": [{ "visibility": "off" }]
-            },
-            {
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#616161" }]
-            },
-            {
-              "elementType": "labels.text.stroke",
-              "stylers": [{ "color": "#f5f5f5" }]
-            },
-            {
-              "featureType": "administrative.land_parcel",
-              "stylers": [{ "visibility": "off" }]
-            },
-            {
-              "featureType": "administrative.land_parcel",
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#bdbdbd" }]
-            },
-            {
-              "featureType": "administrative.neighborhood",
-              "stylers": [{ "visibility": "off" }]
-            },
-            {
-              "featureType": "poi",
-              "elementType": "geometry",
-              "stylers": [{ "color": "#eeeeee" }]
-            },
-            {
-              "featureType": "poi",
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#757575" }]
-            },
-            {
-              "featureType": "poi.park",
-              "elementType": "geometry",
-              "stylers": [{ "color": "#e5e5e5" }]
-            },
-            {
-              "featureType": "poi.park",
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#9e9e9e" }]
-            },
-            {
-              "featureType": "road",
-              "elementType": "geometry",
-              "stylers": [{ "color": "#ffffff" }]
-            },
-            {
-              "featureType": "road",
-              "elementType": "labels.icon",
-              "stylers": [{ "visibility": "off" }]
-            },
-            {
-              "featureType": "road.arterial",
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#757575" }]
-            },
-            {
-              "featureType": "road.highway",
-              "elementType": "geometry",
-              "stylers": [{ "color": "#dadada" }]
-            },
-            {
-              "featureType": "road.highway",
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#616161" }]
-            },
-            {
-              "featureType": "road.local",
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#9e9e9e" }]
-            },
-            {
-              "featureType": "transit.line",
-              "elementType": "geometry",
-              "stylers": [{ "color": "#e5e5e5" }]
-            },
-            {
-              "featureType": "transit.station",
-              "elementType": "geometry",
-              "stylers": [{ "color": "#eeeeee" }]
-            },
-            {
-              "featureType": "water",
-              "elementType": "geometry",
-              "stylers": [{ "color": "#c9c9c9" }]
-            },
-            {
-              "featureType": "water",
-              "elementType": "labels.text.fill",
-              "stylers": [{ "color": "#9e9e9e" }]
-            }
+            { featureType: "poi", stylers: [{ visibility: "off" }] },
+            { featureType: "transit", stylers: [{ visibility: "off" }] }
           ]
         });
 
@@ -317,14 +95,7 @@
         fromMarker = new google.maps.Marker({
           position: { lat: {{ from_lat }}, lng: {{ from_lng }} },
           map: map,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: "#1565C0",
-            fillOpacity: 1,
-            strokeColor: "#FFFFFF",
-            strokeWeight: 2
-          },
+          label: "A",
           title: "Pickup: {{ from_location }}"
         });
 
@@ -332,28 +103,18 @@
         toMarker = new google.maps.Marker({
           position: { lat: {{ to_lat }}, lng: {{ to_lng }} },
           map: map,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: "#2E7D32",
-            fillOpacity: 1,
-            strokeColor: "#FFFFFF",
-            strokeWeight: 2
-          },
+          label: "B",
           title: "Drop: {{ to_location }}"
         });
 
-        // Live marker for user
+        // Live marker
         liveMarker = new google.maps.Marker({ 
           map: map,
-          icon: {
-            url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-            scaledSize: new google.maps.Size(40, 40)
-          },
+          icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
           title: "Live Location"
         });
 
-        // Fetch initial location
+        // Initial location
         try {
           const res = await fetch("https://{{ request.get_host }}/emergency-share/" + sessionId + "/");
           if (res.ok) {
