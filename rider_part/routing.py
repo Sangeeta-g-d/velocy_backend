@@ -17,4 +17,7 @@ websocket_urlpatterns = [
 
     # ride completion consumer
     re_path(r'ws/ride/completion/(?P<ride_id>\d+)/$', RideCompletionConsumer.as_asgi()),
+
+    # ride sharing in emergency
+    re_path(r"ws/share-ride/(?P<session_id>\w+)/$", RideLocationConsumer.as_asgi()),
 ]

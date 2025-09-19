@@ -293,13 +293,64 @@ class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
         ride.start_time = current_time
         ride.save()
 
+        expiry = current_time + timedelta(hours=12)
+        session = RideLocationSession.objects.create(
+            ride=ride,
+            expiry_time=expiry
+        )
         ist_time = current_time.astimezone(pytz.timezone("Asia/Kolkata"))
 
         return Response({
             "ride_id": ride.id,
             "start_time": current_time,
-            "start_time_ist": ist_time.strftime('%Y-%m-%d %I:%M %p')
+            "start_time_ist": ist_time.strftime('%Y-%m-%d %I:%M %p'),
+            "session_id": str(session.session_id),
+            "expiry_time": session.expiry_time,
+
         }, status=status.HTTP_200_OK)
+
+
+class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
+    def post(self, request, session_id):
+        try:
+            session = RideLocationSession.objects.get(session_id=session_id)
+        except RideLocationSession.DoesNotExist:
+            return Response({"detail": "Invalid session."}, status=status.HTTP_404_NOT_FOUND)
+
+        if session.is_expired():
+            return Response({"detail": "Session expired."}, status=status.HTTP_403_FORBIDDEN)
+
+        lat = request.data.get("latitude")
+        lon = request.data.get("longitude")
+
+        if not lat or not lon:
+            return Response({"detail": "Latitude and longitude are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        update = RideLocationUpdate.objects.create(
+            session=session,
+            latitude=lat,
+            longitude=lon
+        )
+
+        # 🔴 Push to WebSocket group
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"ride_session_{session.session_id}",
+            {
+                "type": "location_update",
+                "latitude": update.latitude,
+                "longitude": update.longitude,
+                "recorded_at": str(update.recorded_at),
+            }
+        )
+
+        return Response({
+            "latitude": update.latitude,
+            "longitude": update.longitude,
+            "recorded_at": update.recorded_at
+        }, status=status.HTTP_201_CREATED)
+
+
 
 
 class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
@@ -314,6 +365,11 @@ class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
 
         ride.end_time = timezone.now()
         ride.save()
+
+                # ✅ Expire session immediately
+        if hasattr(ride, "location_session"):
+            ride.location_session.expiry_time = timezone.now()
+            ride.location_session.save()
 
         # Convert to IST for response
         ist_time = ride.end_time.astimezone(pytz.timezone("Asia/Kolkata"))
@@ -337,6 +393,32 @@ class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
             "end_time_utc": ride.end_time,
             "end_time_ist": ist_time.strftime('%Y-%m-%d %I:%M %p')
         }, status=status.HTTP_200_OK)
+
+
+# public ride location
+class EmergencyShareAPIView(APIView):
+    permission_classes = []  # Public
+
+    def get(self, request, session_id):
+        try:
+            session = RideLocationSession.objects.get(session_id=session_id)
+        except RideLocationSession.DoesNotExist:
+            return Response({"detail": "Invalid link"}, status=status.HTTP_404_NOT_FOUND)
+
+        if session.is_expired():
+            return Response({"detail": "Link expired"}, status=status.HTTP_403_FORBIDDEN)
+
+        latest_update = session.updates.order_by("-recorded_at").first()
+        if not latest_update:
+            return Response({"detail": "No location yet"}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            "latitude": latest_update.latitude,
+            "longitude": latest_update.longitude,
+            "updated_at": latest_update.recorded_at
+        })
+
+
 
 # Generate OTP and sending to the rider
 class GenerateRideOTPView(StandardResponseMixin,APIView):

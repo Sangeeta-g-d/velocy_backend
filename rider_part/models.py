@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from admin_part.models import City,VehicleType
 from django.core.validators import MinValueValidator, MaxValueValidator
 import random
+import uuid
 from django.utils import timezone
 from datetime import timedelta
 from ride_sharing.models import RideJoinRequest
@@ -66,6 +67,39 @@ class RideRequest(models.Model):
 
     def __str__(self):
         return f"Ride by {self.user} - {self.from_location} → {self.to_location}"
+
+
+class RideLocationSession(models.Model):
+    ride = models.OneToOneField(
+        "RideRequest",
+        on_delete=models.CASCADE,
+        related_name="location_session"
+    )
+    session_id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        db_index=True
+    )
+    expiry_time = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return timezone.now() > self.expiry_time
+
+
+class RideLocationUpdate(models.Model):
+    session = models.ForeignKey(
+        RideLocationSession,
+        on_delete=models.CASCADE,
+        related_name="updates"
+    )
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.session.ride.id} → ({self.latitude}, {self.longitude})"
 
 
 class RideStop(models.Model):
