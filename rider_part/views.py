@@ -5,6 +5,7 @@ from admin_part.models import VehicleType, CityVehiclePrice
 from .serializers import *
 from rest_framework import generics, permissions
 from django.db.models import Sum
+from rest_framework.decorators import api_view
 from django.db.models import Avg
 from decimal import Decimal, InvalidOperation
 from decimal import Decimal
@@ -986,3 +987,81 @@ class ActiveRideAPIView(APIView):
 
         serializer = ActiveRideSerializer(ride)
         return Response(serializer.data)
+    
+
+
+# update live location
+
+
+class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
+    def post(self, request, ride_id):
+        try:
+            session = RideLocationSession.objects.get(ride__id=ride_id)
+        except RideLocationSession.DoesNotExist:
+            return Response({"detail": "No active session for this ride."}, status=status.HTTP_404_NOT_FOUND)
+
+        if session.is_expired():
+            return Response({"detail": "Session expired."}, status=status.HTTP_403_FORBIDDEN)
+
+        lat = request.data.get("latitude")
+        lon = request.data.get("longitude")
+
+        if not lat or not lon:
+            return Response({"detail": "Latitude and longitude are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        update = RideLocationUpdate.objects.create(
+            session=session,
+            latitude=lat,
+            longitude=lon
+        )
+
+        # Push to WebSocket group (based on ride id now)
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"ride_session_{ride_id}",
+            {
+                "type": "location_update",
+                "latitude": str(update.latitude),
+                "longitude": str(update.longitude),
+                "recorded_at": str(update.recorded_at),
+            }
+        )
+
+        return Response({
+            "latitude": update.latitude,
+            "longitude": update.longitude,
+            "recorded_at": update.recorded_at
+        }, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+def stop_sharing_view(request, ride_id):
+    try:
+        ride = RideRequest.objects.get(id=ride_id)
+    except RideRequest.DoesNotExist:
+        return Response(
+            {"error": "Ride not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    try:
+        session = ride.location_session
+    except RideLocationSession.DoesNotExist:
+        return Response(
+            {"error": "No active sharing session found for this ride"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Expire session immediately
+    session.expiry_time = timezone.now()
+    session.save(update_fields=["expiry_time"])
+
+    return Response(
+        {
+            "message": "Sharing stopped successfully",
+            "ride_id": ride.id,
+            "session_id": str(session.session_id),
+            "expired_at": session.expiry_time
+        },
+        status=status.HTTP_200_OK
+    )

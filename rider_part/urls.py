@@ -51,6 +51,10 @@ urlpatterns = [
 
 
     path('chat-history/<int:ride_id>/', RideChatHistoryAPIView.as_view(), name='ride-chat-history'),
-    path('active-rides/',ActiveRideAPIView.as_view(),name="active-rides")
+    path('active-rides/',ActiveRideAPIView.as_view(),name="active-rides"),
+
+    # share live location
+    path("update-live-location/<int:ride_id>/", RideLocationUpdateAPIView.as_view(), name="ride-location-update"),
+    path("stop-sharing-location/<int:ride_id>/", stop_sharing_view, name="stop-sharing"),
     
 ]

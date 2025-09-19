@@ -48,8 +48,7 @@ urlpatterns = [
     path('driver-active-rides/', DriverActiveRideAPIView.as_view(), name='driver-active-ride'),
 
 
-    # share live location
-    path("update-live-location/<int:ride_id>/", RideLocationUpdateAPIView.as_view(), name="ride-location-update"),
+    
 ]
 
 

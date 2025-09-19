@@ -310,48 +310,6 @@ class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
         }, status=status.HTTP_200_OK)
 
 
-class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
-    def post(self, request, ride_id):
-        try:
-            session = RideLocationSession.objects.get(ride__id=ride_id)
-        except RideLocationSession.DoesNotExist:
-            return Response({"detail": "No active session for this ride."}, status=status.HTTP_404_NOT_FOUND)
-
-        if session.is_expired():
-            return Response({"detail": "Session expired."}, status=status.HTTP_403_FORBIDDEN)
-
-        lat = request.data.get("latitude")
-        lon = request.data.get("longitude")
-
-        if not lat or not lon:
-            return Response({"detail": "Latitude and longitude are required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        update = RideLocationUpdate.objects.create(
-            session=session,
-            latitude=lat,
-            longitude=lon
-        )
-
-        # Push to WebSocket group (based on ride id now)
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"ride_session_{ride_id}",
-            {
-                "type": "location_update",
-                "latitude": str(update.latitude),
-                "longitude": str(update.longitude),
-                "recorded_at": str(update.recorded_at),
-            }
-        )
-
-        return Response({
-            "latitude": update.latitude,
-            "longitude": update.longitude,
-            "recorded_at": update.recorded_at
-        }, status=status.HTTP_201_CREATED)
-
-
-
 class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
     def post(self, request, ride_id):
         try:
