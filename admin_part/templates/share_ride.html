@@ -71,7 +71,7 @@
     
     <script>
       let map, liveMarker, fromMarker, toMarker;
-      const sessionId = "{{ session_id }}";  
+      const sessionId = "{{ ride_id }}";  
       const socket = new WebSocket("wss://{{ request.get_host }}/ws/share-ride/" + sessionId + "/");
 
       async function initMap() {

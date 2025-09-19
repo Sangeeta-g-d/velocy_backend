@@ -462,15 +462,13 @@ class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
 
 class RideLocationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.session_id = self.scope['url_route']['kwargs']['session_id']
-        self.group_name = f"ride_session_{self.session_id}"
+        self.ride_id = self.scope['url_route']['kwargs']['ride_id']
+        self.room_group_name = f"ride_session_{self.ride_id}"
 
-        # Join group
         await self.channel_layer.group_add(
-            self.group_name,
+            self.room_group_name,
             self.channel_name
         )
-
         await self.accept()
 
     async def disconnect(self, close_code):

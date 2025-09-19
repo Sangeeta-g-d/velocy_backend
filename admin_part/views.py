@@ -1039,7 +1039,7 @@ def share_ride_view(request, session_id):
         return render(request, "link_expired.html", {"session_id": session_id})
 
     return render(request, "share_ride.html", {
-        "session_id": session_id,
+        "ride_id": ride.id,
         "from_location": ride.from_location,
         "to_location": ride.to_location,
         "from_lat": float(ride.from_latitude),

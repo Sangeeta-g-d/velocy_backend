@@ -311,11 +311,11 @@ class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
 
 
 class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
-    def post(self, request, session_id):
+    def post(self, request, ride_id):
         try:
-            session = RideLocationSession.objects.get(session_id=session_id)
+            session = RideLocationSession.objects.get(ride__id=ride_id)
         except RideLocationSession.DoesNotExist:
-            return Response({"detail": "Invalid session."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "No active session for this ride."}, status=status.HTTP_404_NOT_FOUND)
 
         if session.is_expired():
             return Response({"detail": "Session expired."}, status=status.HTTP_403_FORBIDDEN)
@@ -332,14 +332,14 @@ class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
             longitude=lon
         )
 
-        # 🔴 Push to WebSocket group
+        # Push to WebSocket group (based on ride id now)
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            f"ride_session_{session.session_id}",
+            f"ride_session_{ride_id}",
             {
                 "type": "location_update",
-                "latitude": update.latitude,
-                "longitude": update.longitude,
+                "latitude": str(update.latitude),
+                "longitude": str(update.longitude),
                 "recorded_at": str(update.recorded_at),
             }
         )
@@ -349,6 +349,7 @@ class RideLocationUpdateAPIView(StandardResponseMixin, APIView):
             "longitude": update.longitude,
             "recorded_at": update.recorded_at
         }, status=status.HTTP_201_CREATED)
+
 
 
 
