@@ -507,8 +507,6 @@ class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
             "payment_summary": payment_info
         }, status=status.HTTP_200_OK)
 
-
-# update payment status
 class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -598,6 +596,17 @@ class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
                     transaction_type='ride_earning',
                     description=f"Earnings for Ride #{ride.id} | Base: ₹{base_earning} - Platform Fee: ₹{platform_fee} + Tip: ₹{tip}"
                 )
+
+        # ✅ WebSocket notification to user (for all payment types)
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'payment_normal_ride_{ride.id}',
+            {
+                'type': 'payment_status_update',
+                'payment_status': payment_status,
+                'message': f"Driver acknowledged payment for Ride #{ride.id}.",
+            }
+        )
 
         return Response({
             "success": True,
