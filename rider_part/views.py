@@ -419,7 +419,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         elif payment_method == 'cash':
             ride.status = 'completed'
             ride.save()
-
+        
             # ---- Platform Fee (deferred) ----
             platform_fee = Decimal('0')
             active_fee = PlatformSetting.objects.filter(is_active=True).first()
@@ -428,7 +428,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
                 else:
                     platform_fee = active_fee.fee_value
-
+        
             # ---- Record pending fee ----
             DriverPendingFee.objects.create(
                 driver=ride.driver,
@@ -436,10 +436,10 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                 amount=platform_fee,
                 settled=False
             )
-
+        
             # ---- Driver gets full fare immediately ----
             net_earning = driver_earning + tip_amount
-
+        
             DriverWalletTransaction.objects.create(
                 driver=ride.driver,
                 ride=ride,
@@ -447,7 +447,18 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                 transaction_type='ride_earning',
                 description=f"Cash payment for Ride #{ride.id} (platform fee {platform_fee} deferred)"
             )
-
+        
+            # ---- WebSocket message to driver ----
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'payment_normal_ride_{ride.id}',
+                {
+                    'type': 'payment_status_update',
+                    'payment_status': 'cash_pending',
+                    'message': f"Passenger selected cash for Ride #{ride.id}. Please collect the fare.",
+                }
+            )
+        
         # ------------------------------------------------------------------
         # 5) SAVE PAYMENT RECORD
         # ------------------------------------------------------------------
