@@ -54,17 +54,41 @@
   </head>
   <body>
     <!-- Ride Info Card -->
-    <div id="ride-info">
-      <h3>🚖 Ride Info</h3>
-      <div class="ride-location">
-        <div class="ride-dot from-dot"></div>
-        <div class="ride-text"><strong>From:</strong> {{ from_location }}</div>
-      </div>
-      <div class="ride-location">
-        <div class="ride-dot to-dot"></div>
-        <div class="ride-text"><strong>To:</strong> {{ to_location }}</div>
-      </div>
+   <div id="ride-info">
+  <h3>🚖 Ride Info</h3>
+  <div class="ride-location">
+    <div class="ride-dot from-dot"></div>
+    <div class="ride-text"><strong>From:</strong> {{ from_location }}</div>
+  </div>
+  <div class="ride-location">
+    <div class="ride-dot to-dot"></div>
+    <div class="ride-text"><strong>To:</strong> {{ to_location }}</div>
+  </div>
+
+  {% if driver %}
+  <hr>
+  <h3>👨‍✈️ Driver</h3>
+  {% if driver_profile %}
+    <div style="text-align:center; margin-bottom:10px;">
+      <img src="{{ driver_profile }}" alt="Driver Profile" 
+           style="width:70px;height:70px;border-radius:50%;object-fit:cover;">
     </div>
+  {% endif %}
+  <p><strong>Name:</strong> {{ driver.username|default:driver.phone_number }}</p>
+  <p><strong>Phone:</strong> {{ driver.phone_number }}</p>
+
+  {% if vehicle_info %}
+  <hr>
+  <h3>🚘 Vehicle</h3>
+  <p><strong>Number:</strong> {{ vehicle_info.vehicle_number }}</p>
+  <p><strong>Type:</strong> {{ vehicle_info.vehicle_type }}</p>
+  <p><strong>Company:</strong> {{ vehicle_info.car_company }}</p>
+  <p><strong>Model:</strong> {{ vehicle_info.car_model }}</p>
+  <p><strong>Year:</strong> {{ vehicle_info.year }}</p>
+  {% endif %}
+  {% endif %}
+</div>
+
 
     <!-- Map -->
     <div id="map"></div>

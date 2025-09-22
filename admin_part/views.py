@@ -1031,7 +1031,6 @@ from django.shortcuts import render, get_object_or_404
 from django.conf import settings
 from rider_part.models import RideLocationSession
 
-
 def share_ride_view(request, ride_id):
     # 1. Try to get Ride (404 if not found)
     ride = get_object_or_404(RideRequest, id=ride_id)
@@ -1040,9 +1039,7 @@ def share_ride_view(request, ride_id):
     try:
         session = ride.location_session
     except RideLocationSession.DoesNotExist:
-        return render(request, "session_not_found.html", {
-            "ride": ride
-        })
+        return render(request, "session_not_found.html", {"ride": ride})
 
     # 3. Check if expired
     if session.is_expired():
@@ -1051,7 +1048,11 @@ def share_ride_view(request, ride_id):
             "expiry_time": session.expiry_time
         })
 
-    # 4. If everything fine → show map
+    # 4. Driver and vehicle info
+    driver = ride.driver
+    vehicle_info = getattr(driver, "vehicle_info", None) if driver else None
+
+    # 5. If everything fine → show map
     return render(request, "share_ride.html", {
         "ride_id": ride.id,
         "from_location": ride.from_location,
@@ -1062,8 +1063,14 @@ def share_ride_view(request, ride_id):
         "to_lng": float(ride.to_longitude),
         "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY,
         "session_id": str(session.session_id),
-        "expiry_time": session.expiry_time
+        "expiry_time": session.expiry_time,
+
+        # new driver + vehicle context
+        "driver": driver,
+        "driver_profile": driver.profile.url if driver and driver.profile else None,
+        "vehicle_info": vehicle_info,
     })
+
 
 
 def link_expiryd(request):
@@ -1074,15 +1081,15 @@ def session_not_found(request):
     return render(request, "session_not_found.html")    
 
 
-
 def ride_route_view(request, ride_id):
     ride = get_object_or_404(RideRequest, id=ride_id)
 
     # Only allow for accepted rides
     if ride.status != "accepted":
-        return render(request, "ride_not_available.html", {
-            "ride": ride
-        })
+        return render(request, "ride_not_available.html", {"ride": ride})
+
+    driver = ride.driver
+    vehicle_info = getattr(driver, "vehicle_info", None) if driver else None
 
     return render(request, "ride_route.html", {
         "ride_id": ride.id,
@@ -1092,7 +1099,12 @@ def ride_route_view(request, ride_id):
         "from_lng": float(ride.from_longitude),
         "to_lat": float(ride.to_latitude),
         "to_lng": float(ride.to_longitude),
-        "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY
+        "GOOGLE_MAPS_API_KEY": settings.GOOGLE_MAPS_API_KEY,
+
+        # extra driver + vehicle info
+        "driver": driver,
+        "driver_profile": driver.profile.url if driver and driver.profile else None,
+        "vehicle_info": vehicle_info,
     })
 
 def ride_not_available(request):

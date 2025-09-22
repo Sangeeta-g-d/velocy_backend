@@ -46,13 +46,36 @@
 </head>
 <body>
   <div class="container">
-    <div class="card">
-      <h2>Ride Route</h2>
-      <p><strong>From:</strong> {{ from_location }}</p>
-      <p><strong>To:</strong> {{ to_location }}</p>
-    </div>
-    <div id="map"></div>
+  <div class="card">
+    <h2>Ride Route</h2>
+    <p><strong>From:</strong> {{ from_location }}</p>
+    <p><strong>To:</strong> {{ to_location }}</p>
   </div>
+
+  {% if driver %}
+  <div class="card">
+    <h2>Driver Details</h2>
+    {% if driver_profile %}
+      <img src="{{ driver_profile }}" alt="Driver Profile" style="width:100px;height:100px;border-radius:50%;object-fit:cover;margin-bottom:10px;">
+    {% endif %}
+    <p><strong>Name:</strong> {{ driver.username|default:driver.phone_number }}</p>
+    <p><strong>Phone:</strong> {{ driver.phone_number }}</p>
+    
+    {% if vehicle_info %}
+    <hr>
+    <h3 style="margin-top:10px;">Vehicle Details</h3>
+    <p><strong>Number:</strong> {{ vehicle_info.vehicle_number }}</p>
+    <p><strong>Type:</strong> {{ vehicle_info.vehicle_type }}</p>
+    <p><strong>Company:</strong> {{ vehicle_info.car_company }}</p>
+    <p><strong>Model:</strong> {{ vehicle_info.car_model }}</p>
+    <p><strong>Year:</strong> {{ vehicle_info.year }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div id="map"></div>
+</div>
+
 
   <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&libraries=places"></script>
   <script>
