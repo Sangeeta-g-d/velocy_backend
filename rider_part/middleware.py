@@ -14,12 +14,10 @@ class JWTAuthMiddleware:
 
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
-        
-        # Allow OTP and admin support connections without authentication
-        if path == "/ws/rider/otp/" or path.startswith("/ws/support/0/"):
+        if path == "/ws/rider/otp/":
             scope['user'] = AnonymousUser()
             return await self.app(scope, receive, send)
-        
+
         query_string = scope.get("query_string", b"").decode()
         query_params = parse_qs(query_string)
         token = query_params.get("token", [None])[0]

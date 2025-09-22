@@ -158,10 +158,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // WebSocket connection
+    const adminToken = "{{ request.session.admin_ws_token }}";
     const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
     const currentHost = window.location.hostname;
     const wsPort = 8001;
-    const ws = new WebSocket(`${wsScheme}://${currentHost}:${wsPort}/ws/support/0/`);
+    const ws = new WebSocket(`${wsScheme}://${window.location.hostname}:${wsPort}/ws/support/0/?token=${adminToken}`);
 
     ws.onopen = function() {
         console.log("[WS] Connected to support admin panel");
@@ -311,12 +312,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 ws.send(JSON.stringify(replyData));
                 replyInput.value = '';
                 
-                // Immediately display the admin's message in the chat
-                displayNewMessage({
-                    message: message,
-                    is_admin: true,
-                    timestamp: new Date().toISOString()
-                });
             } else {
                 showToast("Error: WebSocket not connected.", "error");
             }
