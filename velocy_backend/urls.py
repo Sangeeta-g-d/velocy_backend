@@ -26,6 +26,7 @@ urlpatterns = [
     path('driver/',include('driver_part.urls')),
     path('rent/',include('rent_vehicle.urls')),
     path('sharing/',include('ride_sharing.urls')),
+    path('support/',include('support.urls')),
     path('notification/',include('notifications.urls')),
     path('pooling/',include('car_pooling.urls')),
     path('corporate/',include('corporate_web.urls')),

@@ -140,3 +140,51 @@ class RideReport(models.Model):
 
     def __str__(self):
         return self.report_name
+    
+
+# support category model
+class SupportCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True, help_text="Name of the support query category")
+    priority = models.PositiveIntegerField(
+        default=1,
+        help_text="Priority of the category (lower number = higher priority)"
+    )
+    description = models.TextField(blank=True, null=True, help_text="Optional description about this category")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['priority', 'name']  # Default ordering by priority
+
+    def __str__(self):
+        return f"{self.name} (Priority {self.priority})"
+    
+class SupportChat(models.Model):
+    """
+    Represents a chat session under a specific category.
+    """
+    category = models.ForeignKey(SupportCategory, on_delete=models.SET_NULL, null=True, related_name='chats')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='support_chats')
+    is_active = models.BooleanField(default=True, help_text="True if chat is ongoing")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Chat by {self.user} - {self.category.name}"
+    
+
+class SupportMessage(models.Model):
+    chat = models.ForeignKey(SupportChat, on_delete=models.CASCADE, related_name='messages')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='support_messages')
+    message = models.TextField()
+    is_admin = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        sender = "Admin" if self.is_admin else self.user
+        return f"{sender}: {self.message[:50]}"

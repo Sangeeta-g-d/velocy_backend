@@ -1,0 +1,98 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+
+<div class="container">
+
+<div class="top-controls" style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 class="section-title">Support</h2>
+    <button class="btn btn-black open-modal-btn" data-modal="addQueryTypeModal">+ Add Query Type</button>
+
+  </div>
+
+
+</div>
+
+
+
+<!-- add support category modal -->
+<div class="modal-overlay" id="addQueryTypeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Query Type</h2>
+      <button class="close-btn" onclick="closeModal(document.getElementById('addQueryTypeModal'))">&times;</button>
+    </div>
+    <div class="modal-content">
+      <form id="addQueryTypeForm" method="POST" action="">
+        {% csrf_token %}
+        <div class="form-group">
+          <label class="form-group label">Query Name</label>
+          <input type="text" class="form-control" name="name" placeholder="Enter query type name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-group label">Priority</label>
+          <input type="number" class="form-control" name="priority" placeholder="Enter priority (lower = higher)" value="1" required>
+        </div>
+        <div class="form-group">
+          <label class="form-group label">Description (Optional)</label>
+          <textarea class="form-control" name="description" placeholder="Optional description"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-2" id="submitQueryBtn">
+          <span id="submitText">Add Query Type</span>
+          <span id="submitLoading" style="display: none;">
+            <div class="loading-spinner"></div> Processing...
+          </span>
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('addQueryTypeForm');
+    const submitBtn = document.getElementById('submitQueryBtn');
+    const submitText = document.getElementById('submitText');
+    const submitLoading = document.getElementById('submitLoading');
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Show loading
+        submitText.style.display = 'none';
+        submitLoading.style.display = 'inline-block';
+
+        const formData = new FormData(form);
+
+        fetch("{% url 'add_support_category' %}", {  // make sure this URL is correct in urls.py
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide loading
+            submitText.style.display = 'inline';
+            submitLoading.style.display = 'none';
+
+            if(data.status) {
+                showToast(data.message, "success");
+                form.reset();
+                closeModal(document.getElementById('addQueryTypeModal'));
+                // Optionally, refresh the category list here via JS
+            } else {
+                showToast(data.message || "Something went wrong", "error");
+            }
+        })
+        .catch(err => {
+            submitText.style.display = 'inline';
+            submitLoading.style.display = 'none';
+            showToast("Error: " + err, "error");
+        });
+    });
+});
+</script>
+
+{% endblock %}

@@ -580,18 +580,6 @@ class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # ✅ If cash method and status is 'completed', decrement driver's cash payment count
-        if payment_status == 'completed' and payment_detail.payment_method == 'cash':
-            driver = request.user
-            if driver.cash_payments_left > 0:
-                driver.cash_payments_left -= 1
-                driver.save()
-            else:
-                return Response(
-                    {"detail": "You have no cash payments left."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
         # ✅ Update payment status
         payment_detail.payment_status = payment_status
         payment_detail.save()

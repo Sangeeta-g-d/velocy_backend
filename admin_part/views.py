@@ -1109,3 +1109,28 @@ def ride_route_view(request, ride_id):
 
 def ride_not_available(request):
     return render(request, "ride_not_available.html")
+
+
+def support(request):
+    return render(request,'support.html',{'current_url_name':'support'})
+
+def add_support_category(request):
+    if request.method == "POST":
+        name = request.POST.get("name")
+        priority = request.POST.get("priority") or 1
+        description = request.POST.get("description", "")
+
+        if not name:
+            return JsonResponse({"status": False, "message": "Query name is required."})
+
+        category, created = SupportCategory.objects.get_or_create(
+            name=name,
+            defaults={"priority": priority, "description": description}
+        )
+
+        if not created:
+            return JsonResponse({"status": False, "message": "Query type already exists."})
+
+        return JsonResponse({"status": True, "message": "Support category added successfully!"})
+
+    return JsonResponse({"status": False, "message": "Invalid request method."})

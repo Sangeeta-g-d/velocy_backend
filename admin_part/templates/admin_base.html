@@ -43,6 +43,9 @@
   <li class="{% if current_url_name == 'cash_out' %}active{% endif %}">
     <a href="{% url 'cash_out_requests' %}"><i class="fas fa-wallet"></i> Cash out Requests</a>
   </li>
+  <li class="{% if current_url_name == 'support' %}active{% endif %}">
+    <a href="{% url 'support' %}"><i class="fas fa-wallet"></i>Support</a>
+  </li>
   <li class="{% if current_url_name == 'corporate_request' %}active{% endif %}">
     <a href="{% url 'corporate_requests' %}"><i class="fas fa-building"></i> Approve Companies</a>
   </li>

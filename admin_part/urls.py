@@ -89,5 +89,11 @@ urlpatterns = [
     path("ride-route/<int:ride_id>/", views.ride_route_view, name="ride_route"),
     path("ride-not-available/", views.ride_not_available, name="ride_not_available"),
 
+
+
+    # support 
+    path('support/',views.support,name="support"),
+    path('add_support_category/',views.add_support_category,name="add_support_category"),
+
 ]
     
