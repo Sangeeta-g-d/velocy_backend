@@ -371,3 +371,12 @@ class ActiveRideSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'otp'):
             return obj.otp.is_verified
         return False
+    
+
+
+# add emergency contact
+class EmergencyContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmergencyContact
+        fields = ['id', 'name', 'phone', 'email', 'created_at']
+        read_only_fields = ['id', 'created_at']

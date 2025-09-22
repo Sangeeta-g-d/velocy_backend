@@ -243,3 +243,20 @@ class FavoriteToLocation(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.user.username})"
+
+
+class EmergencyContact(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="emergency_contacts",
+        help_text="Rider who owns this emergency contact"
+    )
+    name = models.CharField(max_length=100, help_text="Emergency contact person's name")
+    phone = models.CharField(max_length=15, help_text="Emergency contact phone number")
+    email = models.EmailField(blank=True, null=True, help_text="Emergency contact email (optional)")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.phone}) - for {self.user}"

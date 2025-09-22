@@ -56,5 +56,7 @@ urlpatterns = [
     # share live location
     path("update-live-location/<int:ride_id>/", RideLocationUpdateAPIView.as_view(), name="ride-location-update"),
     path("stop-sharing-location/<int:ride_id>/", stop_sharing_view, name="stop-sharing"),
+    path("emergency-contacts/", EmergencyContactListCreateAPIView.as_view(), name="emergency-contacts"),
+    path("emergency-contacts/<int:pk>/", EmergencyContactDetailAPIView.as_view(), name="emergency-contact-detail"),
     
 ]

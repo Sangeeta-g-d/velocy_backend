@@ -1078,3 +1078,66 @@ def stop_sharing_view(request, ride_id):
         },
         status=status.HTTP_200_OK
     )
+
+
+# emergency contacts
+class EmergencyContactListCreateAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Get all emergency contacts of the logged-in user"""
+        contacts = EmergencyContact.objects.filter(user=request.user)
+        serializer = EmergencyContactSerializer(contacts, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """Add a new emergency contact for the logged-in user"""
+        serializer = EmergencyContactSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)  # assign logged-in user
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class EmergencyContactDetailAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self, pk, user):
+        """Helper: Get contact only if it belongs to the logged-in user"""
+        try:
+            return EmergencyContact.objects.get(pk=pk, user=user)
+        except EmergencyContact.DoesNotExist:
+            return None
+
+    def put(self, request, pk):
+        """Update an existing emergency contact"""
+        contact = self.get_object(pk, request.user)
+        if not contact:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = EmergencyContactSerializer(contact, data=request.data, partial=False)
+        if serializer.is_valid():
+            serializer.save()  # user is already linked
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk):
+        """Partially update an emergency contact"""
+        contact = self.get_object(pk, request.user)
+        if not contact:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = EmergencyContactSerializer(contact, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        """Delete an emergency contact"""
+        contact = self.get_object(pk, request.user)
+        if not contact:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        contact.delete()
+        return Response({"detail": "Emergency contact deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
