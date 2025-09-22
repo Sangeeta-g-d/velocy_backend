@@ -6,7 +6,6 @@ import datetime
 from datetime import timedelta
 from django.core.validators import MinValueValidator, MaxValueValidator
 
-
 class CustomUserManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
         if not phone_number:
@@ -118,7 +117,12 @@ class DriverVehicleInfo(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='vehicle_info')
 
     vehicle_number = models.CharField(max_length=20)
-    vehicle_type = models.CharField(max_length=50)
+    vehicle_type = models.ForeignKey(
+        "admin_part.VehicleType", 
+        on_delete=models.CASCADE, 
+        related_name="drivers",
+        default=2  # temporary default id for migration
+    )
     year = models.PositiveIntegerField()
     car_company = models.CharField(max_length=50)
     car_model = models.CharField(max_length=50)

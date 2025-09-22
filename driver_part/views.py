@@ -54,29 +54,49 @@ class DriverCashLimitAPIView(StandardResponseMixin, APIView):
             "is_online": user.is_online
         })
 
-    
-class AvailableNowRidesAPIView(APIView):
+    class AvailableNowRidesAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         city_name = request.data.get('city_name')
 
         if not city_name:
-            return Response({"status": False, "message": "City name is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"status": False, "message": "City name is required."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             city = City.objects.get(name__iexact=city_name)
         except City.DoesNotExist:
-            return Response({"status": False, "message": "City not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"status": False, "message": "City not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
+        # Get driver's vehicle type
+        try:
+            driver_vehicle_type = request.user.vehicle_info.vehicle_type
+        except DriverVehicleInfo.DoesNotExist:
+            return Response(
+                {"status": False, "message": "Driver vehicle information not found."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Filter rides by city, pending status, personal ride, and vehicle type match
         rides = RideRequest.objects.filter(
             ride_type='now',
             status='pending',
-            city=city,ride_purpose  = 'personal'  # Only personal rides for now
+            city=city,
+            ride_purpose='personal',
+            vehicle_type=driver_vehicle_type
         ).order_by('-id')
 
         if not rides.exists():
-            return Response({"status": True, "message": "No rides available.", "data": []}, status=status.HTTP_200_OK)
+            return Response(
+                {"status": True, "message": "No rides available.", "data": []}, 
+                status=status.HTTP_200_OK
+            )
 
         serializer = RideNowDestinationSerializer(rides, many=True)
         return Response({
@@ -85,8 +105,8 @@ class AvailableNowRidesAPIView(APIView):
             "data": serializer.data
         }, status=status.HTTP_200_OK)
 
-    
-class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
+
+    class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -100,6 +120,15 @@ class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
         except City.DoesNotExist:
             return Response({"error": "City not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Get driver's vehicle type
+        try:
+            driver_vehicle_type = request.user.vehicle_info.vehicle_type
+        except DriverVehicleInfo.DoesNotExist:
+            return Response(
+                {"error": "Driver vehicle information not found."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Current time + 1 hour (exclude rides starting within the next 1 hour)
         now_plus_1_hour = timezone.now() + timedelta(hours=1)
 
@@ -107,16 +136,18 @@ class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
             ride_type='scheduled',
             status='pending',
             city=city,
-            scheduled_time__gt=now_plus_1_hour  # only rides that are more than 1 hour away
+            vehicle_type=driver_vehicle_type,  # only rides matching driver vehicle type
+            scheduled_time__gt=now_plus_1_hour
         ).exclude(
             declined_by_drivers__driver=request.user
-        )
+        ).order_by('-scheduled_time')
 
         if not rides.exists():
             return Response({"message": "No scheduled rides available."}, status=status.HTTP_200_OK)
 
         serializer = RideNowDestinationSerializer(rides, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
     
 
 class RideRequestDetailAPIView(StandardResponseMixin,APIView):
