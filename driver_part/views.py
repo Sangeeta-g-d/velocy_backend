@@ -13,6 +13,7 @@ from django.db.models import Sum, Avg, Q
 from datetime import datetime
 from decimal import Decimal
 from django.utils import timezone
+from auth_api.models import DriverVehicleInfo
 from datetime import timedelta
 from rest_framework import status
 from auth_api.models import DriverRating
@@ -54,7 +55,7 @@ class DriverCashLimitAPIView(StandardResponseMixin, APIView):
             "is_online": user.is_online
         })
 
-    class AvailableNowRidesAPIView(APIView):
+class AvailableNowRidesAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -106,7 +107,7 @@ class DriverCashLimitAPIView(StandardResponseMixin, APIView):
         }, status=status.HTTP_200_OK)
 
 
-    class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
+class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
