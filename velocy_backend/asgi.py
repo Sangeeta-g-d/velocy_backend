@@ -10,6 +10,7 @@ from rider_part.middleware import JWTAuthMiddleware
 from rider_part.routing import websocket_urlpatterns
 from django.urls import re_path
 from rider_part.consumers import ChatConsumer
+from support.routing import websocket_urlpatterns as support_websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
@@ -18,6 +19,7 @@ application = ProtocolTypeRouter({
         URLRouter([
             re_path(r'^ws/chat/(?P<ride_id>\w+)/$', ChatConsumer.as_asgi()),
             *websocket_urlpatterns,
+            *support_websocket_urlpatterns,
         ])
     ),
 })

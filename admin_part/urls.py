@@ -93,7 +93,9 @@ urlpatterns = [
 
     # support 
     path('support/',views.support,name="support"),
+    path('get-chat-history/<int:chat_id>/', views.get_chat_history, name='get_chat_history'),
     path('add_support_category/',views.add_support_category,name="add_support_category"),
+    path("clear-chat-history/<int:chat_id>/", views.clear_chat_history, name="clear_chat_history"),
 
 ]
     

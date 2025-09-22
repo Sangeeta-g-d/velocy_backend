@@ -100,7 +100,7 @@ class ApprovedVehiclesListAPIView(APIView):
         vehicle_type = request.query_params.get('vehicle_type')  # Get vehicle type from query params
 
         # Base queryset
-        vehicles = RentedVehicle.objects.filter(is_approved=True).exclude(user=request.user)
+        vehicles = RentedVehicle.objects.filter(is_approved=True)
 
         # Apply filter if vehicle_type is provided and valid
         if vehicle_type in dict(RentedVehicle.VEHICLE_TYPE_CHOICES).keys():

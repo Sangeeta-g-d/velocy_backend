@@ -160,9 +160,6 @@ class SupportCategory(models.Model):
         return f"{self.name} (Priority {self.priority})"
     
 class SupportChat(models.Model):
-    """
-    Represents a chat session under a specific category.
-    """
     category = models.ForeignKey(SupportCategory, on_delete=models.SET_NULL, null=True, related_name='chats')
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='support_chats')
     is_active = models.BooleanField(default=True, help_text="True if chat is ongoing")
@@ -173,7 +170,12 @@ class SupportChat(models.Model):
 
     def __str__(self):
         return f"Chat by {self.user} - {self.category.name}"
-    
+
+    def clear_history(self):
+        """Mark chat inactive and delete all messages."""
+        self.is_active = False
+        self.save(update_fields=['is_active'])
+        self.messages.all().delete()
 
 class SupportMessage(models.Model):
     chat = models.ForeignKey(SupportChat, on_delete=models.CASCADE, related_name='messages')

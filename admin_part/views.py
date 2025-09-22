@@ -1110,9 +1110,30 @@ def ride_route_view(request, ride_id):
 def ride_not_available(request):
     return render(request, "ride_not_available.html")
 
-
 def support(request):
-    return render(request,'support.html',{'current_url_name':'support'})
+    """
+    Renders the support page with a list of active support chats and their messages.
+    """
+    # Prefetch related messages to avoid N+1 query problem.
+    # We order messages by creation date to get the history in the correct order.
+    # Filter for active chats only.
+    active_chats = SupportChat.objects.filter(is_active=True).select_related(
+        'user', 
+        'category'
+    ).prefetch_related(
+        Prefetch(
+            'messages',
+            queryset=SupportMessage.objects.order_by('created_at').select_related('user'),
+            to_attr='chat_messages'
+        )
+    ).order_by('-created_at') # Order chats by most recent first
+
+    context = {
+        'current_url_name': 'support',
+        'active_chats': active_chats,
+    }
+    return render(request, 'support.html', context)
+
 
 def add_support_category(request):
     if request.method == "POST":
@@ -1134,3 +1155,35 @@ def add_support_category(request):
         return JsonResponse({"status": True, "message": "Support category added successfully!"})
 
     return JsonResponse({"status": False, "message": "Invalid request method."})
+
+
+def get_chat_history(request, chat_id):
+    """
+    Returns the message history for a specific chat as JSON.
+    """
+    try:
+        chat = SupportChat.objects.get(id=chat_id)
+        messages = chat.messages.all().order_by('created_at')
+        
+        message_list = [
+            {
+                'message': msg.message,
+                'is_admin': msg.is_admin,
+                'created_at': msg.created_at.isoformat(),
+            }
+            for msg in messages
+        ]
+        
+        return JsonResponse({'messages': message_list})
+    except SupportChat.DoesNotExist:
+        return JsonResponse({'error': 'Chat not found'}, status=404)
+    
+
+@require_POST
+def clear_chat_history(request, chat_id):
+    chat = get_object_or_404(SupportChat, id=chat_id)
+    chat.clear_history()
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"status": True, "message": "Chat history cleared."})
+    messages.success(request, f"Chat history for {chat} has been cleared.")
+    return redirect("support_page")

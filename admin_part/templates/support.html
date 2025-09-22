@@ -1,97 +1,399 @@
 {% extends 'admin_base.html' %}
 {% block content %}
+<link rel="stylesheet" href="/static/assets/css/support.css">
+<div class="support-page-container">
+    <div class="chat-list-panel">
+        <div class="top-controls mb-3">
+            <h2 class="section-title">Support</h2>
+            <button class="btn btn-black open-modal-btn" data-modal="addQueryTypeModal">+ Add Query Type</button>
+        </div>
+        <div class="chat-list" id="supportChatList">
+            {% for chat in active_chats %}
+            <div class="chat-item" data-chat-id="{{ chat.id }}" id="chat-{{ chat.id }}">
+                <div class="profile-pic">
+                    <img src="{{ chat.user.profile.url|default:'/static/default-profile.png' }}" 
+                         onerror="this.src='/static/default-profile.png'"/>
+                </div>
+                <div class="chat-info">
+                    <div class="chat-header">
+                        <strong class="user-name">{{ chat.user.username|default:'Unknown User' }}</strong>
+                        <span class="priority">Priority: {{ chat.category.priority }}</span>
+                    </div>
+                    <div class="chat-category">
+                        Category: {{ chat.category.name|default:'General' }}
+                    </div>
+                    {% with last_message=chat.chat_messages|last %}
+                    <p class="last-message">
+                        {{ last_message.message|truncatechars:100 }}
+                    </p>
+                    <div class="message-time">
+                        {{ last_message.created_at|date:"P" }}
+                    </div>
+                    {% endwith %}
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-center text-muted mt-5">No active chats at the moment.</p>
+            {% endfor %}
+        </div>
+    </div>
 
-<div class="container">
-
-<div class="top-controls" style="display: flex; justify-content: space-between; align-items: center;">
-    <h2 class="section-title">Support</h2>
-    <button class="btn btn-black open-modal-btn" data-modal="addQueryTypeModal">+ Add Query Type</button>
-
-  </div>
-
-
+    <div class="chat-history-panel" id="chat-history-panel">
+        <div class="chat-history-header">
+            <div class="chat-history-header">
+    <button id="clear-history-btn" class="btn btn-danger" style="display:none;">
+        Clear History
+    </button>
+</div>
+            </div>
+        <div class="message-container" id="message-container">
+            <div class="history-placeholder" id="history-placeholder">
+                <p>Select a chat to start messaging.</p>
+            </div>
+        </div>
+        <div class="input-area" id="reply-form-group" style="display: none;">
+            <input type="text" id="reply-input" placeholder="Type a message...">
+            <button id="send-reply-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+        </div>
+    </div>
 </div>
 
-
-
-<!-- add support category modal -->
 <div class="modal-overlay" id="addQueryTypeModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h2>Add Query Type</h2>
-      <button class="close-btn" onclick="closeModal(document.getElementById('addQueryTypeModal'))">&times;</button>
-    </div>
-    <div class="modal-content">
-      <form id="addQueryTypeForm" method="POST" action="">
-        {% csrf_token %}
-        <div class="form-group">
-          <label class="form-group label">Query Name</label>
-          <input type="text" class="form-control" name="name" placeholder="Enter query type name" required>
-        </div>
-        <div class="form-group">
-          <label class="form-group label">Priority</label>
-          <input type="number" class="form-control" name="priority" placeholder="Enter priority (lower = higher)" value="1" required>
-        </div>
-        <div class="form-group">
-          <label class="form-group label">Description (Optional)</label>
-          <textarea class="form-control" name="description" placeholder="Optional description"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary w-100 mt-2" id="submitQueryBtn">
-          <span id="submitText">Add Query Type</span>
-          <span id="submitLoading" style="display: none;">
-            <div class="loading-spinner"></div> Processing...
-          </span>
-        </button>
-      </form>
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Add Query Type</h2>
+        <button class="close-btn" onclick="closeModal(document.getElementById('addQueryTypeModal'))">&times;</button>
+      </div>
+      <div class="modal-content">
+        <form id="addQueryTypeForm" method="POST" action="">
+          {% csrf_token %}
+          <div class="form-group">
+            <label>Query Name</label>
+            <input type="text" class="form-control" name="name" placeholder="Enter query type name" required>
+          </div>
+          <div class="form-group">
+            <label>Priority</label>
+            <input type="number" class="form-control" name="priority" placeholder="Enter priority" value="1" required>
+          </div>
+          <div class="form-group">
+            <label>Description (Optional)</label>
+            <textarea class="form-control" name="description" placeholder="Optional description"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 mt-2" id="submitQueryBtn">
+            <span id="submitText">Add Query Type</span>
+            <span id="submitLoading" style="display: none;">
+              <div class="loading-spinner"></div> Processing...
+            </span>
+          </button>
+        </form>
+      </div>
     </div>
   </div>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
+// Existing JavaScript for adding query types...
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('addQueryTypeForm');
-    const submitBtn = document.getElementById('submitQueryBtn');
     const submitText = document.getElementById('submitText');
     const submitLoading = document.getElementById('submitLoading');
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-
-        // Show loading
         submitText.style.display = 'none';
         submitLoading.style.display = 'inline-block';
 
         const formData = new FormData(form);
 
-        fetch("{% url 'add_support_category' %}", {  // make sure this URL is correct in urls.py
+        fetch("{% url 'add_support_category' %}", {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
-            },
+            headers: {'X-CSRFToken': formData.get('csrfmiddlewaretoken')},
             body: formData
         })
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
-            // Hide loading
             submitText.style.display = 'inline';
             submitLoading.style.display = 'none';
-
-            if(data.status) {
+            if(data.status){
                 showToast(data.message, "success");
                 form.reset();
                 closeModal(document.getElementById('addQueryTypeModal'));
-                // Optionally, refresh the category list here via JS
             } else {
                 showToast(data.message || "Something went wrong", "error");
             }
-        })
-        .catch(err => {
+        }).catch(err => {
             submitText.style.display = 'inline';
             submitLoading.style.display = 'none';
-            showToast("Error: " + err, "error");
+            showToast("Error: "+err, "error");
         });
     });
+});
+</script>
+
+<script>
+// Updated JavaScript for handling chat history and WebSocket with duplicate prevention
+document.addEventListener('DOMContentLoaded', function() {
+    const chatList = document.getElementById('supportChatList');
+    const messageContainer = document.getElementById('message-container');
+    const historyPlaceholder = document.getElementById('history-placeholder');
+    const replyFormGroup = document.getElementById('reply-form-group');
+    const replyInput = document.getElementById('reply-input');
+    const sendReplyBtn = document.getElementById('send-reply-btn');
+    let currentChatId = null;
+
+    // Add click listeners to existing chat items
+    document.querySelectorAll('.chat-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const chatId = this.dataset.chatId;
+            currentChatId = chatId;
+            
+            // Remove active class from all items and add to the clicked one
+            document.querySelectorAll('.chat-item').forEach(i => i.classList.remove('active-chat'));
+            this.classList.add('active-chat');
+
+            fetchChatHistory(chatId);
+        });
+    });
+
+    // WebSocket connection
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const currentHost = window.location.hostname;
+    const wsPort = 8001;
+    const ws = new WebSocket(`${wsScheme}://${currentHost}:${wsPort}/ws/support/0/`);
+
+    ws.onopen = function() {
+        console.log("[WS] Connected to support admin panel");
+    };
+
+    ws.onerror = function(error) {
+        console.error("[WS ERROR] WebSocket error:", error);
+    };
+
+    ws.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            console.log("[WS MESSAGE RECEIVED]", data);
+            
+            if (data.type === "user_message" && data.chat_id) {
+                // Handle incoming user messages
+                updateOrPrependChatItem(data);
+            } else if (data.type === "admin_reply" && data.chat_id === currentChatId) {
+                // Handle admin's own replies in the current chat
+                displayNewMessage(data);
+            }
+        } catch (error) {
+            console.error("[WS ERROR] Failed to process message:", error, event.data);
+        }
+    };
+
+    // Function to update or prepend chat item in the left list
+    function updateOrPrependChatItem(data) {
+        let existingChatItem = document.getElementById(`chat-${data.chat_id}`);
+        
+        if (existingChatItem) {
+            // Update existing chat item
+            updateExistingChatItem(existingChatItem, data);
+        } else {
+            // Create new chat item and prepend to the list
+            createNewChatItem(data);
+        }
+
+        // Also display the new message in the right panel if this chat is currently open
+        if (data.chat_id == currentChatId) {
+            displayNewMessage(data);
+        }
+    }
+
+    // Function to update an existing chat item
+    function updateExistingChatItem(chatItem, data) {
+        // Update last message
+        const messageElement = chatItem.querySelector('.last-message');
+        if (messageElement) {
+            messageElement.textContent = data.message;
+        }
+        
+        // Update message time
+        const timeElement = chatItem.querySelector('.message-time');
+        if (timeElement) {
+            timeElement.textContent = new Date(data.timestamp).toLocaleTimeString();
+        }
+        
+        // Move to top of the list
+        chatList.prepend(chatItem);
+        
+        // Highlight the chat item
+        chatItem.classList.add('new-message-highlight');
+        setTimeout(() => {
+            chatItem.classList.remove('new-message-highlight');
+        }, 2000);
+    }
+
+    // Function to create a new chat item
+    function createNewChatItem(data) {
+        const newChatHtml = `
+            <div class="chat-item" id="chat-${data.chat_id}" data-chat-id="${data.chat_id}">
+                <div class="profile-pic">
+                    <img src="${data.sender_profile || '/static/default-profile.png'}" onerror="this.src='/static/default-profile.png'"/>
+                </div>
+                <div class="chat-info">
+                    <div class="chat-header">
+                        <strong class="user-name">${data.sender_name || 'Unknown User'}</strong>
+                        <span class="priority">Priority: ${data.category_priority || 0}</span>
+                    </div>
+                    <div class="chat-category">
+                        Category: ${data.category_name || 'General'}
+                    </div>
+                    <p class="last-message">${data.message}</p>
+                    <div class="message-time">
+                        ${new Date(data.timestamp).toLocaleTimeString()}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newChatHtml.trim();
+        const newChatItem = tempDiv.firstChild;
+        
+        // Add click listener to the new chat item
+        newChatItem.addEventListener('click', function() {
+            document.querySelectorAll('.chat-item').forEach(i => i.classList.remove('active-chat'));
+            this.classList.add('active-chat');
+            currentChatId = this.dataset.chatId;
+            fetchChatHistory(currentChatId);
+        });
+        
+        // Prepend to the top of the chat list
+        chatList.prepend(newChatItem);
+        
+        // Highlight the new chat
+        newChatItem.classList.add('new-message-highlight');
+        setTimeout(() => {
+            newChatItem.classList.remove('new-message-highlight');
+        }, 2000);
+    }
+
+    // Function to display a new message in the chat history panel
+    function displayNewMessage(data) {
+        const messageClass = data.is_admin ? 'admin-message' : 'user-message';
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message-bubble ${messageClass}`;
+        messageDiv.innerHTML = `<p>${data.message}</p><small>${new Date(data.timestamp).toLocaleTimeString()}</small>`;
+        messageContainer.appendChild(messageDiv);
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    }
+
+    // Handle sending admin reply
+    sendReplyBtn.addEventListener('click', function() {
+        sendAdminReply();
+    });
+
+    // Also send on Enter key
+    replyInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendAdminReply();
+        }
+    });
+
+    function sendAdminReply() {
+        const message = replyInput.value.trim();
+        if (message && currentChatId) {
+            if (ws.readyState === WebSocket.OPEN) {
+                const replyData = {
+                    message: message,
+                    is_admin: true,
+                    chat_id: currentChatId,
+                    type: "admin_reply"
+                };
+                
+                ws.send(JSON.stringify(replyData));
+                replyInput.value = '';
+                
+                // Immediately display the admin's message in the chat
+                displayNewMessage({
+                    message: message,
+                    is_admin: true,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                showToast("Error: WebSocket not connected.", "error");
+            }
+        }
+    }
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
+    // Function to fetch chat history via AJAX
+    function fetchChatHistory(chatId) {
+        historyPlaceholder.style.display = 'none';
+        replyFormGroup.style.display = 'flex';
+        messageContainer.innerHTML = '<div class="loading-spinner">Loading messages...</div>';
+        clearHistoryBtn.style.display = 'inline-block'; // show button
+
+
+        fetch(`/get-chat-history/${chatId}/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                messageContainer.innerHTML = '';
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        const messageClass = msg.is_admin ? 'admin-message' : 'user-message';
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = `message-bubble ${messageClass}`;
+                        messageDiv.innerHTML = `<p>${msg.message}</p><small>${new Date(msg.created_at).toLocaleTimeString()}</small>`;
+                        messageContainer.appendChild(messageDiv);
+                    });
+                    messageContainer.scrollTop = messageContainer.scrollHeight;
+                } else {
+                    messageContainer.innerHTML = '<p class="text-muted">No messages yet.</p>';
+                }
+            })
+            .catch(err => {
+                console.error("Failed to fetch chat history:", err);
+                messageContainer.innerHTML = '<p class="text-danger">Failed to load chat history.</p>';
+            });
+    }
+    // Handle clear history click
+clearHistoryBtn.addEventListener("click", function() {
+    if (currentChatId) {
+        if (confirm("Are you sure you want to clear this chat history?")) {
+            fetch(`/clear-chat-history/${currentChatId}/`, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status) {
+                    showToast(data.message, "success");
+                    messageContainer.innerHTML = '<p class="text-muted">No messages yet.</p>';
+                } else {
+                    showToast(data.message || "Failed to clear history", "error");
+                }
+            })
+            .catch(err => {
+                showToast("Error clearing history: " + err, "error");
+            });
+        }
+    }
+});
+    // Utility function to show toasts
+    function showToast(message, type = "info") {
+        Toastify({
+            text: message,
+            duration: 3000,
+            gravity: "top",
+            position: "right",
+            backgroundColor: type === "success" ? "#4CAF50" : type === "error" ? "#f44336" : "#2196F3",
+        }).showToast();
+    }
 });
 </script>
 
