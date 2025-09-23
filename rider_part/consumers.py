@@ -430,18 +430,28 @@ class SharedRideNotificationConsumer(AsyncWebsocketConsumer):
         }))
 
 
-
 class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        self.ride_id = self.scope["url_route"]["kwargs"]["ride_id"]
-        self.group_name = f"ride_{self.ride_id}"
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+        try:
+            self.ride_id = self.scope["url_route"]["kwargs"]["ride_id"]
+            self.group_name = f"ride_{self.ride_id}"
+            print(f"🔌 [CONNECT] ride_id={self.ride_id}, user={self.scope.get('user')}")
+
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+            print(f"✅ [CONNECTED] Joined group {self.group_name}")
+
+        except Exception as e:
+            print(f"❌ [CONNECT ERROR] {e}")
+            await self.close()
 
     async def disconnect(self, close_code):
+        print(f"🔌 [DISCONNECT] ride_id={getattr(self, 'ride_id', None)}, "
+              f"group={getattr(self, 'group_name', None)}, code={close_code}")
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def ride_completed(self, event):
+        print(f"📢 [EVENT ride_completed] {event}")
         await self.send_json({
             "type": "ride_completed",
             "ride_id": event["ride_id"],
@@ -450,6 +460,7 @@ class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def notify_otp_verified(self, event):
+        print(f"📢 [EVENT notify_otp_verified] {event}")
         await self.send_json({
             "type": "notify_otp_verified",  
             "ride_id": event["ride_id"],
