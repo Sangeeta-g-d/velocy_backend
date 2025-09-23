@@ -150,7 +150,6 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    
 class RideRequestUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -178,13 +177,19 @@ class RideRequestUpdateAPIView(APIView):
                 print(f"[DEBUG] Scheduled deletion task for ride_id={ride.id}")
 
                 # Notify drivers in the same city
-                if ride.city:
+                if ride.city and ride.vehicle_type:
                     drivers = CustomUser.objects.filter(
                         role='driver',
                         city=ride.city,
-                        is_active=True
+                        is_active=True,
+                        vehicle_info__vehicle_type=ride.vehicle_type
                     )
-                    print(f"[DEBUG] Found {drivers.count()} drivers in city '{ride.city}'")
+
+                    # Apply women-only filter
+                    if ride.women_only:
+                        drivers = drivers.filter(gender='female')
+
+                    print(f"[DEBUG] Found {drivers.count()} eligible drivers for ride '{ride}'")
 
                     for driver in drivers:
                         print(f"[DEBUG] Sending notification to driver: {driver.id} ({driver.phone_number})")
@@ -202,7 +207,7 @@ class RideRequestUpdateAPIView(APIView):
                             }
                         )
                 else:
-                    print(f"[DEBUG] Ride city is not set. No driver notifications sent.")
+                    print(f"[DEBUG] Ride city or vehicle type is not set. No driver notifications sent.")
 
             return Response({
                 "message": "Ride request updated successfully",

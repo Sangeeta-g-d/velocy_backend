@@ -54,7 +54,6 @@ class DriverCashLimitAPIView(StandardResponseMixin, APIView):
             "cash_payments_left": user.cash_payments_left,
             "is_online": user.is_online
         })
-
 class AvailableNowRidesAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -84,14 +83,24 @@ class AvailableNowRidesAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Filter rides by city, pending status, personal ride, and vehicle type match
+        # Base filter
         rides = RideRequest.objects.filter(
             ride_type='now',
             status='pending',
             city=city,
             ride_purpose='personal',
             vehicle_type=driver_vehicle_type
-        ).order_by('-id')
+        )
+
+        # Filter women-only rides if driver is female
+        if request.user.gender == 'female':
+            # female drivers can take all rides including women_only
+            rides = rides.filter(models.Q(women_only=False) | models.Q(women_only=True))
+        else:
+            # male/other drivers should not see women-only rides
+            rides = rides.filter(women_only=False)
+
+        rides = rides.order_by('-id')
 
         if not rides.exists():
             return Response(
@@ -105,7 +114,6 @@ class AvailableNowRidesAPIView(APIView):
             "message": "success",
             "data": serializer.data
         }, status=status.HTTP_200_OK)
-
 
 class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
@@ -133,22 +141,32 @@ class AvailableScheduledRidesAPIView(StandardResponseMixin, APIView):
         # Current time + 1 hour (exclude rides starting within the next 1 hour)
         now_plus_1_hour = timezone.now() + timedelta(hours=1)
 
+        # Base queryset
         rides = RideRequest.objects.filter(
             ride_type='scheduled',
             status='pending',
             city=city,
-            vehicle_type=driver_vehicle_type,  # only rides matching driver vehicle type
+            vehicle_type=driver_vehicle_type,
             scheduled_time__gt=now_plus_1_hour
         ).exclude(
             declined_by_drivers__driver=request.user
-        ).order_by('-scheduled_time')
+        )
+
+        # Filter women-only rides
+        if request.user.gender == 'female':
+            # female drivers can take all rides including women-only
+            rides = rides.filter(Q(women_only=False) | Q(women_only=True))
+        else:
+            # male/other drivers should not see women-only rides
+            rides = rides.filter(women_only=False)
+
+        rides = rides.order_by('-scheduled_time')
 
         if not rides.exists():
             return Response({"message": "No scheduled rides available."}, status=status.HTTP_200_OK)
 
         serializer = RideNowDestinationSerializer(rides, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
     
 
 class RideRequestDetailAPIView(StandardResponseMixin,APIView):
