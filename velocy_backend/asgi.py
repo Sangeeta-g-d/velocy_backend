@@ -22,6 +22,7 @@ application = ProtocolTypeRouter({
         r'^ws/chat/(?P<ride_id>\w+)/$',
         JWTAuthMiddleware(ChatConsumer.as_asgi())  # call the middleware instance
         ),
+        *rider_ws,
 
 
         # Support chats → no JWT (admin panel/session-based)
