@@ -20,6 +20,7 @@ application = ProtocolTypeRouter({
         # Rider/driver chats → require JWT
        re_path(
         r'^ws/chat/(?P<ride_id>\w+)/$',
+        r'ws/payment/status/(?P<ride_type>normal|shared)/(?P<ride_id>\d+)/$', 
         JWTAuthMiddleware(ChatConsumer.as_asgi())  # call the middleware instance
         ),
         *rider_ws,
