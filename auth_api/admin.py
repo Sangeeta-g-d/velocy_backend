@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import CustomUser
+from .models import CustomUser,UserFCMToken
 
 @admin.register(CustomUser)
 class CustomUserAdmin(BaseUserAdmin):
@@ -38,3 +38,6 @@ class CustomUserAdmin(BaseUserAdmin):
     search_fields = ('phone_number', 'username', 'email')
     ordering = ('-date_joined',)
     filter_horizontal = ('groups', 'user_permissions', 'corporate_companies')
+
+
+admin.site.register(UserFCMToken)
