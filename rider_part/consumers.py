@@ -96,33 +96,50 @@ class RideRequestConsumer(AsyncJsonWebsocketConsumer):
             return None
 
 # OTP consumer for ride notifications
+# OTP consumer for ride notifications
 class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f"ride_{self.ride_id}"
 
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+            print(f"✅ [CONNECTED] ride_id={self.ride_id}, joined group {self.group_name}")
+        except Exception as e:
+            print(f"❌ [CONNECT ERROR] {e}")
+            await self.close()
 
     async def disconnect(self, close_code):
-        # make sure you remove the user from the group
+        print(f"🔌 [DISCONNECT] ride_id={self.ride_id}, code={close_code}")
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
-        """
-        Optional: keeps the connection open even if the client
-        never sends anything. You can just pass for now.
-        """
+        # Optional: keep the connection open
         pass
 
-    # <--- these are group event handlers (they must be flat methods) ----->
+    # ------------------------
+    # Group event handlers
+    # ------------------------
 
     async def send_otp(self, event):
+        """Send OTP to the client"""
+        print(f"📢 [EVENT send_otp] {event}")
         await self.send_json({
             "type": "otp",
             "ride_id": self.ride_id,
             "otp": event["otp"]
         })
+
+    async def notify_otp_verified(self, event):
+        """Notify the client that OTP has been verified"""
+        print(f"📢 [EVENT notify_otp_verified] {event}")
+        await self.send_json({
+            "type": "notify_otp_verified",
+            "ride_id": self.ride_id,
+            "message": event["message"]
+        })
+
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -459,14 +476,8 @@ class RideCompletionConsumer(AsyncJsonWebsocketConsumer):
             "end_time": event["end_time"]
         })
 
-    async def notify_otp_verified(self, event):
-        print(f"📢 [EVENT notify_otp_verified] {event}")
-        await self.send_json({
-            "type": "notify_otp_verified",  
-            "ride_id": event["ride_id"],
-            "message": event["message"]
-        })
-
+   
+   
 
 
 # ride sharing in emergency
