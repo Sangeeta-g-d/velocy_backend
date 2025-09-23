@@ -54,6 +54,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
     street = models.CharField(max_length=255, blank=True, null=True)
     area = models.CharField(max_length=255, blank=True, null=True)
+    city = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        default="Hubballi",
+        help_text="Driver's city for ride assignment"
+    )
     aadhar_card = models.FileField(upload_to='aadhar_cards/', blank=True, null=True)
     address_type = models.CharField(max_length=10, blank=True, null=True)
     cash_payments_left = models.PositiveIntegerField(default=0)

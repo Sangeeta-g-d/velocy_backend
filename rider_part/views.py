@@ -6,6 +6,7 @@ from .serializers import *
 from rest_framework import generics, permissions
 from django.db.models import Sum
 from rest_framework.decorators import api_view
+from notifications.fcm import send_fcm_notification
 from django.db.models import Avg
 from decimal import Decimal, InvalidOperation
 from decimal import Decimal
@@ -150,27 +151,65 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     
-
-class RideRequestUpdateAPIView(StandardResponseMixin,APIView):
+class RideRequestUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id, user=request.user)
+            print(f"[DEBUG] Ride found: {ride}")
         except RideRequest.DoesNotExist:
+            print(f"[DEBUG] Ride not found or access denied for ride_id={ride_id}")
             return Response({"detail": "Ride not found or access denied"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = RideRequestUpdateSerializer(ride, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            print(f"[DEBUG] Ride updated successfully: {serializer.data}")
+
+            # Publish ride if pending and not already published
             if ride.status == "pending" and not ride.published_at:
                 ride.published_at = timezone.now()
                 ride.save()
+                print(f"[DEBUG] Ride published at {ride.published_at}")
+
+                # Schedule task to delete unaccepted ride after 3 mins
                 delete_unaccepted_ride.apply_async((ride.id,), countdown=180)
+                print(f"[DEBUG] Scheduled deletion task for ride_id={ride.id}")
+
+                # Notify drivers in the same city
+                if ride.city:
+                    drivers = CustomUser.objects.filter(
+                        role='driver',
+                        city=ride.city,
+                        is_active=True
+                    )
+                    print(f"[DEBUG] Found {drivers.count()} drivers in city '{ride.city}'")
+
+                    for driver in drivers:
+                        print(f"[DEBUG] Sending notification to driver: {driver.id} ({driver.phone_number})")
+                        send_fcm_notification(
+                            user=driver,
+                            title="New Ride Request",
+                            body=f"Pickup: {ride.from_location} → Drop: {ride.to_location}",
+                            data={
+                                "ride_id": str(ride.id),
+                                "from_latitude": str(ride.from_latitude),
+                                "from_longitude": str(ride.from_longitude),
+                                "to_latitude": str(ride.to_latitude),
+                                "to_longitude": str(ride.to_longitude),
+                                "ride_type": ride.ride_type,
+                            }
+                        )
+                else:
+                    print(f"[DEBUG] Ride city is not set. No driver notifications sent.")
+
             return Response({
                 "message": "Ride request updated successfully",
                 "ride": serializer.data
             }, status=status.HTTP_200_OK)
+
+        print(f"[DEBUG] Serializer errors: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
