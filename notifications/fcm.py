@@ -1,8 +1,8 @@
 from firebase_admin import messaging
-from .firebase_config import *   # ensures Firebase is initialized
+from velocy_backend.firebase_config import *   # ensures Firebase is initialized
 
 def send_fcm_notification(user, title, body, data=None):
-    from yourapp.models import FCMDevice  # avoid circular import
+    from auth_api.models import FCMDevice  # avoid circular import
 
     devices = FCMDevice.objects.filter(user=user)
 
