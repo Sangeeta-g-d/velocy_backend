@@ -161,8 +161,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const adminToken = "{{ request.session.admin_ws_token }}";
     const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
     const currentHost = window.location.hostname;
-    const wsPort = 8001;
-    const ws = new WebSocket(`${wsScheme}://${window.location.hostname}:${wsPort}/ws/support/0/?token=${adminToken}`);
+    // const wsPort = 8001;
+    const ws = new WebSocket(`${wsScheme}://${window.location.hostname}/ws/support/0/?token=${adminToken}`);
 
     ws.onopen = function() {
         console.log("[WS] Connected to support admin panel");
