@@ -36,6 +36,7 @@ class RideStopSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideStop
         fields = ['id', 'location', 'latitude', 'longitude', 'order']
+
 class RideRequestDetailSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
     city = serializers.StringRelatedField()
@@ -65,7 +66,7 @@ class RideRequestDetailSerializer(serializers.ModelSerializer):
     def get_cancelled_rides_count(self, obj):
         request = self.context.get("request")
         if request and hasattr(request, "user") and request.user.is_authenticated:
-            return RideRequest.objects.filter(user=request.user, status="cancelled").count()
+            return RideRequest.objects.filter(driver=request.user, status="cancelled").count()
         return 0
 
     
