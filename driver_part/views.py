@@ -197,7 +197,6 @@ class DeclineRideAPIView(StandardResponseMixin,APIView):
             return Response({"message": "Ride declined successfully."}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class AcceptRideAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -214,19 +213,16 @@ class AcceptRideAPIView(StandardResponseMixin, APIView):
 
         serializer = RideAcceptedDetailSerializer(ride)
 
-        # 🔔 Prepare to send WebSocket notification
+        # 🔔 WebSocket notification
         channel_layer = get_channel_layer()
         rider_id = ride.user.id
         group_name = f"user_{rider_id}"
-
-        print(f"🔄 Ride accepted by driver {request.user.id} ({request.user.username})")
-        print(f"📡 Sending WebSocket message to group: {group_name}")
 
         try:
             async_to_sync(channel_layer.group_send)(
                 group_name,
                 {
-                    "type": "ride.accepted",  # This maps to ride_accepted() in consumer
+                    "type": "ride.accepted",
                     "ride_id": ride.id,
                     "message": "Your ride has been accepted by a driver.",
                     "driver_name": request.user.username,
@@ -236,6 +232,25 @@ class AcceptRideAPIView(StandardResponseMixin, APIView):
             print("✅ WebSocket message sent successfully.")
         except Exception as e:
             print("❌ Error sending WebSocket message:", e)
+
+        # 🔔 FCM notification
+        try:
+            from notifications.fcm import send_fcm_notification  # wherever you placed the function
+
+            send_fcm_notification(
+                user=ride.user,
+                title="Ride Accepted 🚖",
+                body=f"Your ride has been accepted by {request.user.username}.",
+                data={
+                    "ride_id": str(ride.id),
+                    "driver_id": str(request.user.id),
+                    "driver_name": request.user.username,
+                    "status": "accepted"
+                }
+            )
+            print("✅ FCM notification sent successfully.")
+        except Exception as e:
+            print("❌ Error sending FCM notification:", e)
 
         return Response({
             "message": "Ride accepted and driver assigned successfully.",
@@ -260,7 +275,7 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
         ride.status = 'cancelled'
         ride.save()
 
-        # ✅ Send WebSocket cancel event to rider
+        # ✅ WebSocket notify rider
         channel_layer = get_channel_layer()
         rider_id = ride.user.id
         group_name = f"user_{rider_id}"
@@ -278,9 +293,30 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
             )
             print("✅ Cancellation WebSocket sent to group:", group_name)
         except Exception as e:
-            print("❌ Error sending cancellation message:", e)
+            print("❌ Error sending cancellation WS:", e)
+
+        # ✅ FCM notify rider
+        try:
+            from notifications.fcm import send_fcm_notification  # import your FCM helper
+
+            send_fcm_notification(
+                user=ride.user,
+                title="Ride Cancelled ❌",
+                body=f"Your ride has been cancelled by {request.user.username}.",
+                data={
+                    "ride_id": str(ride.id),
+                    "status": "cancelled",
+                    "cancelled_by": "driver",
+                    "driver_id": str(request.user.id),
+                    "driver_name": request.user.username,
+                }
+            )
+            print("✅ FCM notification sent to rider.")
+        except Exception as e:
+            print("❌ Error sending FCM notification:", e)
 
         return Response({"message": "Ride cancelled successfully."}, status=200)
+
     
 class RideDetailAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
@@ -317,14 +353,20 @@ class RideDetailView(StandardResponseMixin,APIView):
 
 
 # begin ride
-class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
+class SetRideStartTimeAPIView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, ride_id):
         try:
             ride = RideRequest.objects.get(id=ride_id)
         except RideRequest.DoesNotExist:
             return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if OTP exists and is verified
+        # ✅ Only driver of the ride can start it
+        if ride.driver != request.user:
+            return Response({"detail": "You are not allowed to start this ride."}, status=403)
+
+        # ✅ Check if OTP exists and is verified
         try:
             otp = ride.otp  # related_name='otp'
             if not otp.is_verified:
@@ -334,13 +376,14 @@ class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
             return Response({"detail": "OTP verification is required before starting the ride."},
                             status=status.HTTP_403_FORBIDDEN)
 
-        # Prevent setting start time again
+        # ✅ Prevent starting twice
         if ride.start_time:
             return Response({"detail": "Start time already set."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Capture and return IST time
+        # ✅ Capture IST start time
         current_time = timezone.now()
         ride.start_time = current_time
+        ride.status = "accepted"  # still ongoing
         ride.save()
 
         expiry = current_time + timedelta(hours=12)
@@ -350,15 +393,33 @@ class SetRideStartTimeAPIView(StandardResponseMixin,APIView):
         )
         ist_time = current_time.astimezone(pytz.timezone("Asia/Kolkata"))
 
+        # 🔔 Send FCM notification to rider
+        try:
+            from velocy_backend.utils import send_fcm_notification
+
+            send_fcm_notification(
+                user=ride.user,
+                title="Ride Started 🚖",
+                body=f"Your ride with {request.user.username} has started.",
+                data={
+                    "ride_id": str(ride.id),
+                    "status": "started",
+                    "driver_id": str(request.user.id),
+                    "driver_name": request.user.username,
+                    "start_time": ist_time.strftime('%Y-%m-%d %I:%M %p'),
+                }
+            )
+            print("✅ FCM notification sent to rider.")
+        except Exception as e:
+            print("❌ Error sending FCM notification:", e)
+
         return Response({
             "ride_id": ride.id,
             "start_time": current_time,
             "start_time_ist": ist_time.strftime('%Y-%m-%d %I:%M %p'),
             "session_id": str(session.session_id),
             "expiry_time": session.expiry_time,
-
         }, status=status.HTTP_200_OK)
-
 
 class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
     def post(self, request, ride_id):
@@ -376,7 +437,7 @@ class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
         # Convert to IST for response
         ist_time = ride.end_time.astimezone(pytz.timezone("Asia/Kolkata"))
 
-        # --- ✅ Send WebSocket notification to rider ---
+        # --- ✅ WebSocket notification (keep existing) ---
         channel_layer = get_channel_layer()
         group_name = f"ride_{ride.id}"  # must match consumer's group naming
 
@@ -389,6 +450,37 @@ class SetRideEndTimeAPIView(StandardResponseMixin, APIView):
                 "end_time": ist_time.strftime('%Y-%m-%d %I:%M %p')
             }
         )
+
+        # --- ✅ FCM Notifications ---
+        from notifications.fcm import send_fcm_notification  # import your helper
+
+        try:
+            # Notify Rider
+            send_fcm_notification(
+                user=ride.user,
+                title="Ride Completed 🎉",
+                body=f"Your ride ending at {ist_time.strftime('%I:%M %p')} has been completed.",
+                data={
+                    "ride_id": str(ride.id),
+                    "type": "ride_completed",
+                    "end_time": ist_time.strftime('%Y-%m-%d %I:%M %p')
+                }
+            )
+
+            # Notify Driver
+            if ride.driver:
+                send_fcm_notification(
+                    user=ride.driver,
+                    title="Ride Completed ✅",
+                    body=f"You successfully completed the ride at {ist_time.strftime('%I:%M %p')}.",
+                    data={
+                        "ride_id": str(ride.id),
+                        "type": "ride_completed",
+                        "end_time": ist_time.strftime('%Y-%m-%d %I:%M %p')
+                    }
+                )
+        except Exception as e:
+            print(f"❌ Failed to send FCM notifications for ride {ride.id} | error={e}")
 
         return Response({
             "ride_id": ride.id,

@@ -946,7 +946,6 @@ class EmployeeDashboardAPIView(APIView):
             "favorite_places": fav_data,
         })
 
-
 class CancelRideByUserAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -965,7 +964,7 @@ class CancelRideByUserAPIView(StandardResponseMixin, APIView):
         ride.status = 'cancelled'
         ride.save()
 
-        # ✅ Notify driver (if assigned)
+        # ✅ Notify driver (if assigned) via WebSocket
         channel_layer = get_channel_layer()
         if ride.driver:
             driver_id = ride.driver.id
@@ -985,6 +984,26 @@ class CancelRideByUserAPIView(StandardResponseMixin, APIView):
                 print("✅ Cancellation WebSocket sent to driver group:", group_name)
             except Exception as e:
                 print("❌ Error sending cancellation message:", e)
+
+            # ✅ FCM notification to driver
+            try:
+                from notifications.fcm import send_fcm_notification  # import your FCM helper
+
+                send_fcm_notification(
+                    user=ride.driver,
+                    title="Ride Cancelled ❌",
+                    body=f"{request.user.username} has cancelled the ride.",
+                    data={
+                        "ride_id": str(ride.id),
+                        "status": "cancelled",
+                        "cancelled_by": "rider",
+                        "user_id": str(request.user.id),
+                        "user_name": request.user.username,
+                    }
+                )
+                print("✅ FCM notification sent to driver.")
+            except Exception as e:
+                print("❌ Error sending FCM notification:", e)
 
         return Response({"message": "Ride cancelled successfully."}, status=200)
 
