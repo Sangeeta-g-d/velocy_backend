@@ -258,7 +258,7 @@ class AcceptRideAPIView(StandardResponseMixin, APIView):
             "ride_details": serializer.data
         }, status=status.HTTP_200_OK)
 
-class CancelRideAPIView(StandardResponseMixin, APIView):
+class CancelRideAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -273,18 +273,13 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
         if ride.status in ['completed', 'cancelled']:
             return Response({"detail": "Cannot cancel a completed or already cancelled ride."}, status=400)
 
-        # ✅ Count past cancellations by this driver
-        past_cancellations = RideRequest.objects.filter(
-            driver=request.user, status="cancelled"
-        ).count()
-
+        # Count past cancellations
+        past_cancellations = RideRequest.objects.filter(driver=request.user, status="cancelled").count()
         cancellation_fee_applied = 0
 
         if past_cancellations >= 2:  # 3rd time or more
             try:
-                platform_setting = PlatformSetting.objects.get(
-                    fee_reason="cancellation fees", is_active=True
-                )
+                platform_setting = PlatformSetting.objects.get(fee_reason="cancellation fees", is_active=True)
                 ride_amount = ride.ride_amount or 0  
 
                 if platform_setting.fee_type == "percentage":
@@ -292,7 +287,6 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
                 else:  # flat
                     cancellation_fee_applied = platform_setting.fee_value
 
-                # Save deduction as a negative transaction
                 DriverWalletTransaction.objects.create(
                     driver=request.user,
                     ride=ride,
@@ -303,11 +297,12 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
             except PlatformSetting.DoesNotExist:
                 print("⚠️ No active cancellation fee setting found")
 
-        # ✅ Mark ride cancelled
+        # Mark ride cancelled
         ride.status = "cancelled"
         ride.save()
+        print(f"⚠️ Ride {ride.id} cancelled by driver {request.user.id}")
 
-        # ✅ Send FCM notify rider
+        # FCM notification
         try:
             if ride.user:
                 send_fcm_notification(
@@ -327,20 +322,20 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
         except Exception as e:
             print("❌ FCM error:", e)
 
-        # ✅ Send WebSocket notification
+        # WebSocket notification
         try:
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
-                f'ride_{ride.id}',  # must match RideTrackingConsumer group
+                f'ride_{ride.id}',
                 {
-                    'type': 'ride_cancelled',  # corresponds to async def ride_cancelled in consumer
+                    'type': 'ride_cancelled',
                     'ride_id': ride.id,
                     'cancelled_by': 'driver',
                     'driver_name': request.user.username,
                     'cancellation_fee_applied': cancellation_fee_applied
                 }
             )
-            print(f"✅ WebSocket message sent for ride {ride.id}")
+            print(f"✅ WebSocket ride_cancelled sent for ride {ride.id}")
         except Exception as e:
             print(f"❌ WebSocket error: {e}")
 
@@ -349,7 +344,6 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
             "cancellation_fee_applied": str(cancellation_fee_applied),
             "past_cancellations": past_cancellations + 1
         }, status=200)
-    
 
 class RideDetailAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]

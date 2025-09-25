@@ -15,15 +15,24 @@ from firebase_admin import messaging
 from django.core.exceptions import ObjectDoesNotExist
 from notifications.fcm import send_fcm_notification
 logger = logging.getLogger(__name__)
-
 class RideTrackingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f'ride_{self.ride_id}'
+
+        user = getattr(self.scope, "user", None)
+        print(f"Connecting WS for ride {self.ride_id}, user={user}")
+
+        # Reject anonymous users
+        if not user or user.is_anonymous:
+            print("Anonymous user, rejecting connection")
+            await self.close()
+            return
+
         try:
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
-            print(f"✅ WebSocket connected for ride {self.ride_id}")
+            print(f"✅ WebSocket connected and added to group {self.group_name}")
         except Exception as e:
             print(f"❌ Error on connect: {e}")
 
@@ -78,7 +87,6 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"❌ Error sending ride_cancelled: {e}")
 
-            
 class RideRequestConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
