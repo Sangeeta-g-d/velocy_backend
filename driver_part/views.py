@@ -272,14 +272,43 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
         if ride.status in ['completed', 'cancelled']:
             return Response({"detail": "Cannot cancel a completed or already cancelled ride."}, status=400)
 
-        ride.status = 'cancelled'
+        # ✅ Count past cancellations by this driver
+        past_cancellations = RideRequest.objects.filter(
+            driver=request.user, status="cancelled"
+        ).count()
+
+        cancellation_fee_applied = 0
+
+        if past_cancellations >= 2:  # 3rd time or more
+            try:
+                platform_setting = PlatformSetting.objects.get(
+                    fee_reason="cancellation fees", is_active=True
+                )
+                ride_amount = ride.ride_amount or 0  
+
+                if platform_setting.fee_type == "percentage":
+                    cancellation_fee_applied = (ride_amount * platform_setting.fee_value) / 100
+                else:  # flat
+                    cancellation_fee_applied = platform_setting.fee_value
+
+                # Save deduction as a negative transaction
+                DriverWalletTransaction.objects.create(
+                    driver=request.user,
+                    ride=ride,
+                    amount=-cancellation_fee_applied,
+                    transaction_type="penalty",
+                    description=f"Ride cancellation fee for ride {ride.id}"
+                )
+            except PlatformSetting.DoesNotExist:
+                print("⚠️ No active cancellation fee setting found")
+
+        # ✅ Mark ride cancelled
+        ride.status = "cancelled"
         ride.save()
 
         # ✅ WebSocket notify rider
         channel_layer = get_channel_layer()
-        rider_id = ride.user.id
-        group_name = f"user_{rider_id}"
-
+        group_name = f"user_{ride.user.id}"
         try:
             async_to_sync(channel_layer.group_send)(
                 group_name,
@@ -289,16 +318,15 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
                     "message": "Your ride was cancelled by the driver.",
                     "driver_name": request.user.username,
                     "driver_id": request.user.id,
+                    "cancellation_fee_applied": str(cancellation_fee_applied),
                 }
             )
-            print("✅ Cancellation WebSocket sent to group:", group_name)
         except Exception as e:
-            print("❌ Error sending cancellation WS:", e)
+            print("❌ WS error:", e)
 
         # ✅ FCM notify rider
         try:
-            from notifications.fcm import send_fcm_notification  # import your FCM helper
-
+            from notifications.fcm import send_fcm_notification
             send_fcm_notification(
                 user=ride.user,
                 title="Ride Cancelled ❌",
@@ -309,15 +337,19 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
                     "cancelled_by": "driver",
                     "driver_id": str(request.user.id),
                     "driver_name": request.user.username,
+                    "cancellation_fee_applied": str(cancellation_fee_applied),
                 }
             )
-            print("✅ FCM notification sent to rider.")
         except Exception as e:
-            print("❌ Error sending FCM notification:", e)
+            print("❌ FCM error:", e)
 
-        return Response({"message": "Ride cancelled successfully."}, status=200)
+        return Response({
+            "message": "Ride cancelled successfully.",
+            "cancellation_fee_applied": str(cancellation_fee_applied),
+            "past_cancellations": past_cancellations + 1
+        }, status=200)
 
-    
+
 class RideDetailAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -326,15 +358,25 @@ class RideDetailAPIView(StandardResponseMixin, APIView):
             ride = RideRequest.objects.select_related('user').prefetch_related('ride_stops').get(
                 id=ride_id, 
                 status='accepted',
-                driver=request.user  # Optional: ensures only assigned driver can view
+                driver=request.user  # ensures only assigned driver can view
             )
-            if ride.driver != request.user:
-                return Response({'detail': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         except RideRequest.DoesNotExist:
             return Response({'detail': 'Ride not found or not yet accepted or completed'}, status=status.HTTP_404_NOT_FOUND)
 
+        # ✅ Count cancelled rides by this driver
+        cancelled_count = RideRequest.objects.filter(
+            driver=request.user,
+            status="cancelled"
+        ).count()
+
         serializer = RideDetailSerializer(ride, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # ✅ Add cancelled_count to response
+        response_data = serializer.data
+        response_data['cancelled_rides_count'] = cancelled_count
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
 
 
 class RideDetailView(StandardResponseMixin,APIView):

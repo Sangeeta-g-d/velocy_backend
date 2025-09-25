@@ -881,7 +881,6 @@ def settings_view(request):
     }
     return render(request, 'settings.html', context)
 
-# --- PlatformSetting CRUD ---
 @login_required
 def add_platform_setting(request):
     if request.method != "POST":
@@ -892,12 +891,14 @@ def add_platform_setting(request):
         if request.POST:
             fee_type = request.POST.get('fee_type')
             fee_value = request.POST.get('fee_value')
+            fee_reason = request.POST.get('fee_reason')  # Get from POST
             is_active = request.POST.get('is_active', 'false') == 'true'
         else:
             # Fallback to JSON if no POST data
             data = json.loads(request.body)
             fee_type = data.get('fee_type')
             fee_value = data.get('fee_value')
+            fee_reason = data.get('fee_reason')  # FIXED: Get from JSON data, not POST
             is_active = data.get('is_active', False)
 
         # Validate required fields
@@ -907,12 +908,14 @@ def add_platform_setting(request):
         setting = PlatformSetting.objects.create(
             fee_type=fee_type,
             fee_value=fee_value,
-            is_active=is_active
+            is_active=is_active,
+            fee_reason=fee_reason  # Make sure this is included
         )
         return JsonResponse({'success': True, 'message': 'Platform setting added', 'id': setting.id})
     
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
 
 @login_required
 def update_platform_setting(request, setting_id):
@@ -926,12 +929,14 @@ def update_platform_setting(request, setting_id):
         if request.POST:
             setting.fee_type = request.POST.get('fee_type')
             setting.fee_value = request.POST.get('fee_value')
+            setting.fee_reason = request.POST.get('fee_reason')
             setting.is_active = request.POST.get('is_active', 'false') == 'true'
         else:
             # Fallback to JSON if no POST data
             data = json.loads(request.body)
             setting.fee_type = data.get('fee_type')
             setting.fee_value = data.get('fee_value')
+            setting.fee_reason = data.get('fee_reason')
             setting.is_active = data.get('is_active', False)
         
         setting.save()

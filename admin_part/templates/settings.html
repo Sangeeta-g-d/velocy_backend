@@ -12,35 +12,38 @@
       <button class="btn btn-black" onclick="addPlatformSetting()">+ Add Platform Setting</button>
     </div>
     
-    <div class="settings-grid">
-      {% for setting in platform_settings %}
-        <div class="setting-card" id="platform-{{ setting.id }}">
-          <div class="card-content">
-            <div class="setting-type">{{ setting.fee_type|title }}</div>
-            <div class="setting-value">{{ setting.fee_value }}</div>
-            <div class="setting-status">
-              <span class="status-badge {% if setting.is_active %}active{% else %}inactive{% endif %}">
-                {{ setting.is_active|yesno:"Active,Inactive" }}
-              </span>
-            </div>
-          </div>
-          <div class="card-actions">
-            <button onclick="openEditPlatformModal({{ setting.id }}, '{{ setting.fee_type }}', '{{ setting.fee_value }}', {{ setting.is_active|yesno:"true,false" }})" 
-                    class="btn btn-secondary">
-              <i class="fas fa-edit"></i> Edit
-            </button>
-            <button onclick="deletePlatformSetting({{ setting.id }})" class="btn btn-danger">
-              <i class="fas fa-trash"></i> Delete
-            </button>
-          </div>
+   <div class="settings-grid">
+  {% for setting in platform_settings %}
+    <div class="setting-card" id="platform-{{ setting.id }}">
+      <div class="card-content">
+        <div class="setting-type">{{ setting.fee_type|title }}</div>
+        <div class="setting-value">{{ setting.fee_value }}</div>
+        {% if setting.fee_reason %}
+          <div class="setting-reason">{{ setting.fee_reason }}</div>
+        {% endif %}
+        <div class="setting-status">
+          <span class="status-badge {% if setting.is_active %}active{% else %}inactive{% endif %}">
+            {{ setting.is_active|yesno:"Active,Inactive" }}
+          </span>
         </div>
-      {% empty %}
-        <div class="empty-state">
-          <i class="fas fa-cogs"></i>
-          <p>No platform settings yet.</p>
-        </div>
-      {% endfor %}
+      </div>
+      <div class="card-actions">
+        <button onclick="openEditPlatformModal({{ setting.id }}, '{{ setting.fee_type }}', '{{ setting.fee_value }}', {{ setting.is_active|yesno:"true,false" }}, '{{ setting.fee_reason|escapejs }}')" 
+                class="btn btn-secondary">
+          <i class="fas fa-edit"></i> Edit
+        </button>
+        <button onclick="deletePlatformSetting({{ setting.id }})" class="btn btn-danger">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
     </div>
+  {% empty %}
+    <div class="empty-state">
+      <i class="fas fa-cogs"></i>
+      <p>No platform settings yet.</p>
+    </div>
+  {% endfor %}
+</div>
   </div>
 
   <hr class="section-divider">
@@ -101,6 +104,15 @@
           <label for="platformFeeValue">Value</label>
           <input type="number" class="form-control" id="platformFeeValue" name="fee_value" step="0.01" min="0" required>
         </div>
+         <div class="form-group">
+  <label for="platformFeeReason">Fee Reason</label>
+  <select class="form-control" id="platformFeeReason" name="fee_reason" required>
+    <option value="">Select a fee reason</option>
+    <option value="cancellation fees">Cancellation Fees</option>
+    <option value="platform fees">Platform Fees</option>
+    <option value="penalty">Penalty</option>
+  </select>
+</div>
         <div class="form-group">
           <label class="checkbox-container">
             <input type="checkbox" id="platformIsActive" name="is_active">
@@ -211,13 +223,22 @@
     openModal('platformModal');
   }
 
-  function openEditPlatformModal(id, feeType, feeValue, isActive) {
+  function openEditPlatformModal(id, feeType, feeValue, isActive,feeReason) {
+    console.log('Editing platform setting:', {id, feeType, feeValue, isActive, feeReason});
     // Populate form with existing data
     document.getElementById('platformModalTitle').textContent = 'Edit Platform Setting';
     document.getElementById('platformId').value = id;
     document.getElementById('platformFeeType').value = feeType;
     document.getElementById('platformFeeValue').value = feeValue;
+   
     document.getElementById('platformIsActive').checked = isActive;
+      // Set the fee reason - handle null/undefined cases
+  const feeReasonSelect = document.getElementById('platformFeeReason');
+  if (feeReason && feeReason !== 'None' && feeReason !== 'null') {
+    feeReasonSelect.value = feeReason;
+  } else {
+    feeReasonSelect.value = ''; // Set to default option
+  }
     
     // Open modal
     openModal('platformModal');
@@ -271,37 +292,40 @@
   }
 
   // Handle platform form submission
-  document.getElementById('platformForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
+ // Handle platform form submission
+document.getElementById('platformForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  const id = document.getElementById('platformId').value;
+  const fee_type = document.getElementById('platformFeeType').value;
+  const fee_value = document.getElementById('platformFeeValue').value;
+  const fee_reason = document.getElementById('platformFeeReason').value; // Add this line
+  const is_active = document.getElementById('platformIsActive').checked;
+  
+  const url = id 
+    ? "{% url 'update_platform_setting' 0 %}".replace('0', id)
+    : "{% url 'add_platform_setting' %}";
+  
+  try {
+    const data = await makeApiCall(url, 'POST', {
+      fee_type, 
+      fee_value, 
+      fee_reason, // Add this line
+      is_active: is_active ? 'true' : 'false'
+    });
     
-    const id = document.getElementById('platformId').value;
-    const fee_type = document.getElementById('platformFeeType').value;
-    const fee_value = document.getElementById('platformFeeValue').value;
-    const is_active = document.getElementById('platformIsActive').checked;
-    
-    const url = id 
-      ? "{% url 'update_platform_setting' 0 %}".replace('0', id)
-      : "{% url 'add_platform_setting' %}";
-    
-    try {
-      const data = await makeApiCall(url, 'POST', {
-        fee_type, 
-        fee_value, 
-        is_active: is_active ? 'true' : 'false'
-      });
-      
-      if (data.success) {
-        closeModalById('platformModal');
-        showToast(data.message || 'Operation successful');
-        setTimeout(() => location.reload(), 800);
-      } else {
-        throw new Error(data.message || 'Operation failed');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error: ' + error.message);
+    if (data.success) {
+      closeModalById('platformModal');
+      showToast(data.message || 'Operation successful');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      throw new Error(data.message || 'Operation failed');
     }
-  });
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error: ' + error.message);
+  }
+});
 
   async function deletePlatformSetting(id) {
     if (confirm("Are you sure you want to delete this setting?")) {

@@ -67,6 +67,14 @@ class RideRequest(models.Model):
 
     def __str__(self):
         return f"Ride by {self.user} - {self.from_location} → {self.to_location}"
+    
+    @property
+    def ride_amount(self):
+        """
+        Returns the offered price if available, 
+        otherwise the estimated price.
+        """
+        return self.offered_price if self.offered_price is not None else self.estimated_price
 
 
 class RideLocationSession(models.Model):
