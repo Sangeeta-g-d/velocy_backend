@@ -159,8 +159,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // WebSocket connection
     const adminToken = "{{ request.session.admin_ws_token }}";
-    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${wsScheme}://${window.location.host}/ws/support/0/?token=${adminToken}`);
+    // Hardcoded WebSocket URL
+    const ws = new WebSocket(
+        `wss://backend.velocytax.in/ws/support/${chatId}/?token=${adminToken}`
+    );
 
     ws.onopen = function() {
         console.log("[WS] Connected to support admin panel");
