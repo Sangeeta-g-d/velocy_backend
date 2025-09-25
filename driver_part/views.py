@@ -11,6 +11,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from . serializers import *
 from django.db.models import Sum, Avg, Q
 from datetime import datetime
+from notifications.fcm import send_fcm_notification
 from decimal import Decimal
 from django.utils import timezone
 from auth_api.models import DriverVehicleInfo
@@ -437,7 +438,7 @@ class SetRideStartTimeAPIView(StandardResponseMixin, APIView):
 
         # 🔔 Send FCM notification to rider
         try:
-            from velocy_backend.utils import send_fcm_notification
+            from notifications.fcm import send_fcm_notification
 
             send_fcm_notification(
                 user=ride.user,
