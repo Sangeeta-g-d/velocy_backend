@@ -5,7 +5,7 @@ from datetime import datetime
 from urllib.parse import parse_qs
 from channels.db import database_sync_to_async
 from rest_framework_simplejwt.tokens import AccessToken
-
+from notifications.fcm import send_fcm_notification
 
 class SupportChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -131,7 +131,22 @@ class SupportChatConsumer(AsyncJsonWebsocketConsumer):
                 self.admin_group_name,
                 {"type": "support_message", "message": data}
             )
-
+                    # --- ✅ FCM Notification to user ---
+            try:
+                if chat.user:
+                    send_fcm_notification(
+                        user=chat.user,
+                        title="Support Reply 📨",
+                        body=message_text,
+                        data={
+                            "chat_id": str(chat.id),
+                            "type": "support_reply",
+                            "sender_name": user.username
+                        }
+                    )
+                    print(f"✅ FCM sent to user {chat.user.id}")
+            except Exception as e:
+                print(f"❌ Error sending FCM to user {chat.user.id}: {e}")
         except SupportChat.DoesNotExist:
             print(f"[ERROR] Chat {chat_id} does not exist for admin reply.")
         except Exception as e:

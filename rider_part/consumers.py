@@ -10,7 +10,10 @@ from django.utils import timezone
 from .models import RideMessage
 from .models import RideRequest
 from auth_api.models import CustomUser
+from velocy_backend.firebase_config import *
+from firebase_admin import messaging
 from django.core.exceptions import ObjectDoesNotExist
+from notifications.fcm import send_fcm_notification
 logger = logging.getLogger(__name__)
 
 class RideTrackingConsumer(AsyncWebsocketConsumer):
@@ -42,8 +45,7 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
             'latitude': event['latitude'],
             'longitude': event['longitude'],
         }))
-
-# driver arrival notification consumer
+        
 class RideRequestConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
@@ -68,10 +70,10 @@ class RideRequestConsumer(AsyncJsonWebsocketConsumer):
             ride_id = content.get('ride_id')
             msg = content.get('message')
 
-            # Optional: Validate the ride or driver
+            # Optional: Validate the ride
             ride = await self.get_ride(ride_id)
             if ride:
-                # Send notification to group
+                # 1️⃣ Send WebSocket notification to group
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
@@ -80,6 +82,22 @@ class RideRequestConsumer(AsyncJsonWebsocketConsumer):
                         'ride_id': ride_id
                     }
                 )
+
+                # 2️⃣ Send FCM push notification to the rider
+                try:
+                    if ride.user:
+                        send_fcm_notification(
+                            user=ride.user,
+                            title="Driver Arrived 🚖",
+                            body=msg,
+                            data={
+                                "ride_id": str(ride.id),
+                                "type": "driver_arrival",
+                            }
+                        )
+                        print(f"✅ FCM sent to rider {ride.user.id}")
+                except Exception as e:
+                    print(f"❌ Error sending FCM: {e}")
 
     async def arrival_notification(self, event):
         await self.send_json({
