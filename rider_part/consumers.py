@@ -45,7 +45,7 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
             'latitude': event['latitude'],
             'longitude': event['longitude'],
         }))
-        
+
 class RideRequestConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
@@ -268,14 +268,13 @@ class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
 class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         try:
-            # Try to get user from JWT authentication first
             user = self.scope.get("user")
-            
-            # If JWT authentication failed or not provided, fall back to URL parameter
-            if not user.is_authenticated:
-                self.user_id = self.scope['url_route']['kwargs']['user_id']
-                user = await self.get_user(self.user_id)
-                print(f"User fetched from URL: {user}")
+    
+            if not user or not user.is_authenticated:
+                user_id = self.scope['url_route']['kwargs'].get('user_id')
+                if user_id:
+                    user = await self.get_user(user_id)
+    
             if user and user.is_authenticated:
                 self.user_id = str(user.id)
                 self.group_name = f"user_{self.user_id}"
@@ -284,17 +283,11 @@ class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
                 print(f"✅ WebSocket connected: user_{self.user_id}")
             else:
                 print("❌ Unauthorized WebSocket attempt")
-                await self.close()
-                
-        except KeyError as e:
-            print(f"❌ Missing required parameter: {e}")
-            await self.close(code=4000)  # Custom close code for invalid parameters
-        except ObjectDoesNotExist:
-            print("❌ User not found")
-            await self.close(code=4001)  # Custom close code for user not found
+                await self.close(code=4003)
+    
         except Exception as e:
-            print(f"❌ Unexpected error during connection: {e}")
-            await self.close(code=4002)  # Custom close code for other errors
+            print(f"❌ Error in connect(): {e}")
+            await self.close(code=4002)
 
     @database_sync_to_async
     def get_user(self, user_id):
