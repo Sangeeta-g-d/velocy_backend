@@ -13,36 +13,40 @@ class SupportChatConsumer(AsyncJsonWebsocketConsumer):
         self.group_name = f'support_chat_{self.chat_id}'
         self.admin_group_name = "support_admin"
 
-        # Extract user from session or JWT token
+        # Extract user from scope (session) first
         user = self.scope.get("user")
 
-        # If admin chat (chat_id=0), try JWT token first
-        if self.chat_id == "0":
-            query_params = parse_qs(self.scope["query_string"].decode())
-            token = query_params.get("token", [None])[0]
+        # Parse JWT token from query string
+        query_params = parse_qs(self.scope["query_string"].decode())
+        token = query_params.get("token", [None])[0]
 
-            if token:
-                try:
-                    user_id = AccessToken(token)["user_id"]
-                    user = await database_sync_to_async(CustomUser.objects.get)(id=user_id)
-                    self.scope["user"] = user
-                except Exception as e:
-                    print("[WS CONNECT] Invalid token:", e)
-                    await self.close()
-                    return
-
-            # Fallback to session-based check
-            if not user or not user.is_authenticated or not user.is_staff:
-                print("[WS CONNECT] Unauthorized admin access attempt.")
+        if token:
+            try:
+                user_id = AccessToken(token)["user_id"]
+                user = await database_sync_to_async(CustomUser.objects.get)(id=user_id)
+                self.scope["user"] = user
+            except Exception as e:
+                print(f"[WS CONNECT] Invalid token: {e}")
                 await self.close()
                 return
 
-        # For regular user chats
-        else:
+        if not user or not user.is_authenticated:
+            print("[WS CONNECT] Unauthorized connection attempt: user not authenticated.")
+            await self.close()
+            return
+
+        # Admin chat (chat_id=0) requires staff user
+        if self.chat_id == "0" and not user.is_staff:
+            print("[WS CONNECT] Unauthorized admin access attempt.")
+            await self.close()
+            return
+
+        # Regular user chat: verify ownership
+        if self.chat_id != "0":
             try:
                 chat = await database_sync_to_async(SupportChat.objects.get)(id=self.chat_id)
-                if not user or not user.is_authenticated or user.id != chat.user_id:
-                    print("[WS CONNECT] Unauthorized user chat access attempt.")
+                if user.id != chat.user_id:
+                    print(f"[WS CONNECT] User {user.id} trying to access chat {self.chat_id} (unauthorized).")
                     await self.close()
                     return
             except SupportChat.DoesNotExist:
