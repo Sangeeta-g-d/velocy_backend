@@ -20,42 +20,65 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f'ride_{self.ride_id}'
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+            print(f"✅ WebSocket connected for ride {self.ride_id}")
+        except Exception as e:
+            print(f"❌ Error on connect: {e}")
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+            print(f"⚠️ WebSocket disconnected for ride {self.ride_id}, code: {close_code}")
+        except Exception as e:
+            print(f"❌ Error on disconnect: {e}")
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        latitude = data['latitude']
-        longitude = data['longitude']
+        try:
+            data = json.loads(text_data)
+            latitude = data.get('latitude')
+            longitude = data.get('longitude')
+            print(f"📍 Received location: {latitude}, {longitude}")
 
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                'type': 'send_location',
-                'latitude': latitude,
-                'longitude': longitude,
-            }
-        )
+            if latitude is not None and longitude is not None:
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'send_location',
+                        'latitude': latitude,
+                        'longitude': longitude,
+                    }
+                )
+        except Exception as e:
+            print(f"❌ Error in receive: {e}")
 
     async def send_location(self, event):
-        await self.send(text_data=json.dumps({
-            'latitude': event['latitude'],
-            'longitude': event['longitude'],
-        }))
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'location_update',
+                'latitude': event['latitude'],
+                'longitude': event['longitude'],
+            }))
+            print(f"➡️ Sent location update: {event['latitude']}, {event['longitude']}")
+        except Exception as e:
+            print(f"❌ Error sending location: {e}")
 
-        # ✅ New: ride cancelled event
     async def ride_cancelled(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'ride_cancelled',
-            'ride_id': event['ride_id'],
-            'cancelled_by': event['cancelled_by'],
-            'cancellation_fee_applied': event.get('cancellation_fee_applied', 0),
-            'driver_name': event.get('driver_name', '')
-        }))
+        try:
+            print(f"⚠️ ride_cancelled event received: {event}")
+            await self.send(text_data=json.dumps({
+                'type': 'ride_cancelled',
+                'ride_id': event['ride_id'],
+                'cancelled_by': event['cancelled_by'],
+                'cancellation_fee_applied': event.get('cancellation_fee_applied', 0),
+                'driver_name': event.get('driver_name', '')
+            }))
+            print(f"✅ Sent ride_cancelled message to client")
+        except Exception as e:
+            print(f"❌ Error sending ride_cancelled: {e}")
 
+            
 class RideRequestConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
