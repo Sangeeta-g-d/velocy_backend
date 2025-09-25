@@ -749,7 +749,7 @@ class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
 
                 # Fetch active platform fee
                 platform_fee = Decimal('0.00')
-                active_fee = PlatformSetting.objects.filter(is_active=True).order_by('-updated_at').first()
+                active_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True)
                 if active_fee:
                     if active_fee.fee_type == 'percentage':
                         platform_fee = (active_fee.fee_value / Decimal('100')) * base_earning
@@ -843,7 +843,7 @@ class DriverRideEarningDetailAPIView(APIView):
             tip_amount = payment.tip_amount or 0
 
             # Cash rides → platform fee deferred
-            platform_fee = PlatformSetting.objects.filter(is_active=True).first()
+            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True)
             fee_value = fee_type = None
             fee_amount = Decimal(0)
             if platform_fee:
@@ -869,7 +869,7 @@ class DriverRideEarningDetailAPIView(APIView):
 
         # ---------------- UPI / WALLET ----------------
         else:
-            platform_fee = PlatformSetting.objects.filter(is_active=True).first()
+            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True)
 
             fee_amount = Decimal(0)
             fee_type = fee_value = None
