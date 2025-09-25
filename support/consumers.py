@@ -134,7 +134,8 @@ class SupportChatConsumer(AsyncJsonWebsocketConsumer):
                     # --- ✅ FCM Notification to user ---
             try:
                 if chat.user:
-                    send_fcm_notification(
+                    from asgiref.sync import sync_to_async
+                    await sync_to_async(send_fcm_notification)(
                         user=chat.user,
                         title="Support Reply 📨",
                         body=message_text,
