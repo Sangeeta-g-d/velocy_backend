@@ -4,6 +4,7 @@ from admin_part.models import SupportChat, SupportMessage, CustomUser
 from datetime import datetime
 from urllib.parse import parse_qs
 from channels.db import database_sync_to_async
+from asgiref.sync import sync_to_async
 from rest_framework_simplejwt.tokens import AccessToken
 from notifications.fcm import send_fcm_notification
 
@@ -134,7 +135,6 @@ class SupportChatConsumer(AsyncJsonWebsocketConsumer):
                     # --- ✅ FCM Notification to user ---
             try:
                 if chat.user:
-                    from asgiref.sync import sync_to_async
                     await sync_to_async(send_fcm_notification)(
                         user=chat.user,
                         title="Support Reply 📨",
