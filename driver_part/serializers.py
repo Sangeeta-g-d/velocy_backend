@@ -36,13 +36,13 @@ class RideStopSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideStop
         fields = ['id', 'location', 'latitude', 'longitude', 'order']
-
 class RideRequestDetailSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
     city = serializers.StringRelatedField()
     vehicle_type = serializers.StringRelatedField()
     ride_stops = RideStopSerializer(many=True, read_only=True)
     created_at = serializers.SerializerMethodField()
+    cancelled_rides_count = serializers.SerializerMethodField()  # ✅ new field
 
     class Meta:
         model = RideRequest
@@ -61,6 +61,12 @@ class RideRequestDetailSerializer(serializers.ModelSerializer):
         india_tz = pytz.timezone("Asia/Kolkata")
         local_dt = localtime(obj.created_at, india_tz)
         return local_dt.strftime('%d-%m-%Y %I:%M %p')
+
+    def get_cancelled_rides_count(self, obj):
+        request = self.context.get("request")
+        if request and hasattr(request, "user") and request.user.is_authenticated:
+            return RideRequest.objects.filter(user=request.user, status="cancelled").count()
+        return 0
 
     
 class DeclineRideSerializer(serializers.Serializer):
