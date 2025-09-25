@@ -306,49 +306,49 @@ class CancelRideAPIView(StandardResponseMixin, APIView):
         ride.status = "cancelled"
         ride.save()
 
-        # ✅ WebSocket notify rider
-        channel_layer = get_channel_layer()
-        group_name = f"user_{ride.user.id}"
+        # ✅ Send FCM notify rider
         try:
-            async_to_sync(channel_layer.group_send)(
-                group_name,
-                {
-                    "type": "ride.cancelled",
-                    "ride_id": ride.id,
-                    "message": "Your ride was cancelled by the driver.",
-                    "driver_name": request.user.username,
-                    "driver_id": request.user.id,
-                    "cancellation_fee_applied": str(cancellation_fee_applied),
-                }
-            )
-        except Exception as e:
-            print("❌ WS error:", e)
-
-        # ✅ FCM notify rider
-        try:
-            from notifications.fcm import send_fcm_notification
-            send_fcm_notification(
-                user=ride.user,
-                title="Ride Cancelled ❌",
-                body=f"Your ride has been cancelled by {request.user.username}.",
-                data={
-                    "ride_id": str(ride.id),
-                    "status": "cancelled",
-                    "cancelled_by": "driver",
-                    "driver_id": str(request.user.id),
-                    "driver_name": request.user.username,
-                    "cancellation_fee_applied": str(cancellation_fee_applied),
-                }
-            )
+            if ride.user:
+                send_fcm_notification(
+                    user=ride.user,
+                    title="Ride Cancelled ❌",
+                    body=f"Your ride has been cancelled by {request.user.username}.",
+                    data={
+                        "ride_id": str(ride.id),
+                        "status": "cancelled",
+                        "cancelled_by": "driver",
+                        "driver_id": str(request.user.id),
+                        "driver_name": request.user.username,
+                        "cancellation_fee_applied": str(cancellation_fee_applied),
+                    }
+                )
+                print(f"✅ FCM sent to rider {ride.user.id}")
         except Exception as e:
             print("❌ FCM error:", e)
+
+        # ✅ Send WebSocket notification
+        try:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'ride_{ride.id}',  # must match RideTrackingConsumer group
+                {
+                    'type': 'ride_cancelled',  # corresponds to async def ride_cancelled in consumer
+                    'ride_id': ride.id,
+                    'cancelled_by': 'driver',
+                    'driver_name': request.user.username,
+                    'cancellation_fee_applied': cancellation_fee_applied
+                }
+            )
+            print(f"✅ WebSocket message sent for ride {ride.id}")
+        except Exception as e:
+            print(f"❌ WebSocket error: {e}")
 
         return Response({
             "message": "Ride cancelled successfully.",
             "cancellation_fee_applied": str(cancellation_fee_applied),
             "past_cancellations": past_cancellations + 1
         }, status=200)
-
+    
 
 class RideDetailAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]

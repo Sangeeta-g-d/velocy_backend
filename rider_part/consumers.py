@@ -46,6 +46,16 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
             'longitude': event['longitude'],
         }))
 
+        # ✅ New: ride cancelled event
+    async def ride_cancelled(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'ride_cancelled',
+            'ride_id': event['ride_id'],
+            'cancelled_by': event['cancelled_by'],
+            'cancellation_fee_applied': event.get('cancellation_fee_applied', 0),
+            'driver_name': event.get('driver_name', '')
+        }))
+
 class RideRequestConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
@@ -269,12 +279,12 @@ class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         try:
             user = self.scope.get("user")
-    
+
             if not user or not user.is_authenticated:
                 user_id = self.scope['url_route']['kwargs'].get('user_id')
                 if user_id:
                     user = await self.get_user(user_id)
-    
+
             if user and user.is_authenticated:
                 self.user_id = str(user.id)
                 self.group_name = f"user_{self.user_id}"
@@ -284,7 +294,7 @@ class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
             else:
                 print("❌ Unauthorized WebSocket attempt")
                 await self.close(code=4003)
-    
+
         except Exception as e:
             print(f"❌ Error in connect(): {e}")
             await self.close(code=4002)
