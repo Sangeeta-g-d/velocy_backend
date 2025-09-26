@@ -547,34 +547,26 @@ class RideLocationConsumer(AsyncWebsocketConsumer):
 class RideCancellationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         try:
-            # JWT authenticated user
-            self.user = self.scope.get("user", AnonymousUser())
-            if self.user.is_anonymous:
-                print("❌ [CONNECT] Anonymous user, rejecting connection")
-                await self.close()
-                return
-
-            # Room/group for this rider
-            self.user_id = str(self.user.id)
-            self.group_name = f"ride_cancellation_{self.user_id}"
+            # Get ride_id from URL
+            self.ride_id = self.scope["url_route"]["kwargs"]["ride_id"]
+            self.group_name = f"ride_cancellation_{self.ride_id}"
 
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
-            print(f"✅ [CONNECT] User {self.user_id} connected to group {self.group_name}")
+            print(f"✅ [CONNECT] WebSocket connected to ride_cancellation_{self.ride_id}")
 
         except Exception as e:
             print(f"❌ [CONNECT ERROR] {e}")
             await self.close()
 
     async def disconnect(self, close_code):
-        print(f"🔌 [DISCONNECT] User {getattr(self, 'user_id', None)} leaving group {getattr(self, 'group_name', None)}, code={close_code}")
+        print(f"🔌 [DISCONNECT] Leaving group ride_cancellation_{getattr(self, 'ride_id', None)}")
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
-        print(f"📩 [RECEIVE] From client {getattr(self, 'user_id', None)}: {content}")
-
-        # Broadcast back to the same group
+        print(f"📩 [RECEIVE] From client: {content}")
+        # Broadcast back to same group
         try:
             message = content.get("message", {})
             await self.channel_layer.group_send(
@@ -590,8 +582,7 @@ class RideCancellationConsumer(AsyncJsonWebsocketConsumer):
 
     async def ride_cancellation_message(self, event):
         message = event.get("message", {})
-        print(f"📤 [SEND] To client {getattr(self, 'user_id', None)}: {message}")
-
+        print(f"📤 [SEND] To client: {message}")
         await self.send_json({
             "type": "ride_cancellation",
             "message": message

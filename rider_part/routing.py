@@ -23,6 +23,6 @@ websocket_urlpatterns = [
 
 
     # ride cancellation
-    re_path(r'ws/ride-cancellation/(?P<user_id>\w+)/$', RideCancellationConsumer.as_asgi()),
+    re_path(r'ws/ride-cancellation/(?P<ride_id>\d+)/$', RideCancellationConsumer.as_asgi()),
 
 ]

@@ -306,7 +306,7 @@ class CancelRideAPIView(APIView):
         try:
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
-                f'ride_cancellation_{ride.user.id}',
+                f'ride_cancellation_{ride.id}',
                 {
                     'type': 'ride_cancellation_message',
                     'message': {
@@ -351,7 +351,7 @@ class CancelRideAPIView(APIView):
             "past_cancellations": past_cancellations + 1
         }, status=200)
     
-    
+
 class RideDetailAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
