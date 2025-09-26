@@ -402,10 +402,18 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         if RidePaymentDetail.objects.filter(ride=ride).exclude(payment_status='pending').exists():
             return Response({"detail": "Payment already submitted."}, status=status.HTTP_400_BAD_REQUEST)
         
+
+        # Fetch active GST from PlatformSetting
+        gst_setting = PlatformSetting.objects.filter(fee_reason="GST", is_active=True).first()
+        gst_percentage = gst_setting.fee_value if gst_setting else Decimal('0')
         # ------------------------------------------------------------------
         # 3) PRICE CALCULATION
         # ------------------------------------------------------------------
         ride_price = ride.offered_price or ride.estimated_price
+        # GST amount
+        gst_amount = (gst_percentage / 100) * ride_price
+        
+
         if ride_price is None:
             return Response({"detail": "Price not available."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -422,7 +430,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
             promo = None
             discount = Decimal(0)
 
-        grand_total = max(ride_price - discount, 0) + tip_amount
+        grand_total = max(ride_price - discount, 0) + tip_amount + gst_amount
         driver_earning = ride_price
 
         # ------------------------------------------------------------------
@@ -523,6 +531,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                 'promo_discount': discount,
                 'tip_amount': tip_amount,
                 'grand_total': grand_total,
+                'gst_amount':gst_amount,
                 'payment_method': payment_method,
                 'payment_status': payment_status,
                 'driver_earnings': driver_earning,
