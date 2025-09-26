@@ -302,6 +302,29 @@ class CancelRideAPIView(APIView):
         ride.save()
         print(f"⚠️ Ride {ride.id} cancelled by driver {request.user.id}")
 
+        # Send WebSocket notification to rider
+        try:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'ride_cancellation_{ride.user.id}',
+                {
+                    'type': 'ride_cancellation_message',
+                    'message': {
+                        'ride_id': str(ride.id),
+                        'status': 'cancelled',
+                        'cancelled_by': 'driver',
+                        'driver_id': str(request.user.id),
+                        'driver_name': request.user.username,
+                        'cancellation_fee_applied': str(cancellation_fee_applied),
+                        'message': f"Your ride has been cancelled by driver {request.user.username}.",
+                        'timestamp': ride.created_at.isoformat()
+                    }
+                }
+            )
+            print(f"✅ WebSocket message sent to rider {ride.user.id}")
+        except Exception as e:
+            print("❌ WebSocket error:", e)
+
         # FCM notification
         try:
             if ride.user:
@@ -322,29 +345,13 @@ class CancelRideAPIView(APIView):
         except Exception as e:
             print("❌ FCM error:", e)
 
-        # WebSocket notification
-        try:
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f'ride_{ride.id}',
-                {
-                    'type': 'ride_cancelled',
-                    'ride_id': ride.id,
-                    'cancelled_by': 'driver',
-                    'driver_name': request.user.username,
-                    'cancellation_fee_applied': cancellation_fee_applied
-                }
-            )
-            print(f"✅ WebSocket ride_cancelled sent for ride {ride.id}")
-        except Exception as e:
-            print(f"❌ WebSocket error: {e}")
-
         return Response({
             "message": "Ride cancelled successfully.",
             "cancellation_fee_applied": str(cancellation_fee_applied),
             "past_cancellations": past_cancellations + 1
         }, status=200)
-
+    
+    
 class RideDetailAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 

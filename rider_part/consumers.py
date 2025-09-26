@@ -15,62 +15,41 @@ from firebase_admin import messaging
 from django.core.exceptions import ObjectDoesNotExist
 from notifications.fcm import send_fcm_notification
 logger = logging.getLogger(__name__)
+
 class RideTrackingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f'ride_{self.ride_id}'
-        
-        # Debug connection info
-        user = self.scope.get('user', 'Anonymous')
-        print(f"🔌 CONNECT: ride_id={self.ride_id}, group_name={self.group_name}, user={user}")
-        
         try:
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
-            print(f"✅ WebSocket connected for ride {self.ride_id}, group: {self.group_name}")
-            
-            # Send a welcome message for testing
-            await self.send(text_data=json.dumps({
-                'type': 'connection_established',
-                'message': f'Connected to ride {self.ride_id} tracking'
-            }))
+            print(f"✅ WebSocket connected for ride {self.ride_id}")
         except Exception as e:
             print(f"❌ Error on connect: {e}")
 
     async def disconnect(self, close_code):
-        print(f"🔌 DISCONNECT: ride_id={self.ride_id}, group_name={self.group_name}, code={close_code}")
         try:
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+            print(f"⚠️ WebSocket disconnected for ride {self.ride_id}, code: {close_code}")
         except Exception as e:
             print(f"❌ Error on disconnect: {e}")
 
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
-            print(f"📨 RECEIVED: {data}")
-            
-            # Handle different message types
-            message_type = data.get('type')
-            
-            if message_type == 'ping':
-                await self.send(text_data=json.dumps({
-                    'type': 'pong',
-                    'message': 'pong'
-                }))
-            elif message_type == 'location':
-                latitude = data.get('latitude')
-                longitude = data.get('longitude')
-                print(f"📍 Received location: {latitude}, {longitude}")
+            latitude = data.get('latitude')
+            longitude = data.get('longitude')
+            print(f"📍 Received location: {latitude}, {longitude}")
 
-                if latitude is not None and longitude is not None:
-                    await self.channel_layer.group_send(
-                        self.group_name,
-                        {
-                            'type': 'send_location',
-                            'latitude': latitude,
-                            'longitude': longitude,
-                        }
-                    )
+            if latitude is not None and longitude is not None:
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'send_location',
+                        'latitude': latitude,
+                        'longitude': longitude,
+                    }
+                )
         except Exception as e:
             print(f"❌ Error in receive: {e}")
 
@@ -85,21 +64,7 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"❌ Error sending location: {e}")
 
-    async def ride_cancelled(self, event):
-        try:
-            print(f"🎯 ride_cancelled EVENT RECEIVED in consumer: {event}")
-            print(f"🎯 Sending to WebSocket client for ride {self.ride_id}")
-            
-            await self.send(text_data=json.dumps({
-                'type': 'ride_cancelled',
-                'ride_id': event['ride_id'],
-                'cancelled_by': event['cancelled_by'],
-                'cancellation_fee_applied': event.get('cancellation_fee_applied', 0),
-                'driver_name': event.get('driver_name', '')
-            }))
-            print(f"✅ Sent ride_cancelled message to client for ride {self.ride_id}")
-        except Exception as e:
-            print(f"❌ Error sending ride_cancelled: {e}")
+
             
 class RideRequestConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -320,129 +285,129 @@ class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
         }))
 
 
-class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
-    async def connect(self):
-        try:
-            user = self.scope.get("user")
+# class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
+#     async def connect(self):
+#         try:
+#             user = self.scope.get("user")
 
-            if not user or not user.is_authenticated:
-                user_id = self.scope['url_route']['kwargs'].get('user_id')
-                if user_id:
-                    user = await self.get_user(user_id)
+#             if not user or not user.is_authenticated:
+#                 user_id = self.scope['url_route']['kwargs'].get('user_id')
+#                 if user_id:
+#                     user = await self.get_user(user_id)
 
-            if user and user.is_authenticated:
-                self.user_id = str(user.id)
-                self.group_name = f"user_{self.user_id}"
-                await self.channel_layer.group_add(self.group_name, self.channel_name)
-                await self.accept()
-                print(f"✅ WebSocket connected: user_{self.user_id}")
-            else:
-                print("❌ Unauthorized WebSocket attempt")
-                await self.close(code=4003)
+#             if user and user.is_authenticated:
+#                 self.user_id = str(user.id)
+#                 self.group_name = f"user_{self.user_id}"
+#                 await self.channel_layer.group_add(self.group_name, self.channel_name)
+#                 await self.accept()
+#                 print(f"✅ WebSocket connected: user_{self.user_id}")
+#             else:
+#                 print("❌ Unauthorized WebSocket attempt")
+#                 await self.close(code=4003)
 
-        except Exception as e:
-            print(f"❌ Error in connect(): {e}")
-            await self.close(code=4002)
+#         except Exception as e:
+#             print(f"❌ Error in connect(): {e}")
+#             await self.close(code=4002)
 
-    @database_sync_to_async
-    def get_user(self, user_id):
-        try:
-            return CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return None
+#     @database_sync_to_async
+#     def get_user(self, user_id):
+#         try:
+#             return CustomUser.objects.get(id=user_id)
+#         except CustomUser.DoesNotExist:
+#             return None
 
-    async def disconnect(self, close_code):
-        if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(self.group_name, self.channel_name)
-        print(f"WebSocket disconnected with code: {close_code}")
+#     async def disconnect(self, close_code):
+#         if hasattr(self, 'group_name'):
+#             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+#         print(f"WebSocket disconnected with code: {close_code}")
 
-    async def receive_json(self, content):
-        try:
-            message_type = content.get('type')
+#     async def receive_json(self, content):
+#         try:
+#             message_type = content.get('type')
             
-            if message_type == 'ping':
-                await self.send_json({'type': 'pong', 'timestamp': content.get('timestamp')})
-            else:
-                print(f"Received unknown message type: {message_type}")
+#             if message_type == 'ping':
+#                 await self.send_json({'type': 'pong', 'timestamp': content.get('timestamp')})
+#             else:
+#                 print(f"Received unknown message type: {message_type}")
                 
-        except Exception as e:
-            print(f"Error processing message: {e}")
+#         except Exception as e:
+#             print(f"Error processing message: {e}")
 
-    @database_sync_to_async
-    def get_driver_details(self, driver_id):
-        driver = CustomUser.objects.filter(id=driver_id, role='driver').first()
-        if not driver:
-            return None
+#     @database_sync_to_async
+#     def get_driver_details(self, driver_id):
+#         driver = CustomUser.objects.filter(id=driver_id, role='driver').first()
+#         if not driver:
+#             return None
     
-        vehicle_info = getattr(driver, 'vehicle_info', None)
+#         vehicle_info = getattr(driver, 'vehicle_info', None)
     
-        return {
-            'driver_name': driver.username or f"Driver {driver.phone_number[-4:]}",
-            'driver_phone': driver.phone_number,
-            'vehicle_model': getattr(vehicle_info, 'car_model', 'Car'),
-            'vehicle_number': getattr(vehicle_info, 'vehicle_number', 'NA'),
-            'vehicle_type': getattr(vehicle_info, 'vehicle_type', 'Unknown'),
-            'car_company': getattr(vehicle_info, 'car_company', ''),
-            'year': getattr(vehicle_info, 'year', None),
-        }
+#         return {
+#             'driver_name': driver.username or f"Driver {driver.phone_number[-4:]}",
+#             'driver_phone': driver.phone_number,
+#             'vehicle_model': getattr(vehicle_info, 'car_model', 'Car'),
+#             'vehicle_number': getattr(vehicle_info, 'vehicle_number', 'NA'),
+#             'vehicle_type': getattr(vehicle_info, 'vehicle_type', 'Unknown'),
+#             'car_company': getattr(vehicle_info, 'car_company', ''),
+#             'year': getattr(vehicle_info, 'year', None),
+#         }
         
-    async def ride_accepted(self, event):
-        driver_details = await self.get_driver_details(event['driver_id'])
-        if driver_details:
-            await self.send_json({
-                "type": "ride_accepted",
-                "ride_id": event["ride_id"],
-                "message": event["message"],
-                "driver_id": event["driver_id"],
-                **driver_details
-            })
-        else:
-            await self.send_json({
-                "type": "ride_accepted",
-                "ride_id": event["ride_id"],
-                "message": "Driver assigned but details unavailable",
-                "driver_id": event["driver_id"],
-                "driver_name": "Unknown Driver",
-            })
+#     async def ride_accepted(self, event):
+#         driver_details = await self.get_driver_details(event['driver_id'])
+#         if driver_details:
+#             await self.send_json({
+#                 "type": "ride_accepted",
+#                 "ride_id": event["ride_id"],
+#                 "message": event["message"],
+#                 "driver_id": event["driver_id"],
+#                 **driver_details
+#             })
+#         else:
+#             await self.send_json({
+#                 "type": "ride_accepted",
+#                 "ride_id": event["ride_id"],
+#                 "message": "Driver assigned but details unavailable",
+#                 "driver_id": event["driver_id"],
+#                 "driver_name": "Unknown Driver",
+#             })
 
-    async def ride_cancelled(self, event):
-        try:
-            await self.send_json({
-                "type": "ride_cancelled",
-                "ride_id": event["ride_id"],
-                "message": event["message"],
-                "reason": event.get("reason", "No reason provided"),
-                "driver_name": event.get("driver_name", "Unknown driver"),
-                "driver_id": event.get("driver_id")
-            })
-        except Exception as e:
-            print(f"Error sending ride_cancelled: {e}")
+#     async def ride_cancelled(self, event):
+#         try:
+#             await self.send_json({
+#                 "type": "ride_cancelled",
+#                 "ride_id": event["ride_id"],
+#                 "message": event["message"],
+#                 "reason": event.get("reason", "No reason provided"),
+#                 "driver_name": event.get("driver_name", "Unknown driver"),
+#                 "driver_id": event.get("driver_id")
+#             })
+#         except Exception as e:
+#             print(f"Error sending ride_cancelled: {e}")
 
-    async def ride_cancelled_by_user(self, event):
-        try:
-            await self.send_json({
-                "type": "ride_cancelled_by_user",
-                "ride_id": event["ride_id"],
-                "message": event["message"],
-                "user_name": event["user_name"],
-                "user_id": event["user_id"],
-                "timestamp": event.get("timestamp")
-            })
-        except Exception as e:
-            print(f"Error sending ride_cancelled_by_user: {e}")
+#     async def ride_cancelled_by_user(self, event):
+#         try:
+#             await self.send_json({
+#                 "type": "ride_cancelled_by_user",
+#                 "ride_id": event["ride_id"],
+#                 "message": event["message"],
+#                 "user_name": event["user_name"],
+#                 "user_id": event["user_id"],
+#                 "timestamp": event.get("timestamp")
+#             })
+#         except Exception as e:
+#             print(f"Error sending ride_cancelled_by_user: {e}")
 
     
-    async def driver_location_update(self, event):
-        try:
-            await self.send_json({
-                "type": "driver_location",
-                "ride_id": event["ride_id"],
-                "latitude": event["latitude"],
-                "longitude": event["longitude"],
-                "timestamp": event["timestamp"]
-            })
-        except Exception as e:
-            print(f"Error sending driver_location_update: {e}")
+#     async def driver_location_update(self, event):
+#         try:
+#             await self.send_json({
+#                 "type": "driver_location",
+#                 "ride_id": event["ride_id"],
+#                 "latitude": event["latitude"],
+#                 "longitude": event["longitude"],
+#                 "timestamp": event["timestamp"]
+#             })
+#         except Exception as e:
+#             print(f"Error sending driver_location_update: {e}")
 
 # shared ride tracking consumer
 class SharedRideTrackingConsumer(AsyncWebsocketConsumer):
@@ -573,3 +538,58 @@ class RideLocationConsumer(AsyncWebsocketConsumer):
             "longitude": event["longitude"],
             "recorded_at": event["recorded_at"],
         }))
+
+
+
+# cancel ride web scoket
+class RideCancellationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.room_name = self.scope['url_route']['kwargs']['user_id']
+        self.room_group_name = f'ride_cancellation_{self.room_name}'
+
+        # Join room group
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+        print(f"WebSocket connected for user {self.room_name}")
+
+    async def disconnect(self, close_code):
+        # Leave room group
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+        print(f"WebSocket disconnected for user {self.room_name}")
+
+    async def receive(self, text_data):
+        text_data_json = json.loads(text_data)
+        message = text_data_json['message']
+
+        # Send message to room group
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'ride_cancellation_message',
+                'message': message
+            }
+        )
+
+    # Receive message from room group
+    async def ride_cancellation_message(self, event):
+        message = event['message']
+
+        # Send message to WebSocket
+        await self.send(text_data=json.dumps({
+            'message': message,
+            'type': 'ride_cancellation'
+        }))
+
+    @database_sync_to_async
+    def get_user(self, user_id):
+        try:
+            return CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return None

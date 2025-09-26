@@ -25,11 +25,6 @@ application = ProtocolTypeRouter({
             r'^ws/payment/status/(?P<ride_type>normal|shared)/(?P<ride_id>\d+)/$',
             JWTAuthMiddleware(RidePaymentStatusConsumer.as_asgi())
         ),
-        re_path(
-            r'^ws/ride-tracking/(?P<ride_id>\d+)/$',
-            JWTAuthMiddleware(RideTrackingConsumer.as_asgi())
-        ),
-        
         # Include other rider routes (apply middleware to them individually if needed)
         *rider_ws,
         
