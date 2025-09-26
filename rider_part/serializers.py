@@ -97,24 +97,29 @@ class EstimatePriceInputSerializer(serializers.Serializer):
     ride_id = serializers.IntegerField()
     vehicle_type_id = serializers.IntegerField()
 
-
 class RideRequestUpdateSerializer(serializers.ModelSerializer):
+    offered_price_with_gst = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = RideRequest
-        fields = ['offered_price', 'women_only', 'status']
+        fields = ['offered_price', 'women_only', 'status', 'offered_price_with_gst']
+
+    def get_offered_price_with_gst(self, obj):
+        # Just return the original value that was passed in request
+        return getattr(obj, "_offered_price_with_gst", None)
 
     def update(self, instance, validated_data):
-        # Handle offered_price with GST removal
         offered_price_with_gst = validated_data.get('offered_price')
-        print("!!!!!!!!!!!!!!!!!!!!!!",offered_price_with_gst)
         if offered_price_with_gst is not None:
             gst_setting = PlatformSetting.objects.filter(fee_reason="GST", is_active=True).first()
             if gst_setting:
                 gst_percentage = gst_setting.fee_value
-                # Remove GST
+                # Save base price without GST
                 base_price = offered_price_with_gst / (1 + (gst_percentage / 100))
-                print("-----------------",base_price)
                 validated_data['offered_price'] = round(base_price, 2)
+
+            # Attach original GST-inclusive price temporarily for serializer output
+            instance._offered_price_with_gst = offered_price_with_gst
 
         return super().update(instance, validated_data)
 

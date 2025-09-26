@@ -1002,6 +1002,8 @@ class DriverScheduledRidesAPIView(APIView):
             "message": "Upcoming scheduled rides fetched successfully.",
             "data": serializer.data
         }, status=status.HTTP_200_OK)
+    
+    
 class DriverEarningsSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 

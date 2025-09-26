@@ -401,7 +401,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
 
         if RidePaymentDetail.objects.filter(ride=ride).exclude(payment_status='pending').exists():
             return Response({"detail": "Payment already submitted."}, status=status.HTTP_400_BAD_REQUEST)
-
+        
         # ------------------------------------------------------------------
         # 3) PRICE CALCULATION
         # ------------------------------------------------------------------
