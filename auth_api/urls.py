@@ -14,5 +14,6 @@ urlpatterns = [
     path("password-login/", LoginAPIView.as_view(), name="login"),
     path("firebase-auth/",FirebaseAuthView.as_view()),
     path("save-fcm-token/", SaveFCMTokenAPIView.as_view(), name="save-fcm-token"),
+    path('logout/', LogoutAPIView.as_view(), name='logout'),
 
 ]

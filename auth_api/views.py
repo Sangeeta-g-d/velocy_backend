@@ -15,6 +15,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ObjectDoesNotExist
 import traceback
 from velocy_backend.firebase_config import * 
+from rest_framework_simplejwt.exceptions import TokenError
 from auth_api.models import UserFCMToken
 from velocy_backend.firebase_config import firebase_auth
 
@@ -371,3 +372,23 @@ class SaveFCMTokenAPIView(APIView):
             {"message": "Token saved successfully", "data": serializer.data},
             status=status.HTTP_200_OK,
         )
+    
+
+class LogoutAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """
+        Logout user by blacklisting the refresh token.
+        Expecting JSON: {"refresh": "<refresh_token>"}
+        """
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response({"detail": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # Blacklist the token
+            return Response({"detail": "Logout successful."}, status=status.HTTP_200_OK)
+        except TokenError as e:
+            return Response({"detail": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
