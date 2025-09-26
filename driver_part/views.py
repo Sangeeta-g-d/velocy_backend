@@ -283,7 +283,7 @@ class CancelRideAPIView(APIView):
             print(f"✅ Driver {driver.id} free cancellations left: {driver.driver_cancellations_left}")
         else:
             try:
-                platform_setting = PlatformSetting.objects.get(fee_reason="cancellation fees", is_active=True)
+                platform_setting = PlatformSetting.objects.filter(fee_reason="cancellation fees", is_active=True).first()
                 ride_amount = ride.ride_amount or 0  
 
                 if platform_setting.fee_type == "percentage":
@@ -759,7 +759,7 @@ class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
 
                 # Fetch active platform fee
                 platform_fee = Decimal('0.00')
-                active_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True)
+                active_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
                 if active_fee:
                     if active_fee.fee_type == 'percentage':
                         platform_fee = (active_fee.fee_value / Decimal('100')) * base_earning
@@ -853,7 +853,7 @@ class DriverRideEarningDetailAPIView(APIView):
             tip_amount = payment.tip_amount or 0
 
             # Cash rides → platform fee deferred
-            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True)
+            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
             fee_value = fee_type = None
             fee_amount = Decimal(0)
             if platform_fee:
@@ -879,7 +879,7 @@ class DriverRideEarningDetailAPIView(APIView):
 
         # ---------------- UPI / WALLET ----------------
         else:
-            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True)
+            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
 
             fee_amount = Decimal(0)
             fee_type = fee_value = None

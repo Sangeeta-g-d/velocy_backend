@@ -104,7 +104,7 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            # Calculate price
+            # Calculate base estimated price
             estimated_price = price_entry.price_per_km * ride.distance_km
             rounded_price = round(estimated_price, 2)
 
@@ -134,6 +134,12 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
+            # 🔹 Calculate GST
+            gst_setting = PlatformSetting.objects.filter(fee_reason="GST", is_active=True).first()
+            gst_percentage = gst_setting.fee_value if gst_setting else Decimal('0')
+            gst_amount = (gst_percentage / 100) * rounded_price
+            total_with_gst = round(rounded_price + gst_amount, 2)
+
             # Save estimate to ride
             ride.estimated_price = rounded_price
             ride.vehicle_type_id = vehicle_type_id
@@ -145,10 +151,13 @@ class EstimateRidePriceAPIView(StandardResponseMixin, APIView):
                 "price_per_km": price_entry.price_per_km,
                 "distance_km": ride.distance_km,
                 "estimated_price": rounded_price,
+                "gst_percentage": float(gst_percentage),
+                "total_with_gst": float(total_with_gst),
                 "user_role": request.user.role
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class RideRequestUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -440,7 +449,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
 
             # Add wallet credit for driver
             platform_fee = Decimal('0')
-            active_fee = PlatformSetting.objects.filter(is_active=True).first()
+            active_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
             if active_fee:
                 if active_fee.fee_type == 'percentage':
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
@@ -466,7 +475,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         
             # ---- Platform Fee (deferred) ----
             platform_fee = Decimal('0')
-            active_fee = PlatformSetting.objects.filter(is_active=True).first()
+            active_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
             if active_fee:
                 if active_fee.fee_type == 'percentage':
                     platform_fee = (active_fee.fee_value / 100) * driver_earning

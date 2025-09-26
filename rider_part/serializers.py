@@ -6,7 +6,7 @@ from django.utils.timezone import localtime
 import pytz
 from auth_api.models import DriverVehicleInfo, CustomUser
 from admin_part.models import RideReport
-
+from admin_part.models import PlatformSetting
 
 class VehicleTypeSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(use_url=True)
@@ -102,6 +102,21 @@ class RideRequestUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = RideRequest
         fields = ['offered_price', 'women_only', 'status']
+
+    def update(self, instance, validated_data):
+        # Handle offered_price with GST removal
+        offered_price_with_gst = validated_data.get('offered_price')
+        print("!!!!!!!!!!!!!!!!!!!!!!",offered_price_with_gst)
+        if offered_price_with_gst is not None:
+            gst_setting = PlatformSetting.objects.filter(fee_reason="GST", is_active=True).first()
+            if gst_setting:
+                gst_percentage = gst_setting.fee_value
+                # Remove GST
+                base_price = offered_price_with_gst / (1 + (gst_percentage / 100))
+                print("-----------------",base_price)
+                validated_data['offered_price'] = round(base_price, 2)
+
+        return super().update(instance, validated_data)
 
 
 class DriverVehicleInfoSerializer(serializers.ModelSerializer):
