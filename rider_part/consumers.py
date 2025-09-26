@@ -547,28 +547,30 @@ class RideCancellationConsumer(AsyncWebsocketConsumer):
         self.room_name = self.scope['url_route']['kwargs']['user_id']
         self.room_group_name = f'ride_cancellation_{self.room_name}'
 
-        # Join room group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
 
         await self.accept()
-        print(f"WebSocket connected for user {self.room_name}")
+        print(f"[WS CONNECT] User {self.room_name} connected to {self.room_group_name}")
 
     async def disconnect(self, close_code):
-        # Leave room group
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
-        print(f"WebSocket disconnected for user {self.room_name}")
+        print(f"[WS DISCONNECT] User {self.room_name} left {self.room_group_name}")
 
     async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
-        message = text_data_json['message']
+        print(f"[WS RECEIVE] From client in {self.room_group_name}: {text_data}")
+        try:
+            text_data_json = json.loads(text_data)
+            message = text_data_json.get('message', {})
+        except Exception as e:
+            print(f"[WS ERROR] Invalid message format: {e}")
+            return
 
-        # Send message to room group
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -576,20 +578,13 @@ class RideCancellationConsumer(AsyncWebsocketConsumer):
                 'message': message
             }
         )
+        print(f"[WS BROADCAST] Sent to group {self.room_group_name}: {message}")
 
-    # Receive message from room group
     async def ride_cancellation_message(self, event):
         message = event['message']
+        print(f"[WS SEND] To client {self.room_name}: {message}")
 
-        # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'message': message,
             'type': 'ride_cancellation'
         }))
-
-    @database_sync_to_async
-    def get_user(self, user_id):
-        try:
-            return CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return None
