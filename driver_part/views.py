@@ -658,6 +658,17 @@ class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
         if ride.start_time and ride.end_time:
             duration = ride.end_time - ride.start_time
 
+        # Base ride price (before GST)
+        ride_price = ride.offered_price if ride.offered_price else ride.estimated_price
+
+        # Apply GST if configured
+        gst_percentage = 0
+        ride_price_with_gst = None
+        gst_setting = PlatformSetting.objects.filter(fee_reason="GST", is_active=True).first()
+        if gst_setting:
+            gst_percentage = float(gst_setting.fee_value)
+            ride_price_with_gst = round(float(ride_price) * (1 + gst_percentage / 100), 2) if ride_price else None
+
         # Try to get payment details
         payment_info = None
         try:
@@ -669,12 +680,15 @@ class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
                 "wallet": float(payment.driver_earnings),
                 "payment_method": payment.payment_method,
                 "payment_status": payment.payment_status,
+                "gst_percentage": gst_percentage,
+                "grand_total_with_gst": ride_price_with_gst
             }
         except RidePaymentDetail.DoesNotExist:
             # fallback minimal payment info
-            ride_price = ride.offered_price if ride.offered_price else ride.estimated_price
             payment_info = {
                 "grand_total": float(ride_price) if ride_price else None,
+                "gst_percentage": gst_percentage,
+                "grand_total_with_gst": ride_price_with_gst,
                 "payment_status": "pending"
             }
 
@@ -695,10 +709,13 @@ class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
             },
             "ride_summary": {
                 "distance_km": float(ride.distance_km),
-                "price": float(ride.offered_price if ride.offered_price else ride.estimated_price)
+                "price": float(ride_price) if ride_price else None,
+                "price_with_gst": ride_price_with_gst,
+                "gst_percentage": gst_percentage
             },
             "payment_summary": payment_info
         }, status=status.HTTP_200_OK)
+
 
 class UpdateRidePaymentStatusAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
@@ -1003,7 +1020,7 @@ class DriverScheduledRidesAPIView(APIView):
             "data": serializer.data
         }, status=status.HTTP_200_OK)
     
-    
+
 class DriverEarningsSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
