@@ -549,9 +549,14 @@ class RideCancellationConsumer(AsyncJsonWebsocketConsumer):
         try:
             # Get ride_id from URL
             self.ride_id = self.scope["url_route"]["kwargs"]["ride_id"]
-            self.group_name = f"ride_cancellation_{self.ride_id}"
+            self.group_name = f"ride_cancellation_{self.ride_id}"  # rider group
+            self.driver_group_name = f"ride_driver_{self.ride_id}"  # driver group
 
+            # Add to rider group
             await self.channel_layer.group_add(self.group_name, self.channel_name)
+            # Optionally, if driver connects too, they join driver group
+            await self.channel_layer.group_add(self.driver_group_name, self.channel_name)
+
             await self.accept()
             print(f"✅ [CONNECT] WebSocket connected to ride_cancellation_{self.ride_id}")
 
@@ -560,13 +565,15 @@ class RideCancellationConsumer(AsyncJsonWebsocketConsumer):
             await self.close()
 
     async def disconnect(self, close_code):
-        print(f"🔌 [DISCONNECT] Leaving group ride_cancellation_{getattr(self, 'ride_id', None)}")
+        print(f"🔌 [DISCONNECT] Leaving groups for ride {getattr(self, 'ride_id', None)}")
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if hasattr(self, "driver_group_name"):
+            await self.channel_layer.group_discard(self.driver_group_name, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
         print(f"📩 [RECEIVE] From client: {content}")
-        # Broadcast back to same group
+        # Broadcast to rider group
         try:
             message = content.get("message", {})
             await self.channel_layer.group_send(
@@ -576,7 +583,7 @@ class RideCancellationConsumer(AsyncJsonWebsocketConsumer):
                     "message": message
                 }
             )
-            print(f"📢 [BROADCAST] Sent to group {self.group_name}: {message}")
+            print(f"📢 [BROADCAST] Sent to rider group {self.group_name}: {message}")
         except Exception as e:
             print(f"❌ [RECEIVE ERROR] {e}")
 
@@ -587,3 +594,22 @@ class RideCancellationConsumer(AsyncJsonWebsocketConsumer):
             "type": "ride_cancellation",
             "message": message
         })
+
+    # ------------------- New helper for driver -------------------
+    @staticmethod
+    def send_driver_notification(ride_id, message):
+        """
+        Use async_to_sync to send message to driver group from a view
+        """
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"ride_driver_{ride_id}",
+            {
+                "type": "ride_cancellation_message",
+                "message": message
+            }
+        )
+        print(f"✅ WebSocket message sent to driver group ride_driver_{ride_id}")

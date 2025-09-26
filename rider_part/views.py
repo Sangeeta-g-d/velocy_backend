@@ -953,10 +953,10 @@ class CancelRideByUserAPIView(StandardResponseMixin, APIView):
         try:
             ride = RideRequest.objects.get(id=ride_id)
         except RideRequest.DoesNotExist:
-            return Response({"detail": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Ride not found."}, status=404)
 
         if ride.user != request.user:
-            return Response({"detail": "You are not allowed to cancel this ride."}, status=403)
+            return Response({"detail": "You cannot cancel this ride."}, status=403)
 
         if ride.status in ['completed', 'cancelled']:
             return Response({"detail": "Cannot cancel a completed or already cancelled ride."}, status=400)
@@ -964,48 +964,42 @@ class CancelRideByUserAPIView(StandardResponseMixin, APIView):
         ride.status = 'cancelled'
         ride.save()
 
-        # ✅ Notify driver (if assigned) via WebSocket
-        channel_layer = get_channel_layer()
+        # -------- WebSocket notification to driver --------
         if ride.driver:
-            driver_id = ride.driver.id
-            group_name = f"user_{driver_id}"
+            from rider_part.consumers import RideCancellationConsumer  # import your consumer
+            RideCancellationConsumer.send_driver_notification(
+                ride.id,
+                {
+                    "ride_id": str(ride.id),
+                    "status": "cancelled",
+                    "cancelled_by": "rider",
+                    "user_id": str(request.user.id),
+                    "user_name": request.user.username,
+                    "message": f"{request.user.username} has cancelled the ride."
+                }
+            )
 
-            try:
-                async_to_sync(channel_layer.group_send)(
-                    group_name,
-                    {
-                        "type": "ride.cancelled_by_user",
-                        "ride_id": ride.id,
-                        "message": "Ride was cancelled by the rider.",
-                        "user_name": request.user.username,
-                        "user_id": request.user.id,
-                    }
-                )
-                print("✅ Cancellation WebSocket sent to driver group:", group_name)
-            except Exception as e:
-                print("❌ Error sending cancellation message:", e)
-
-            # ✅ FCM notification to driver
-            try:
-                from notifications.fcm import send_fcm_notification  # import your FCM helper
-
-                send_fcm_notification(
-                    user=ride.driver,
-                    title="Ride Cancelled ❌",
-                    body=f"{request.user.username} has cancelled the ride.",
-                    data={
-                        "ride_id": str(ride.id),
-                        "status": "cancelled",
-                        "cancelled_by": "rider",
-                        "user_id": str(request.user.id),
-                        "user_name": request.user.username,
-                    }
-                )
-                print("✅ FCM notification sent to driver.")
-            except Exception as e:
-                print("❌ Error sending FCM notification:", e)
+        # -------- FCM notification to driver --------
+        try:
+            from notifications.fcm import send_fcm_notification
+            send_fcm_notification(
+                user=ride.driver,
+                title="Ride Cancelled ❌",
+                body=f"{request.user.username} has cancelled the ride.",
+                data={
+                    "ride_id": str(ride.id),
+                    "status": "cancelled",
+                    "cancelled_by": "rider",
+                    "user_id": str(request.user.id),
+                    "user_name": request.user.username,
+                }
+            )
+            print("✅ FCM sent to driver")
+        except Exception as e:
+            print("❌ FCM error:", e)
 
         return Response({"message": "Ride cancelled successfully."}, status=200)
+
 
 class DeleteFavoriteToLocationAPIView(generics.DestroyAPIView):
     queryset = FavoriteToLocation.objects.all()
