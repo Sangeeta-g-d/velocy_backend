@@ -2,6 +2,8 @@
 
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.contrib.auth.models import AnonymousUser
+
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import asyncio
 import logging
@@ -542,49 +544,55 @@ class RideLocationConsumer(AsyncWebsocketConsumer):
 
 
 # cancel ride web scoket
-class RideCancellationConsumer(AsyncWebsocketConsumer):
+class RideCancellationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        self.room_name = self.scope['url_route']['kwargs']['user_id']
-        self.room_group_name = f'ride_cancellation_{self.room_name}'
+        try:
+            # JWT authenticated user
+            self.user = self.scope.get("user", AnonymousUser())
+            if self.user.is_anonymous:
+                print("❌ [CONNECT] Anonymous user, rejecting connection")
+                await self.close()
+                return
 
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
+            # Room/group for this rider
+            self.user_id = str(self.user.id)
+            self.group_name = f"ride_cancellation_{self.user_id}"
 
-        await self.accept()
-        print(f"[WS CONNECT] User {self.room_name} connected to {self.room_group_name}")
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
+            print(f"✅ [CONNECT] User {self.user_id} connected to group {self.group_name}")
+
+        except Exception as e:
+            print(f"❌ [CONNECT ERROR] {e}")
+            await self.close()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
-        print(f"[WS DISCONNECT] User {self.room_name} left {self.room_group_name}")
+        print(f"🔌 [DISCONNECT] User {getattr(self, 'user_id', None)} leaving group {getattr(self, 'group_name', None)}, code={close_code}")
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-    async def receive(self, text_data):
-        print(f"[WS RECEIVE] From client in {self.room_group_name}: {text_data}")
+    async def receive_json(self, content, **kwargs):
+        print(f"📩 [RECEIVE] From client {getattr(self, 'user_id', None)}: {content}")
+
+        # Broadcast back to the same group
         try:
-            text_data_json = json.loads(text_data)
-            message = text_data_json.get('message', {})
+            message = content.get("message", {})
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    "type": "ride_cancellation_message",
+                    "message": message
+                }
+            )
+            print(f"📢 [BROADCAST] Sent to group {self.group_name}: {message}")
         except Exception as e:
-            print(f"[WS ERROR] Invalid message format: {e}")
-            return
-
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'ride_cancellation_message',
-                'message': message
-            }
-        )
-        print(f"[WS BROADCAST] Sent to group {self.room_group_name}: {message}")
+            print(f"❌ [RECEIVE ERROR] {e}")
 
     async def ride_cancellation_message(self, event):
-        message = event['message']
-        print(f"[WS SEND] To client {self.room_name}: {message}")
+        message = event.get("message", {})
+        print(f"📤 [SEND] To client {getattr(self, 'user_id', None)}: {message}")
 
-        await self.send(text_data=json.dumps({
-            'message': message,
-            'type': 'ride_cancellation'
-        }))
+        await self.send_json({
+            "type": "ride_cancellation",
+            "message": message
+        })
