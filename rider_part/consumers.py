@@ -15,41 +15,62 @@ from firebase_admin import messaging
 from django.core.exceptions import ObjectDoesNotExist
 from notifications.fcm import send_fcm_notification
 logger = logging.getLogger(__name__)
-
 class RideTrackingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f'ride_{self.ride_id}'
+        
+        # Debug connection info
+        user = self.scope.get('user', 'Anonymous')
+        print(f"🔌 CONNECT: ride_id={self.ride_id}, group_name={self.group_name}, user={user}")
+        
         try:
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
-            print(f"✅ WebSocket connected for ride {self.ride_id}")
+            print(f"✅ WebSocket connected for ride {self.ride_id}, group: {self.group_name}")
+            
+            # Send a welcome message for testing
+            await self.send(text_data=json.dumps({
+                'type': 'connection_established',
+                'message': f'Connected to ride {self.ride_id} tracking'
+            }))
         except Exception as e:
             print(f"❌ Error on connect: {e}")
 
     async def disconnect(self, close_code):
+        print(f"🔌 DISCONNECT: ride_id={self.ride_id}, group_name={self.group_name}, code={close_code}")
         try:
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
-            print(f"⚠️ WebSocket disconnected for ride {self.ride_id}, code: {close_code}")
         except Exception as e:
             print(f"❌ Error on disconnect: {e}")
 
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
-            latitude = data.get('latitude')
-            longitude = data.get('longitude')
-            print(f"📍 Received location: {latitude}, {longitude}")
+            print(f"📨 RECEIVED: {data}")
+            
+            # Handle different message types
+            message_type = data.get('type')
+            
+            if message_type == 'ping':
+                await self.send(text_data=json.dumps({
+                    'type': 'pong',
+                    'message': 'pong'
+                }))
+            elif message_type == 'location':
+                latitude = data.get('latitude')
+                longitude = data.get('longitude')
+                print(f"📍 Received location: {latitude}, {longitude}")
 
-            if latitude is not None and longitude is not None:
-                await self.channel_layer.group_send(
-                    self.group_name,
-                    {
-                        'type': 'send_location',
-                        'latitude': latitude,
-                        'longitude': longitude,
-                    }
-                )
+                if latitude is not None and longitude is not None:
+                    await self.channel_layer.group_send(
+                        self.group_name,
+                        {
+                            'type': 'send_location',
+                            'latitude': latitude,
+                            'longitude': longitude,
+                        }
+                    )
         except Exception as e:
             print(f"❌ Error in receive: {e}")
 
@@ -66,7 +87,9 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
 
     async def ride_cancelled(self, event):
         try:
-            print(f"⚠️ ride_cancelled event received: {event}")
+            print(f"🎯 ride_cancelled EVENT RECEIVED in consumer: {event}")
+            print(f"🎯 Sending to WebSocket client for ride {self.ride_id}")
+            
             await self.send(text_data=json.dumps({
                 'type': 'ride_cancelled',
                 'ride_id': event['ride_id'],
@@ -74,10 +97,9 @@ class RideTrackingConsumer(AsyncWebsocketConsumer):
                 'cancellation_fee_applied': event.get('cancellation_fee_applied', 0),
                 'driver_name': event.get('driver_name', '')
             }))
-            print(f"✅ Sent ride_cancelled message to client")
+            print(f"✅ Sent ride_cancelled message to client for ride {self.ride_id}")
         except Exception as e:
             print(f"❌ Error sending ride_cancelled: {e}")
-
             
 class RideRequestConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
