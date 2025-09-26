@@ -273,11 +273,15 @@ class CancelRideAPIView(APIView):
         if ride.status in ['completed', 'cancelled']:
             return Response({"detail": "Cannot cancel a completed or already cancelled ride."}, status=400)
 
-        # Count past cancellations
-        past_cancellations = RideRequest.objects.filter(driver=request.user, status="cancelled").count()
+       
+        driver = request.user
         cancellation_fee_applied = 0
-
-        if past_cancellations >= 2:  # 3rd time or more
+        # If driver has cancellations left
+        if driver.driver_cancellations_left > 0:
+            driver.driver_cancellations_left -= 1
+            driver.save()
+            print(f"✅ Driver {driver.id} free cancellations left: {driver.driver_cancellations_left}")
+        else:
             try:
                 platform_setting = PlatformSetting.objects.get(fee_reason="cancellation fees", is_active=True)
                 ride_amount = ride.ride_amount or 0  
@@ -294,6 +298,10 @@ class CancelRideAPIView(APIView):
                     transaction_type="penalty",
                     description=f"Ride cancellation fee for ride {ride.id}"
                 )
+                # Reset free cancellations
+                driver.driver_cancellations_left = 2
+                driver.save()
+                print(f"🔄 Driver {driver.id} cancellations reset to 2 after fee.")
             except PlatformSetting.DoesNotExist:
                 print("⚠️ No active cancellation fee setting found")
 

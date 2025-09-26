@@ -86,6 +86,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         help_text="If not universal, assign specific corporate accounts"
     )
 
+    driver_cancellations_left = models.PositiveIntegerField(
+        default=2,
+        help_text="Number of free cancellations left for driver"
+    )
+
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = []
 

@@ -43,7 +43,7 @@ class RideRequestDetailSerializer(serializers.ModelSerializer):
     vehicle_type = serializers.StringRelatedField()
     ride_stops = RideStopSerializer(many=True, read_only=True)
     created_at = serializers.SerializerMethodField()
-    cancelled_rides_count = serializers.SerializerMethodField()  # ✅ new field
+    
 
     class Meta:
         model = RideRequest
@@ -55,7 +55,8 @@ class RideRequestDetailSerializer(serializers.ModelSerializer):
             "id": obj.user.id,
             "phone_number": obj.user.phone_number,
             "username": obj.user.username,
-            "profile": request.build_absolute_uri(obj.user.profile.url) if obj.user.profile else None
+            "profile": request.build_absolute_uri(obj.user.profile.url) if obj.user.profile else None,
+            "driver_cancellations_left":obj.user.driver_cancellations_left
         }
 
     def get_created_at(self, obj):
@@ -63,11 +64,7 @@ class RideRequestDetailSerializer(serializers.ModelSerializer):
         local_dt = localtime(obj.created_at, india_tz)
         return local_dt.strftime('%d-%m-%Y %I:%M %p')
 
-    def get_cancelled_rides_count(self, obj):
-        request = self.context.get("request")
-        if request and hasattr(request, "user") and request.user.is_authenticated:
-            return RideRequest.objects.filter(driver=request.user, status="cancelled").count()
-        return 0
+
 
     
 class DeclineRideSerializer(serializers.Serializer):

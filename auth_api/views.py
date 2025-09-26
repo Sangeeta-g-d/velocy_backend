@@ -278,6 +278,7 @@ class BecomeDriverView(APIView):
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
         user.role = 'driver'
+        user.driver_cancellations_left = 2
         user.save()
 
         return Response({
