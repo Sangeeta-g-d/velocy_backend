@@ -273,18 +273,20 @@ class RiderScheduledRideSerializer(serializers.ModelSerializer):
 
 
 class RiderProfileSerializer(serializers.ModelSerializer):
-    profile = serializers.SerializerMethodField()
+    profile_url = serializers.SerializerMethodField()  # For output URL
+    profile = serializers.ImageField(required=False, allow_null=True)  # For input
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'phone_number', 'email', 'username', 'profile']
-        read_only_fields = ['phone_number']  # <— ✔️ cannot be edited through PUT
+        fields = ['id', 'phone_number', 'email', 'username', 'profile', 'profile_url']
+        read_only_fields = ['phone_number']  # cannot be edited
 
-    def get_profile(self, obj):
+    def get_profile_url(self, obj):
         request = self.context.get('request')
         if obj.profile and request:
             return request.build_absolute_uri(obj.profile.url)
         return None
+
 
 
 class RideReportSerializer(serializers.ModelSerializer):
