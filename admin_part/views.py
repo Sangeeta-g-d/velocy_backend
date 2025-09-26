@@ -7,6 +7,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from driver_part.models import CashOutRequest
 import json
 from django.db.models import Sum, Q
+from notifications.fcm import send_fcm_notification
 import os
 from django.contrib import messages
 from django.http import HttpResponseRedirect
@@ -692,23 +693,43 @@ class ProcessCashOutView(View):
     def post(self, request, cashOut_id):
         try:
             cash_out_request = CashOutRequest.objects.get(id=cashOut_id)
-            
+
             # Parse JSON data from request body
             try:
                 data = json.loads(request.body)
                 action = data.get('action')
             except json.JSONDecodeError:
                 return JsonResponse({"status": "error", "message": "Invalid JSON data"}, status=400)
-            
+
             if action == 'approve':
                 cash_out_request.process(reviewed_by=request.user)
+
+                # ✅ Send FCM Notification to Driver
+                send_fcm_notification(
+                    user=cash_out_request.driver,
+                    title="Cashout Approved ✅",
+                    body=f"Your cashout of ₹{cash_out_request.amount} has been processed successfully.",
+                    data={"cashout_id": str(cash_out_request.id), "status": "processed"}
+                )
+
                 return JsonResponse({"status": "success", "message": "Cash out processed successfully"})
+
             elif action == 'reject':
                 cash_out_request.reject(reviewed_by=request.user)
+
+                # ✅ Send FCM Notification to Driver
+                send_fcm_notification(
+                    user=cash_out_request.driver,
+                    title="Cashout Rejected ❌",
+                    body=f"Your cashout of ₹{cash_out_request.amount} has been rejected. Please contact support.",
+                    data={"cashout_id": str(cash_out_request.id), "status": "rejected"}
+                )
+
                 return JsonResponse({"status": "success", "message": "Cash out request rejected"})
+
             else:
                 return JsonResponse({"status": "error", "message": "Invalid action"}, status=400)
-                
+
         except CashOutRequest.DoesNotExist:
             return JsonResponse({"status": "error", "message": "Cash out request not found"}, status=404)
         except ValueError as e:

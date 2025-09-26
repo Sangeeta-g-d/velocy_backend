@@ -359,7 +359,6 @@ class ValidateAndApplyPromoCodeAPIView(StandardResponseMixin,APIView):
         }, status=status.HTTP_200_OK)
     
 
-
 class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -372,7 +371,6 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         # 1) TIP AMOUNT (safe conversion)
         # ------------------------------------------------------------------
         tip_amount_raw = request.data.get('tip_amount', 0)
-
         try:
             if tip_amount_raw in [None, '', 'null']:
                 tip_amount = Decimal(0)
@@ -401,21 +399,18 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
 
         if RidePaymentDetail.objects.filter(ride=ride).exclude(payment_status='pending').exists():
             return Response({"detail": "Payment already submitted."}, status=status.HTTP_400_BAD_REQUEST)
-        
 
-        # Fetch active GST from PlatformSetting
+        # ------------------------------------------------------------------
+        # 3) GST + PRICE CALCULATION
+        # ------------------------------------------------------------------
         gst_setting = PlatformSetting.objects.filter(fee_reason="GST", is_active=True).first()
         gst_percentage = gst_setting.fee_value if gst_setting else Decimal('0')
-        # ------------------------------------------------------------------
-        # 3) PRICE CALCULATION
-        # ------------------------------------------------------------------
-        ride_price = ride.offered_price or ride.estimated_price
-        # GST amount
-        gst_amount = (gst_percentage / 100) * ride_price
-        
 
+        ride_price = ride.offered_price or ride.estimated_price
         if ride_price is None:
             return Response({"detail": "Price not available."}, status=status.HTTP_400_BAD_REQUEST)
+
+        gst_amount = (gst_percentage / 100) * ride_price
 
         try:
             promo_usage = PromoCodeUsage.objects.get(user=request.user, ride=ride)
@@ -434,16 +429,20 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         driver_earning = ride_price
 
         # ------------------------------------------------------------------
-        # 4) HANDLE PAYMENT + WEBSOCKET
+        # 4) HANDLE PAYMENT + WEBSOCKET + FCM
         # ------------------------------------------------------------------
         payment_status = 'pending'
+        fcm_title, fcm_body = None, None
+
         if payment_method == 'upi':
             if not upi_payment_id:
                 return Response({"detail": "UPI Payment ID is required for UPI method."}, status=status.HTTP_400_BAD_REQUEST)
 
             payment_status = 'completed'
             ride.status = 'completed'
+            ride.save()
 
+            # ---- WebSocket ----
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'payment_normal_ride_{ride.id}',
@@ -453,9 +452,8 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                     'message': f'UPI payment successful. Ride #{ride.id} marked as completed.',
                 }
             )
-            ride.save()
 
-            # Add wallet credit for driver
+            # ---- Driver wallet credit ----
             platform_fee = Decimal('0')
             active_fee = PlatformSetting.objects.filter(fee_reason="platform fees", is_active=True).first()
             if active_fee:
@@ -463,10 +461,10 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
                 else:
                     platform_fee = active_fee.fee_value
-                # ---- Fetch all pending fees from cash rides ----
+
             pending_fees_qs = DriverPendingFee.objects.filter(driver=ride.driver, settled=False)
             total_pending_fees = pending_fees_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        
+
             net_earning = driver_earning - platform_fee - total_pending_fees + tip_amount
             DriverWalletTransaction.objects.create(
                 driver=ride.driver,
@@ -477,10 +475,14 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
             )
             pending_fees_qs.update(settled=True)
 
+            # ---- FCM Notifications ----
+            fcm_title = "UPI Payment Successful"
+            fcm_body = f"Ride #{ride.id} has been paid successfully via UPI."
+
         elif payment_method == 'cash':
             ride.status = 'completed'
             ride.save()
-        
+
             # ---- Platform Fee (deferred) ----
             platform_fee = Decimal('0')
             active_fee = PlatformSetting.objects.filter(fee_reason="platform fees", is_active=True).first()
@@ -489,18 +491,15 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
                 else:
                     platform_fee = active_fee.fee_value
-        
-            # ---- Record pending fee ----
+
             DriverPendingFee.objects.create(
                 driver=ride.driver,
                 ride=ride,
                 amount=platform_fee,
                 settled=False
             )
-        
-            # ---- Driver gets full fare immediately ----
+
             net_earning = driver_earning + tip_amount
-        
             DriverWalletTransaction.objects.create(
                 driver=ride.driver,
                 ride=ride,
@@ -508,8 +507,8 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                 transaction_type='ride_earning',
                 description=f"Cash payment for Ride #{ride.id} (platform fee {platform_fee} deferred)"
             )
-        
-            # ---- WebSocket message to driver ----
+
+            # ---- WebSocket ----
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f'payment_normal_ride_{ride.id}',
@@ -519,7 +518,11 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                     'message': f"Passenger selected cash for Ride #{ride.id}. Please collect the fare.",
                 }
             )
-        
+
+            # ---- FCM Notifications ----
+            fcm_title = "Cash Payment Pending"
+            fcm_body = f"Ride #{ride.id} is marked as cash payment. Please complete the collection."
+
         # ------------------------------------------------------------------
         # 5) SAVE PAYMENT RECORD
         # ------------------------------------------------------------------
@@ -531,13 +534,27 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
                 'promo_discount': discount,
                 'tip_amount': tip_amount,
                 'grand_total': grand_total,
-                'gst_amount':gst_amount,
+                'gst_amount': gst_amount,
                 'payment_method': payment_method,
                 'payment_status': payment_status,
                 'driver_earnings': driver_earning,
                 'upi_payment_id': upi_payment_id if payment_method == 'upi' else None,
             }
         )
+
+        # ------------------------------------------------------------------
+        # 6) SEND FCM NOTIFICATIONS TO DRIVER & RIDER
+        # ------------------------------------------------------------------
+        if fcm_title and fcm_body:
+            data_payload = {
+                "ride_id": str(ride.id),
+                "payment_method": payment_method,
+                "payment_status": payment_status,
+                "grand_total": str(grand_total),
+            }
+            if ride.driver:
+                send_fcm_notification(ride.driver, fcm_title, fcm_body, data_payload)
+            send_fcm_notification(ride.user, fcm_title, fcm_body, data_payload)
 
         return Response({
             "ride_id": ride.id,
@@ -549,6 +566,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
             "payment_status": payment_status,
             "message": "Payment successful and ride completed." if payment_status == 'completed' else "Payment recorded. Waiting for driver confirmation."
         }, status=status.HTTP_200_OK)
+
 
 
 
@@ -617,8 +635,7 @@ class RiderRideDetailAPIView(StandardResponseMixin,APIView):
         }, status=status.HTTP_200_OK)
     
 
-
-class RateDriverAPIView(StandardResponseMixin,APIView):
+class RateDriverAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -647,7 +664,7 @@ class RateDriverAPIView(StandardResponseMixin,APIView):
             return Response({"detail": "Invalid rating value."}, status=status.HTTP_400_BAD_REQUEST)
 
         # ✅ Create rating
-        DriverRating.objects.create(
+        driver_rating = DriverRating.objects.create(
             ride_request=ride,
             driver=ride.driver,
             rated_by=request.user,
@@ -655,8 +672,37 @@ class RateDriverAPIView(StandardResponseMixin,APIView):
             review=review
         )
 
-        return Response({"message": "Rating submitted successfully."}, status=status.HTTP_201_CREATED)
+        # 🔔 Send FCM Notifications
+        try:
+            # Notify Driver
+            send_fcm_notification(
+                user=ride.driver,
+                title="⭐ New Rating Received",
+                body=f"You have been rated {rating_value}/5 by {request.user.username or request.user.phone_number}.",
+                data={
+                    "ride_id": str(ride.id),
+                    "rating": str(rating_value),
+                    "review": review,
+                    "type": "driver_rating"
+                }
+            )
 
+            # Notify Rider (confirmation)
+            send_fcm_notification(
+                user=request.user,
+                title="✅ Rating Submitted",
+                body=f"You rated {ride.driver.username or ride.driver.phone_number} {rating_value}/5.",
+                data={
+                    "ride_id": str(ride.id),
+                    "rating": str(rating_value),
+                    "review": review,
+                    "type": "rating_confirmation"
+                }
+            )
+        except Exception as e:
+            print(f"[DEBUG] Failed to send FCM notification: {e}")
+
+        return Response({"message": "Rating submitted successfully."}, status=status.HTTP_201_CREATED)
 
 # ride history
 class RiderPastRideHistoryAPIView(APIView):
