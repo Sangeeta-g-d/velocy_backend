@@ -854,7 +854,12 @@ class RiderProfileView(APIView):
         Allows rider to update username, email and profile image.
         Phone number is read-only.
         """
+        print("🔹 PUT request received for RiderProfileView")
+        print("Request data:", request.data)
+        print("Current user:", request.user)
+
         if request.user.role != 'rider':
+            print("❌ User is not a rider")
             return Response({"error": "User is not a rider."}, status=403)
 
         serializer = RiderProfileSerializer(
@@ -865,10 +870,14 @@ class RiderProfileView(APIView):
         )
 
         if serializer.is_valid():
+            print("✅ Serializer valid, saving data...")
             serializer.save()
+            print("✅ Profile updated successfully")
             return Response(serializer.data, status=200)
 
+        print("❌ Serializer errors:", serializer.errors)
         return Response(serializer.errors, status=400)
+
 
 
 class RideReportListAPIView(APIView):
