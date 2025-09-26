@@ -870,7 +870,7 @@ class DriverRideEarningDetailAPIView(APIView):
             tip_amount = payment.tip_amount or 0
 
             # Cash rides → platform fee deferred
-            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
+            platform_fee = PlatformSetting.objects.filter(fee_reason="platform fees", is_active=True).first()
             fee_value = fee_type = None
             fee_amount = Decimal(0)
             if platform_fee:
@@ -896,7 +896,7 @@ class DriverRideEarningDetailAPIView(APIView):
 
         # ---------------- UPI / WALLET ----------------
         else:
-            platform_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
+            platform_fee = PlatformSetting.objects.filter(fee_reason="platform fees", is_active=True).first()
 
             fee_amount = Decimal(0)
             fee_type = fee_value = None

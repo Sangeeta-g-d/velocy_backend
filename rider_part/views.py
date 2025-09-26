@@ -457,7 +457,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
 
             # Add wallet credit for driver
             platform_fee = Decimal('0')
-            active_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
+            active_fee = PlatformSetting.objects.filter(fee_reason="platform fees", is_active=True).first()
             if active_fee:
                 if active_fee.fee_type == 'percentage':
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
@@ -483,7 +483,7 @@ class FinalizeRidePaymentAPIView(StandardResponseMixin, APIView):
         
             # ---- Platform Fee (deferred) ----
             platform_fee = Decimal('0')
-            active_fee = PlatformSetting.objects.filter(fee_reason="Platform Fees", is_active=True).first()
+            active_fee = PlatformSetting.objects.filter(fee_reason="platform fees", is_active=True).first()
             if active_fee:
                 if active_fee.fee_type == 'percentage':
                     platform_fee = (active_fee.fee_value / 100) * driver_earning
