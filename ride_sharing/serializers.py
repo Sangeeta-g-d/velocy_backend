@@ -614,3 +614,54 @@ class RatingSerializer(serializers.Serializer):
         min_value=Decimal('0.0'),  
         max_value=Decimal('5.0')   
     )
+
+class InProgressRideSerializer(serializers.ModelSerializer):
+    publisher = serializers.SerializerMethodField()
+    vehicle = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RideShareBooking
+        fields = [
+            "id",
+            "from_location",
+            "to_location",
+            "ride_date",
+            "ride_time",
+            "status",
+            "publisher",
+            "vehicle",
+        ]
+
+    def get_publisher(self, obj):
+        return {
+            "id": obj.user.id,
+            "name": obj.user.username,
+            "role": obj.user.role,
+            "profile": obj.user.profile.url if obj.user.profile else None,
+        }
+
+    def get_vehicle(self, obj):
+        user = obj.user
+        if user.role == "driver":
+            # Fetch from DriverVehicleInfo
+            try:
+                vehicle_info = user.vehicle_info
+                return {
+                    "vehicle_number": vehicle_info.vehicle_number,
+                    "vehicle_type": vehicle_info.vehicle_type.name if vehicle_info.vehicle_type else None,
+                    "year": vehicle_info.year,
+                    "car_company": vehicle_info.car_company,
+                    "car_model": vehicle_info.car_model,
+                }
+            except DriverVehicleInfo.DoesNotExist:
+                return None
+
+        elif user.role == "rider":
+            # Fetch from RideShareVehicle (publisher assigned vehicle)
+            if obj.vehicle:
+                return {
+                    "vehicle_number": obj.vehicle.vehicle_number,
+                    "model_name": obj.vehicle.model_name,
+                    "seat_capacity": obj.vehicle.seat_capacity,
+                }
+        return None

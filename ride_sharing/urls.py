@@ -32,4 +32,6 @@ urlpatterns = [
     path('rate-ride/<int:ride_join_request_id>/', RateRideAPIView.as_view(), name='rate-ride'),
 
     path('cancel-ride-join-request/<int:pk>/', CancelRideJoinRequestAPIView.as_view(), name='cancel-ride-join-request'),
+
+    path('inprogess-ride/',InProgressRideListAPIView.as_view(),name="inprogress-ride")
 ]

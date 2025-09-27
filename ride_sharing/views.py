@@ -1145,3 +1145,20 @@ class CancelRideJoinRequestAPIView(APIView):
         join_request.save()
 
         return Response({"status": True, "message": "Join request cancelled successfully."}, status=status.HTTP_200_OK)
+    
+
+class InProgressRidesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # ✅ Only rides that are in_progress and associated with this user
+        rides = RideShareBooking.objects.filter(
+            status="in_progress"
+        ).filter(
+            Q(user=user) | Q(join_requests__user=user)
+        ).distinct()
+
+        serializer = InProgressRideSerializer(rides, many=True, context={"request": request})
+        return Response(serializer.data)
