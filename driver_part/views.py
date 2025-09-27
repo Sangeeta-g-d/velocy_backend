@@ -356,7 +356,6 @@ class CancelRideAPIView(APIView):
         return Response({
             "message": "Ride cancelled successfully.",
             "cancellation_fee_applied": str(cancellation_fee_applied),
-            "past_cancellations": past_cancellations + 1
         }, status=200)
     
 
