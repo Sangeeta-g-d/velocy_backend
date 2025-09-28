@@ -85,12 +85,18 @@ class RentedVehicleUpdateAPIView(APIView):
                 except Exception as e:
                     continue  # optionally log
 
+            # ✅ Handle new images
+            new_images = request.FILES.getlist('new_images')
+            for image_file in new_images:
+                RentedVehicleImage.objects.create(vehicle=vehicle, image=image_file)
+
             return Response({
-                "message": "Vehicle and selected images updated successfully",
+                "message": "Vehicle updated successfully (including images)",
                 "vehicle": RentedVehicleUpdateSerializer(vehicle).data
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 # rented vehicle home screen 
 class ApprovedVehiclesListAPIView(APIView):
