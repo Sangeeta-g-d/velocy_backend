@@ -274,10 +274,18 @@ class RiderRideHistorySerializer(serializers.ModelSerializer):
 class RiderScheduledRideSerializer(serializers.ModelSerializer):
     scheduled_date = serializers.SerializerMethodField()
     scheduled_time = serializers.SerializerMethodField()
+    amount_paid = serializers.SerializerMethodField()
 
     class Meta:
         model = RideRequest
-        fields = ['id', 'from_location', 'to_location', 'scheduled_date', 'scheduled_time']
+        fields = [
+            'id',
+            'from_location',
+            'to_location',
+            'scheduled_date',
+            'scheduled_time',
+            'amount_paid',  # 👈 added
+        ]
 
     def get_scheduled_date(self, obj):
         if obj.scheduled_time:
@@ -290,6 +298,14 @@ class RiderScheduledRideSerializer(serializers.ModelSerializer):
             ist_time = obj.scheduled_time.astimezone(pytz.timezone("Asia/Kolkata"))
             return ist_time.strftime('%I:%M %p')
         return None
+
+    def get_amount_paid(self, obj):
+        if obj.status == "completed":
+            payment = getattr(obj, "payment_detail", None)
+            if payment:
+                return str(payment.grand_total)  # ✅ return actual amount paid
+            return "Payment detail missing"
+        return "Not yet completed"
 
 
 class RiderProfileSerializer(serializers.ModelSerializer):

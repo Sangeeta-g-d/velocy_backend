@@ -8,13 +8,21 @@ from datetime import timedelta
 def delete_unaccepted_ride(ride_id):
     try:
         ride = RideRequest.objects.get(id=ride_id)
-        # Only delete if still pending and no driver assigned
+
+        # 🚨 Skip deletion if it's a scheduled ride
+        if ride.ride_type == "scheduled":
+            return f"Ride {ride_id} is scheduled; not auto-deleted"
+
+        # ✅ Only delete if still pending, no driver assigned, and type is "now"
         if ride.status == "pending" and ride.driver is None:
             ride.delete()
             return f"Ride {ride_id} deleted after timeout"
+        
         return f"Ride {ride_id} was accepted before timeout"
+
     except RideRequest.DoesNotExist:
         return f"Ride {ride_id} already deleted"
+
 
 
 
