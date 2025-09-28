@@ -710,6 +710,8 @@ class RiderPastRideHistoryAPIView(APIView):
 
     def get(self, request):
         rider = request.user
+
+        # ✅ Completed & Cancelled rides
         rides = RideRequest.objects.filter(
             user=rider,
             status__in=['completed', 'cancelled']
@@ -725,12 +727,23 @@ class RiderPastRideHistoryAPIView(APIView):
             elif ride.status == 'cancelled':
                 cancelled_rides.append(serialized)
 
+        # ✅ Scheduled rides
+        scheduled_rides = RideRequest.objects.filter(
+            user=rider,
+            status='pending',
+            ride_type='scheduled'
+        ).order_by('scheduled_time')
+
+        scheduled_serializer = RiderScheduledRideSerializer(scheduled_rides, many=True)
+
         return Response({
             "status": True,
             "message": "Ride history fetched successfully.",
             "completed_rides": completed_rides,
-            "cancelled_rides": cancelled_rides
+            "cancelled_rides": cancelled_rides,
+            "scheduled_rides": scheduled_serializer.data  # 👈 added here
         }, status=status.HTTP_200_OK)
+
 
 
 class RiderScheduledRidesAPIView(APIView):
