@@ -35,6 +35,9 @@ urlpatterns = [
 
     path('inprogess-ride/',InProgressRidesAPIView.as_view(),name="inprogress-ride"),
 
-    path('shared-ride-payments/<int:join_request_id>/', SharedRidePaymentCreateAPIView.as_view(), name='shared-ride-payment-create'),
-    path('shared-ride-payments/acknowledge/<int:payment_id>/', DriverAcknowledgeCashAPIView.as_view(), name='shared-ride-cash-ack'),
+
+    path('verify-payment/<int:payment_id>/', RideShareCashVerifyAPIView.as_view(), name='ride-share-cash-verify'),
+    path('submit-payment/<int:ride_id>/', RideSharePaymentAPIView.as_view(), name='ride-share-pay'),
+
+  
 ]

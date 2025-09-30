@@ -29,7 +29,7 @@ class RideShareVehicleSerializer(serializers.ModelSerializer):
         ]
 
     def get_created_at(self, obj):
-        return convert_to_ist(obj.created_at)
+        return convert_to_ist(obj.created_at).strftime('%Y-%m-%d %H:%M:%S')
 
     def validate_vehicle_number(self, value):
         value = value.upper()
@@ -487,17 +487,23 @@ class RideJoinRequestDetailSerializer(serializers.ModelSerializer):
     def get_start_time(self, obj):
         ride = obj.ride
         if obj.segment:
-            from_stop = RideShareStop.objects.filter(ride_booking=ride, stop_location__icontains=obj.segment.from_stop).first()
-            if from_stop:
-                return from_stop.estimated_arrival_time.strftime('%H:%M:%S') if from_stop.estimated_arrival_time else None
+            from_stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__icontains=obj.segment.from_stop
+            ).first()
+            if from_stop and from_stop.estimated_arrival_time:
+                return from_stop.estimated_arrival_time.strftime('%H:%M:%S')
         return ride.ride_time.strftime('%H:%M:%S') if ride.ride_time else None
 
     def get_end_time(self, obj):
         ride = obj.ride
         if obj.segment:
-            to_stop = RideShareStop.objects.filter(ride_booking=ride, stop_location__icontains=obj.segment.to_stop).first()
-            if to_stop:
-                return to_stop.estimated_arrival_time.strftime('%H:%M:%S') if to_stop.estimated_arrival_time else None
+            to_stop = RideShareStop.objects.filter(
+                ride_booking=ride,
+                stop_location__icontains=obj.segment.to_stop
+            ).first()
+            if to_stop and to_stop.estimated_arrival_time:
+                return to_stop.estimated_arrival_time.strftime('%H:%M:%S')
         return ride.to_location_estimated_arrival_time.strftime('%H:%M:%S') if ride.to_location_estimated_arrival_time else None
 
     def get_duration(self, obj):
@@ -667,8 +673,11 @@ class InProgressRideSerializer(serializers.ModelSerializer):
         return None
 
 
+# payment
 class SharedRidePaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = SharedRidePayment
-        fields = ["id", "driver", "ride", "amount_paid", "transaction_id", "payment_method", "is_verified", "payment_time"]
-        read_only_fields = ["is_verified", "payment_time", "driver"]
+        fields = [
+            'id', 'ride', 'driver', 'amount_paid', 'transaction_id',
+            'payment_method', 'join_request'
+        ]

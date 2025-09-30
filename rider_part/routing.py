@@ -28,6 +28,5 @@ websocket_urlpatterns = [
 
 
     # shared ride payment 
-    re_path(r"ws/shared_ride/payment/$", SharedRidePaymentNotificationConsumer.as_asgi()),
-
+    re_path(r'ws/driver/(?P<driver_id>\d+)/$', SharedRideDriverConsumer.as_asgi()),
 ]
