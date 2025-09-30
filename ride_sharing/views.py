@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from .serializers import *
 from .tasks import calculate_segments_and_eta
 from .mixins import StandardResponseMixin
+from django.db import IntegrityError, transaction
 from rider_part.models import DriverWalletTransaction
 from admin_part.models import PlatformSetting
 from django.db.models import Sum
@@ -1141,31 +1142,30 @@ class RideSharePaymentAPIView(APIView):
                 )
 
             # Deduct pending fees if UPI
-            if payment_method == 'upi':
-                pending_fees = DriverPendingFee.objects.filter(driver=driver, settled=False).order_by('created_at')
-                total_pending = sum(fee.amount for fee in pending_fees)
-                deduct_amount = min(total_pending, float(amount))
-                for fee in pending_fees:
-                    if deduct_amount <= 0:
-                        break
-                    fee_to_deduct = min(fee.amount, deduct_amount)
-                    fee.amount -= fee_to_deduct
-                    deduct_amount -= fee_to_deduct
-                    if fee.amount <= 0:
-                        fee.settled = True
-                        fee.amount = 0
-                    fee.save()
+            try:
+                # Prevent duplicate UPI transaction
+                if payment_method == 'upi' and SharedRidePayment.objects.filter(transaction_id=transaction_id).exists():
+                    return Response(
+                        {"error": "This UPI transaction has already been submitted."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-            # Save the payment record
-            payment = SharedRidePayment.objects.create(
-                ride=ride,
-                driver=driver,
-                join_request=join_request,
-                amount_paid=amount,
-                payment_method=payment_method,
-                transaction_id=transaction_id,
-                is_verified=(payment_method == 'upi')
-            )
+                # Create payment record
+                payment = SharedRidePayment.objects.create(
+                    ride=ride,
+                    driver=driver,
+                    join_request=join_request,
+                    amount_paid=amount,
+                    payment_method=payment_method,
+                    transaction_id=transaction_id,
+                    is_verified=(payment_method == 'upi')
+                )
+
+            except IntegrityError:
+                return Response(
+                    {"error": "Payment already exists or transaction ID conflict."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Auto-accept join request if UPI
             if payment_method == 'upi':
