@@ -1089,31 +1089,50 @@ class RideSharePaymentAPIView(APIView):
         transaction_id = data.get('transaction_id', None)
 
         if not payment_method or not amount:
-            return Response({"error": "payment_method and amount_paid are required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "payment_method and amount_paid are required."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         if payment_method == 'upi' and not transaction_id:
-            return Response({"error": "transaction_id is required for UPI payments."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "transaction_id is required for UPI payments."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         try:
             ride = RideShareBooking.objects.get(id=ride_id)
             join_request = RideJoinRequest.objects.get(ride=ride, user=user)
-            driver = ride.vehicle.driver if hasattr(ride.vehicle, 'driver') else ride.vehicle.user
         except RideShareBooking.DoesNotExist:
             return Response({"error": "Ride not found."}, status=status.HTTP_404_NOT_FOUND)
         except RideJoinRequest.DoesNotExist:
-            return Response({"error": "Join request not found for this user."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Join request not found for this user."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # Fetch driver safely
+        driver = None
+        if ride.vehicle:
+            if hasattr(ride.vehicle, 'driver'):
+                driver = ride.vehicle.driver
+            elif hasattr(ride.vehicle, 'user'):
+                driver = ride.vehicle.user
+
+        if not driver:
+            # fallback: try DriverVehicleInfo mapping
+            try:
+                driver_vehicle = DriverVehicleInfo.objects.get(user=ride.user)
+                driver = driver_vehicle.user
+            except DriverVehicleInfo.DoesNotExist:
+                return Response({"error": "Driver not assigned for this ride."},
+                                status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # Platform fee
-            platform_fee_obj = PlatformSetting.objects.filter(fee_reason='platform fee', is_active=True).first()
+            # Platform fee calculation
             platform_fee_amount = 0
+            platform_fee_obj = PlatformSetting.objects.filter(fee_reason='platform fee', is_active=True).first()
             if platform_fee_obj:
                 if platform_fee_obj.fee_type == 'percentage':
                     platform_fee_amount = float(amount) * float(platform_fee_obj.fee_value) / 100
                 else:
                     platform_fee_amount = float(platform_fee_obj.fee_value)
 
-            # Add pending fee
+            # Add pending fee for driver
             if platform_fee_amount > 0:
                 DriverPendingFee.objects.create(
                     driver=driver,
@@ -1121,7 +1140,7 @@ class RideSharePaymentAPIView(APIView):
                     amount=platform_fee_amount
                 )
 
-            # Deduct any pending fees for UPI
+            # Deduct pending fees if UPI
             if payment_method == 'upi':
                 pending_fees = DriverPendingFee.objects.filter(driver=driver, settled=False).order_by('created_at')
                 total_pending = sum(fee.amount for fee in pending_fees)
@@ -1137,7 +1156,7 @@ class RideSharePaymentAPIView(APIView):
                         fee.amount = 0
                     fee.save()
 
-            # Save payment
+            # Save the payment record
             payment = SharedRidePayment.objects.create(
                 ride=ride,
                 driver=driver,
@@ -1153,7 +1172,7 @@ class RideSharePaymentAPIView(APIView):
                 join_request.status = 'accepted'
                 join_request.save()
 
-                # WebSocket notification
+                # Send WebSocket notification to driver
                 channel_layer = get_channel_layer()
                 async_to_sync(channel_layer.group_send)(
                     f'driver_{driver.id}',
@@ -1169,7 +1188,6 @@ class RideSharePaymentAPIView(APIView):
             "is_verified": payment.is_verified,
             "platform_fee": platform_fee_amount
         }, status=status.HTTP_201_CREATED)
-    
 
 class RideShareCashVerifyAPIView(APIView):
     """
