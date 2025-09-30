@@ -598,8 +598,7 @@ class GenerateRideOTPView(StandardResponseMixin,APIView):
         )
 
         return Response({"message": f"OTP {otp_code} sent to WebSocket."})
-
-class VerifyRideOTPView(StandardResponseMixin, APIView):
+class VerifyRideOTPView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
@@ -619,25 +618,26 @@ class VerifyRideOTPView(StandardResponseMixin, APIView):
         if otp_obj.code != otp_entered:
             return Response({"detail": "Invalid OTP"}, status=400)
 
-        # ✅ Mark OTP as verified and update ride status
+        # Mark OTP as verified and update ride status
         otp_obj.is_verified = True
         otp_obj.save()
         ride.status = 'accepted'
         ride.save()
 
-        # ---------------- WebSocket Notification ----------------
+        # WebSocket notification to rider
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f"rider_otp_{ride.user.id}",
             {
-                "type": "otp_verified",  # This triggers RiderOTPConsumer.otp_verified
+                "type": "otp_verified",
                 "message": f"Your ride {ride.id} has been verified and accepted by the driver.",
                 "ride_id": ride.id
             }
         )
 
         return Response({"message": "OTP verified"}, status=200)
-
+    
+    
 class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
 

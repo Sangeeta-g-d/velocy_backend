@@ -293,14 +293,17 @@ class RiderOTPConsumer(AsyncWebsocketConsumer):
         self.rider_id = self.scope['url_route']['kwargs']['rider_id']
         self.group_name = f"rider_otp_{self.rider_id}"
 
+        # Add connection to group
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+        print(f"✅ Rider {self.rider_id} connected to WebSocket")
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        print(f"❌ Rider {self.rider_id} disconnected from WebSocket")
 
     async def otp_verified(self, event):
-        # Forward event to the client in the requested format
+        # Forward event to client
         await self.notify_otp_verified(event)
 
     async def notify_otp_verified(self, event):
@@ -311,7 +314,6 @@ class RiderOTPConsumer(AsyncWebsocketConsumer):
             "ride_id": event.get("ride_id"),
             "message": event.get("message")
         })
-
 
 # shared ride tracking consumer
 class SharedRideTrackingConsumer(AsyncWebsocketConsumer):
