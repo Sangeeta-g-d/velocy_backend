@@ -1108,7 +1108,7 @@ class RideSharePaymentAPIView(APIView):
                             status=status.HTTP_404_NOT_FOUND)
 
         # fetch driver
-        driver = None
+        driver = ride.user
         if ride.vehicle and hasattr(ride.vehicle, "user"):
             driver = ride.vehicle.user
         if not driver:
