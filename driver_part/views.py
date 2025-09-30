@@ -598,6 +598,8 @@ class GenerateRideOTPView(StandardResponseMixin,APIView):
         )
 
         return Response({"message": f"OTP {otp_code} sent to WebSocket."})
+    
+    
 class VerifyRideOTPView(APIView):
     permission_classes = [IsAuthenticated]
 
