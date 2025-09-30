@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import RideShareVehicle,RideShareBooking,RideShareStop,RideShareRouteSegment,RideJoinRequest
+from .models import RideShareVehicle,RideShareBooking,RideShareStop,RideShareRouteSegment,RideJoinRequest,SharedRidePayment
 from ride_sharing.time_utils import convert_to_ist
 from pytz import timezone as pytz_timezone
 from datetime import datetime, timedelta
@@ -665,3 +665,10 @@ class InProgressRideSerializer(serializers.ModelSerializer):
                     "seat_capacity": obj.vehicle.seat_capacity,
                 }
         return None
+
+
+class SharedRidePaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SharedRidePayment
+        fields = ["id", "driver", "ride", "amount_paid", "transaction_id", "payment_method", "is_verified", "payment_time"]
+        read_only_fields = ["is_verified", "payment_time", "driver"]

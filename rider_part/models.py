@@ -196,14 +196,23 @@ class DriverWalletTransaction(models.Model):
 
 class DriverPendingFee(models.Model):
     driver = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pending_fees")
-    ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE)
+    ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE,null=True, blank=True)
+    shared_ride = models.ForeignKey('ride_sharing.RideShareBooking', on_delete=models.CASCADE, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     settled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         status = "Settled" if self.settled else "Pending"
-        return f"{self.driver} - Ride {self.ride.id} - Fee {self.amount} ({status})"
+    
+        if self.ride:
+            ride_info = f"Normal Ride {self.ride.id} ({self.ride.from_location} → {self.ride.to_location})"
+        elif self.shared_ride:
+            ride_info = f"Shared Ride {self.shared_ride.id} ({self.shared_ride.from_location} → {self.shared_ride.to_location})"
+        else:
+            ride_info = "Unknown Ride"
+    
+        return f"{self.driver} - {ride_info} - Fee ₹{self.amount} ({status})"
 
 class RideMessage(models.Model):
     ride = models.ForeignKey(RideRequest, on_delete=models.CASCADE)

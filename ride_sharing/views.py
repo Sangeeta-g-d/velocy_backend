@@ -954,98 +954,6 @@ class RidePaymentSummaryAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class DriverRidePaymentAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, join_request_id):
-        try:
-            join_request = RideJoinRequest.objects.select_related('ride', 'segment', 'ride__user').get(id=join_request_id)
-        except RideJoinRequest.DoesNotExist:
-            return Response({"status": False, "message": "Join request not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        ride = join_request.ride
-        driver = ride.user
-
-        if not driver or driver.role != 'driver':
-            return Response({"status": False, "message": "Invalid driver information."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Determine pricing
-        if join_request.segment:
-            price_per_seat = Decimal(join_request.segment.price)
-            from_location = join_request.segment.from_stop
-            to_location = join_request.segment.to_stop
-        else:
-            price_per_seat = Decimal(ride.price or 0)
-            from_location = ride.from_location
-            to_location = ride.to_location
-
-        seats = join_request.seats_requested or 1
-        total_price = (price_per_seat * seats).quantize(Decimal('1.'), rounding=ROUND_HALF_UP)
-
-        amount_paid = Decimal(request.data.get('amount_paid'))
-        transaction_id = request.data.get('transaction_id')
-        is_verified = request.data.get('is_verified', False)
-        payment_time = request.data.get('payment_time', timezone.now())
-
-        # Check transaction ID uniqueness
-        if SharedRideUPIPayment.objects.filter(transaction_id=transaction_id).exists():
-            return Response({"status": False, "message": "Transaction ID already exists."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Platform fee
-        platform_setting = PlatformSetting.objects.filter(is_active=True).first()
-        if platform_setting:
-            if platform_setting.fee_type == 'percentage':
-                platform_fee = (amount_paid * platform_setting.fee_value / 100).quantize(Decimal('1.00'))
-            else:
-                platform_fee = platform_setting.fee_value
-        else:
-            platform_fee = Decimal('0.00')
-
-        driver_earning = (amount_paid - platform_fee).quantize(Decimal('1.00'))
-
-        try:
-            with transaction.atomic():
-                # Create UPI payment
-                SharedRideUPIPayment.objects.create(
-                    driver=driver,
-                    ride=ride,
-                    amount_paid=amount_paid,
-                    transaction_id=transaction_id,
-                    payment_time=payment_time,
-                    is_verified=is_verified
-                )
-
-                # Create wallet transaction
-                DriverWalletTransaction.objects.create(
-                driver=driver,
-                shared_join_ride=join_request,  # ✅ assign here
-                amount=driver_earning,
-                transaction_type='Car pooling',
-                description=f"Earning from carpool ride from {from_location} to {to_location} for {seats} seat(s)"
-            )
-        except Exception as e:
-            return Response({"status": False, "message": f"Transaction failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        return Response({
-            "status": True,
-            "message": "Driver payment recorded successfully.",
-            "data": {
-                "ride_id": ride.id,
-                "from": from_location,
-                "to": to_location,
-                "seats_requested": seats,
-                "price_per_seat": int(round(price_per_seat)),
-                "total_price": int(round(total_price)),
-                "amount_paid": float(amount_paid),
-                "platform_fee": float(platform_fee),
-                "driver_earning": float(driver_earning),
-                "transaction_id": transaction_id,
-                "is_verified": is_verified
-            }
-        }, status=status.HTTP_201_CREATED)
-
-
 class CompleteRideShareBookingAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1162,3 +1070,164 @@ class InProgressRidesAPIView(APIView):
 
         serializer = InProgressRideSerializer(rides, many=True, context={"request": request})
         return Response(serializer.data)
+
+
+
+# payment
+
+class SharedRidePaymentCreateAPIView(APIView):
+    """
+    Joiner posts payment info here. Handles both UPI and Cash.
+    - For UPI with transaction_id: mark verified and credit driver (after pending fee settlement).
+    - For Cash: create pending payment and notify driver to acknowledge.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, join_request_id):
+        # ensure join_request belongs to this user
+        join_request = get_object_or_404(RideJoinRequest.objects.select_related("ride", "ride__user"), id=join_request_id, user=request.user)
+        ride = join_request.ride
+        driver = ride.user
+
+        amount_paid = request.data.get("amount_paid")
+        payment_method = request.data.get("payment_method", "upi").lower()
+        transaction_id = request.data.get("transaction_id")
+
+        if amount_paid is None:
+            return Response({"status": False, "message": "amount_paid is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        amount_paid = Decimal(str(amount_paid)).quantize(Decimal("1.00"), rounding=ROUND_HALF_UP)
+
+        # Create SharedRidePayment record
+        payment = SharedRidePayment.objects.create(
+            driver=driver,
+            ride=ride,
+            amount_paid=amount_paid,
+            transaction_id=transaction_id if transaction_id else None,
+            payment_method=payment_method,
+            is_verified=False
+        )
+
+        if payment_method == "cash":
+            # Notify driver to acknowledge cash
+            notify_user(driver.id, "cash_payment_submitted", {
+                "payment_id": payment.id,
+                "join_request_id": join_request.id,
+                "ride_id": ride.id,
+                "amount": float(amount_paid),
+                "from": getattr(ride, "from_location", None),
+                "to": getattr(ride, "to_location", None),
+                "message": "Cash payment submitted by joiner. Please acknowledge if cash received."
+            })
+            return Response({"status": True, "message": "Cash payment recorded. Waiting for driver acknowledgement.", "payment_id": payment.id}, status=status.HTTP_201_CREATED)
+
+        # UPI flow
+        if payment_method == "upi":
+            if not transaction_id:
+                # We'll still accept a UPI payment without txn id but leave it unverified
+                return Response({"status": False, "message": "Transaction id is required for UPI payments to auto-verify."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # ensure transaction unique
+            if SharedRidePayment.objects.filter(transaction_id=transaction_id).exists():
+                return Response({"status": False, "message": "Transaction ID already used."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Now mark as verified and settle pending fees, then compute platform fee for this payment and credit driver
+            payment.is_verified = True
+            payment.save(update_fields=["is_verified", "transaction_id"])
+
+            # 1) First settle any existing pending fees using incoming amount
+            remaining_after_settlement = settle_pending_fees(driver, amount_paid)
+
+            # 2) Apply platform fee on the remaining_after_settlement
+            platform_fee = get_platform_fee_for_amount(remaining_after_settlement)
+            driver_earning = (remaining_after_settlement - platform_fee).quantize(Decimal("1.00"), rounding=ROUND_HALF_UP)
+            if driver_earning < Decimal("0.00"):
+                driver_earning = Decimal("0.00")
+
+            # 3) Create a wallet transaction for the driver
+            DriverWalletTransaction.objects.create(
+                driver=driver,
+                shared_join_ride=join_request,
+                amount=driver_earning,
+                transaction_type="Car pooling",
+                description=f"Earning from shared ride {ride.id} for join request {join_request.id}"
+            )
+
+            # 4) Notify driver & joiner via websocket
+            notify_user(driver.id, "upi_payment_verified", {
+                "payment_id": payment.id,
+                "ride_id": ride.id,
+                "join_request_id": join_request.id,
+                "amount_paid": float(amount_paid),
+                "driver_earning": float(driver_earning),
+                "platform_fee": float(platform_fee)
+            })
+            notify_user(request.user.id, "upi_payment_submitted_and_verified", {
+                "payment_id": payment.id,
+                "ride_id": ride.id,
+                "amount_paid": float(amount_paid),
+                "message": "UPI payment received and verified."
+            })
+
+            return Response({
+                "status": True,
+                "message": "UPI payment recorded and verified. Driver credited after settling pending fees.",
+                "payment_id": payment.id,
+                "driver_earning": float(driver_earning),
+                "platform_fee": float(platform_fee)
+            }, status=status.HTTP_201_CREATED)
+
+        return Response({"status": False, "message": "Unsupported payment_method."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DriverAcknowledgeCashAPIView(APIView):
+    """
+    Driver acknowledges that they received cash for a join request.
+    On acknowledgement, we create a DriverPendingFee for the platform fee (driver keeps cash),
+    and mark the SharedRidePayment as verified/acknowledged.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, payment_id):
+        payment = get_object_or_404(SharedRidePayment.objects.select_related("driver", "ride"), id=payment_id)
+
+        # Only driver of the ride can acknowledge
+        if request.user != payment.driver:
+            return Response({"status": False, "message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+
+        if payment.payment_method != "cash":
+            return Response({"status": False, "message": "Payment is not cash."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if payment.is_verified:
+            return Response({"status": False, "message": "Payment already acknowledged."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate platform fee and create pending fee for this shared ride
+        platform_fee = get_platform_fee_for_amount(payment.amount_paid)
+        DriverPendingFee.objects.create(
+            driver=payment.driver,
+            shared_ride=payment.ride,
+            amount=platform_fee,
+            settled=False
+        )
+
+        # Mark payment verified/acknowledged
+        payment.is_verified = True
+        payment.save(update_fields=["is_verified"])
+
+        # Notify the joiner that driver acknowledged cash
+        # Need to find the join_request(s) matching ride and joiner - best to pass join_request_id when creating payment at earlier step
+        notify_user(payment.ride.user.id, "cash_acknowledged_driver", {
+            "payment_id": payment.id,
+            "ride_id": payment.ride.id,
+            "amount": float(payment.amount_paid),
+            "platform_fee": float(platform_fee),
+            "message": "Driver acknowledged cash payment."
+        })
+
+        # If you want to notify the joiner (payment submitter), use their user id; we didn't store joiner in payment model,
+        # So ideally payment creation included join_request_id so you can fetch join_request.user here
+        # Example if you included: join_request = payment.join_request; notify_user(join_request.user.id, ...)
+
+        return Response({"status": True, "message": "Cash acknowledged and pending platform fee created.", "platform_fee": float(platform_fee)}, status=status.HTTP_200_OK)

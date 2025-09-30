@@ -25,4 +25,9 @@ websocket_urlpatterns = [
     # ride cancellation
     re_path(r'ws/ride-cancellation/(?P<ride_id>\d+)/$', RideCancellationConsumer.as_asgi()),
 
+
+
+    # shared ride payment 
+    re_path(r"ws/shared_ride/payment/$", SharedRidePaymentNotificationConsumer.as_asgi()),
+
 ]

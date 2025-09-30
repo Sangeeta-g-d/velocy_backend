@@ -124,7 +124,6 @@ class PhoneOTP(models.Model):
         return timezone.now() > self.created_at + timedelta(minutes=2)
 
 
-
 class DriverVehicleInfo(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='vehicle_info')
 

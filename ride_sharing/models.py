@@ -157,17 +157,23 @@ class RideJoinRequest(models.Model):
             return f"{self.user.username} → Ride {self.ride.id} [{self.segment.from_stop} → {self.segment.to_stop}]"
         return f"{self.user.username} → Ride {self.ride.id} (Direct Ride)"
 
+class SharedRidePayment(models.Model):
+    PAYMENT_METHOD_CHOICES = (
+        ('upi', 'UPI'),
+        ('cash', 'Cash'),
+    )
 
-class SharedRideUPIPayment(models.Model):
     driver = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'role': 'driver'})
     ride = models.ForeignKey(RideShareBooking, on_delete=models.CASCADE)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
-    transaction_id = models.CharField(max_length=100, unique=True)
+    transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True)  # only for UPI
     payment_time = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
+    payment_method = models.CharField(max_length=10, choices=PAYMENT_METHOD_CHOICES, default='upi')
+    join_request = models.ForeignKey(RideJoinRequest, on_delete=models.CASCADE, related_name='payments',null=True, blank=True)
 
     def __str__(self):
-        return f"UPI Payment of ₹{self.amount_paid} by {self.driver.username} for Ride {self.ride.id}"
+        return f"{self.payment_method.upper()} Payment ₹{self.amount_paid} for Ride {self.ride.id}"
 
 
 class RiderRating(models.Model):
