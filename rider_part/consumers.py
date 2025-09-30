@@ -286,130 +286,32 @@ class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
             'message': event['message'],
         }))
 
+# verify otp
 
-# class RideAcceptanceConsumer(AsyncJsonWebsocketConsumer):
-#     async def connect(self):
-#         try:
-#             user = self.scope.get("user")
+class RiderOTPConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.rider_id = self.scope['url_route']['kwargs']['rider_id']
+        self.group_name = f"rider_otp_{self.rider_id}"
 
-#             if not user or not user.is_authenticated:
-#                 user_id = self.scope['url_route']['kwargs'].get('user_id')
-#                 if user_id:
-#                     user = await self.get_user(user_id)
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
 
-#             if user and user.is_authenticated:
-#                 self.user_id = str(user.id)
-#                 self.group_name = f"user_{self.user_id}"
-#                 await self.channel_layer.group_add(self.group_name, self.channel_name)
-#                 await self.accept()
-#                 print(f"✅ WebSocket connected: user_{self.user_id}")
-#             else:
-#                 print("❌ Unauthorized WebSocket attempt")
-#                 await self.close(code=4003)
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-#         except Exception as e:
-#             print(f"❌ Error in connect(): {e}")
-#             await self.close(code=4002)
+    async def otp_verified(self, event):
+        # Forward event to the client in the requested format
+        await self.notify_otp_verified(event)
 
-#     @database_sync_to_async
-#     def get_user(self, user_id):
-#         try:
-#             return CustomUser.objects.get(id=user_id)
-#         except CustomUser.DoesNotExist:
-#             return None
+    async def notify_otp_verified(self, event):
+        """Notify the client that OTP has been verified"""
+        print(f"📢 [EVENT notify_otp_verified] {event}")
+        await self.send_json({
+            "type": "notify_otp_verified",
+            "ride_id": event.get("ride_id"),
+            "message": event.get("message")
+        })
 
-#     async def disconnect(self, close_code):
-#         if hasattr(self, 'group_name'):
-#             await self.channel_layer.group_discard(self.group_name, self.channel_name)
-#         print(f"WebSocket disconnected with code: {close_code}")
-
-#     async def receive_json(self, content):
-#         try:
-#             message_type = content.get('type')
-            
-#             if message_type == 'ping':
-#                 await self.send_json({'type': 'pong', 'timestamp': content.get('timestamp')})
-#             else:
-#                 print(f"Received unknown message type: {message_type}")
-                
-#         except Exception as e:
-#             print(f"Error processing message: {e}")
-
-#     @database_sync_to_async
-#     def get_driver_details(self, driver_id):
-#         driver = CustomUser.objects.filter(id=driver_id, role='driver').first()
-#         if not driver:
-#             return None
-    
-#         vehicle_info = getattr(driver, 'vehicle_info', None)
-    
-#         return {
-#             'driver_name': driver.username or f"Driver {driver.phone_number[-4:]}",
-#             'driver_phone': driver.phone_number,
-#             'vehicle_model': getattr(vehicle_info, 'car_model', 'Car'),
-#             'vehicle_number': getattr(vehicle_info, 'vehicle_number', 'NA'),
-#             'vehicle_type': getattr(vehicle_info, 'vehicle_type', 'Unknown'),
-#             'car_company': getattr(vehicle_info, 'car_company', ''),
-#             'year': getattr(vehicle_info, 'year', None),
-#         }
-        
-#     async def ride_accepted(self, event):
-#         driver_details = await self.get_driver_details(event['driver_id'])
-#         if driver_details:
-#             await self.send_json({
-#                 "type": "ride_accepted",
-#                 "ride_id": event["ride_id"],
-#                 "message": event["message"],
-#                 "driver_id": event["driver_id"],
-#                 **driver_details
-#             })
-#         else:
-#             await self.send_json({
-#                 "type": "ride_accepted",
-#                 "ride_id": event["ride_id"],
-#                 "message": "Driver assigned but details unavailable",
-#                 "driver_id": event["driver_id"],
-#                 "driver_name": "Unknown Driver",
-#             })
-
-#     async def ride_cancelled(self, event):
-#         try:
-#             await self.send_json({
-#                 "type": "ride_cancelled",
-#                 "ride_id": event["ride_id"],
-#                 "message": event["message"],
-#                 "reason": event.get("reason", "No reason provided"),
-#                 "driver_name": event.get("driver_name", "Unknown driver"),
-#                 "driver_id": event.get("driver_id")
-#             })
-#         except Exception as e:
-#             print(f"Error sending ride_cancelled: {e}")
-
-#     async def ride_cancelled_by_user(self, event):
-#         try:
-#             await self.send_json({
-#                 "type": "ride_cancelled_by_user",
-#                 "ride_id": event["ride_id"],
-#                 "message": event["message"],
-#                 "user_name": event["user_name"],
-#                 "user_id": event["user_id"],
-#                 "timestamp": event.get("timestamp")
-#             })
-#         except Exception as e:
-#             print(f"Error sending ride_cancelled_by_user: {e}")
-
-    
-#     async def driver_location_update(self, event):
-#         try:
-#             await self.send_json({
-#                 "type": "driver_location",
-#                 "ride_id": event["ride_id"],
-#                 "latitude": event["latitude"],
-#                 "longitude": event["longitude"],
-#                 "timestamp": event["timestamp"]
-#             })
-#         except Exception as e:
-#             print(f"Error sending driver_location_update: {e}")
 
 # shared ride tracking consumer
 class SharedRideTrackingConsumer(AsyncWebsocketConsumer):

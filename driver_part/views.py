@@ -619,20 +619,20 @@ class VerifyRideOTPView(StandardResponseMixin, APIView):
         if otp_obj.code != otp_entered:
             return Response({"detail": "Invalid OTP"}, status=400)
 
-        # ✅ update
+        # ✅ Mark OTP as verified and update ride status
         otp_obj.is_verified = True
         otp_obj.save()
         ride.status = 'accepted'
         ride.save()
 
-        # ✅ send websocket notification
+        # ---------------- WebSocket Notification ----------------
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            f"ride_{ride.id}",
+            f"rider_otp_{ride.user.id}",
             {
-                "type": "notify_otp_verified",  # must match the method name in consumer
-                "ride_id": ride.id,
-                "message": "OTP has been verified by the driver."
+                "type": "otp_verified",  # This triggers RiderOTPConsumer.otp_verified
+                "message": f"Your ride {ride.id} has been verified and accepted by the driver.",
+                "ride_id": ride.id
             }
         )
 

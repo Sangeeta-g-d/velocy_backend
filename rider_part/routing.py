@@ -7,6 +7,7 @@ websocket_urlpatterns = [
     # driver arrival notification
     re_path(r'ws/driver_arrival/(?P<ride_id>\d+)/$', RideRequestConsumer.as_asgi()),
     re_path(r'ws/rider/otp/(?P<ride_id>\d+)/$', RideNotificationConsumer.as_asgi()),
+    re_path(r'ws/verify/otp/(?P<rider_id>\d+)/$', RiderOTPConsumer.as_asgi()),
     re_path(r'ws/chat/(?P<ride_id>\w+)/$', ChatConsumer.as_asgi()),
     re_path(r'ws/payment/status/(?P<ride_type>normal|shared)/(?P<ride_id>\d+)/$', RidePaymentStatusConsumer.as_asgi()),
     # re_path(r'^ws/rider/notifications/(?P<user_id>\d+)/$', RideAcceptanceConsumer.as_asgi()),
