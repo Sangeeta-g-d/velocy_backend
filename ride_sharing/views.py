@@ -1117,7 +1117,7 @@ class RideSharePaymentAPIView(APIView):
         with transaction.atomic():
             # Platform fee calculation
             platform_fee_amount = 0
-            fee_obj = PlatformSetting.objects.filter(fee_reason="platform fee", is_active=True).first()
+            fee_obj = PlatformSetting.objects.filter(fee_reason="platform fees", is_active=True).first()
             if fee_obj:
                 if fee_obj.fee_type == "percentage":
                     platform_fee_amount = (amount * float(fee_obj.fee_value)) / 100
