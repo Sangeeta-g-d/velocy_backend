@@ -10,7 +10,7 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from django.urls import re_path
 from rider_part.middleware import JWTAuthMiddleware
 from rider_part.routing import websocket_urlpatterns as rider_ws
-from rider_part.consumers import ChatConsumer, RidePaymentStatusConsumer,RideTrackingConsumer
+from rider_part.consumers import ChatConsumer, RidePaymentStatusConsumer,RideTrackingConsumer,RideOTPConsumer
 from support.routing import websocket_urlpatterns as support_ws
 
 application = ProtocolTypeRouter({
@@ -24,6 +24,10 @@ application = ProtocolTypeRouter({
         re_path(
             r'^ws/payment/status/(?P<ride_type>normal|shared)/(?P<ride_id>\d+)/$',
             JWTAuthMiddleware(RidePaymentStatusConsumer.as_asgi())
+        ),
+        re_path(
+            r'^ws/verify/otp/(?P<ride_id>\d+)/$',
+            JWTAuthMiddleware(RideOTPConsumer.as_asgi())
         ),
         # Include other rider routes (apply middleware to them individually if needed)
         *rider_ws,
