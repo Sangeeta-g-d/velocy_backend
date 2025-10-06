@@ -287,8 +287,7 @@ class RidePaymentStatusConsumer(AsyncWebsocketConsumer):
         }))
 
 # verify otp
-
-class RideOTPConsumer(AsyncWebsocketConsumer):
+class RideOTPConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.group_name = f"ride_otp_{self.ride_id}"
@@ -296,14 +295,12 @@ class RideOTPConsumer(AsyncWebsocketConsumer):
         await self.accept()
         print(f"✅ Connected to Ride OTP Channel: {self.group_name}")
 
-        # Add this connection to the ride-specific group
         await self.channel_layer.group_add(self.group_name, self.channel_name)
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
         print(f"❌ Disconnected from Ride OTP Channel: {self.group_name}")
 
-    # Handler for OTP verification event
     async def otp_verified(self, event):
         await self.send_json({
             "type": "notify_otp_verified",
