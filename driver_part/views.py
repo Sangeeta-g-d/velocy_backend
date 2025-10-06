@@ -599,15 +599,15 @@ class GenerateRideOTPView(StandardResponseMixin,APIView):
 
         return Response({"message": f"OTP {otp_code} sent to WebSocket."})
     
-    
 class VerifyRideOTPView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
         otp_entered = request.data.get("otp")
+
         try:
             ride = RideRequest.objects.get(id=ride_id, driver=request.user)
-            otp_obj = ride.otp
+            otp_obj = ride.otp  # assuming OneToOne relation: RideRequest → RideOTP
         except (RideRequest.DoesNotExist, RideOTP.DoesNotExist):
             return Response({"detail": "Ride or OTP not found"}, status=404)
 
@@ -620,24 +620,25 @@ class VerifyRideOTPView(APIView):
         if otp_obj.code != otp_entered:
             return Response({"detail": "Invalid OTP"}, status=400)
 
-        # Mark OTP as verified and update ride status
+        # ✅ Mark OTP verified and accept the ride
         otp_obj.is_verified = True
         otp_obj.save()
+
         ride.status = 'accepted'
         ride.save()
 
-        # WebSocket notification to rider
+        # ✅ Notify both rider & driver listening on this ride
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            f"rider_otp_{ride.user.id}",
+            f"ride_otp_{ride.id}",  # group based on ride ID
             {
                 "type": "otp_verified",
-                "message": f"Your ride {ride.id} has been verified and accepted by the driver.",
+                "message": f"OTP verified for ride {ride.id}. Driver has accepted the ride.",
                 "ride_id": ride.id
             }
         )
 
-        return Response({"message": "OTP verified"}, status=200)
+        return Response({"message": "OTP verified successfully"}, status=200)
     
     
 class RideSummaryForDriverAPIView(StandardResponseMixin, APIView):
