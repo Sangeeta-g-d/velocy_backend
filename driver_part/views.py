@@ -631,11 +631,6 @@ class VerifyRideOTPView(APIView):
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f"ride_otp_{ride.id}",  # group based on ride ID
-            {
-                "type": "otp_verified",
-                "message": f"OTP verified for ride {ride.id}. Driver has accepted the ride.",
-                "ride_id": ride.id
-            }
         )
 
         return Response({"message": "OTP verified successfully"}, status=200)
