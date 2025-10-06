@@ -171,14 +171,6 @@ class RideNotificationConsumer(AsyncJsonWebsocketConsumer):
             "otp": event["otp"]
         })
 
-    async def notify_otp_verified(self, event):
-        """Notify the client that OTP has been verified"""
-        print(f"📢 [EVENT notify_otp_verified] {event}")
-        await self.send_json({
-            "type": "notify_otp_verified",
-            "ride_id": self.ride_id,
-            "message": event["message"]
-        })
 
 
 
